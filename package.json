@@ -1,7 +1,7 @@
 {
   "name": "bloop-site",
   "version": "0.1.0",
-  "description": "Bloop - The future of AI-powered development",
+  "description": "Bloop Site - Technical repository for the Bloop platform (backend, APIs, and full-stack implementation)",
   "author": "Bloop Team <bloopcode@proton.me>",
   "license": "MIT",
   "homepage": "https://github.com/BloopTeam/Bloop-Site",
@@ -13,6 +13,7 @@
     "url": "https://github.com/BloopTeam/Bloop-Site/issues"
   },
   "keywords": [
+    "bloop",
     "ide",
     "code-editor",
     "ai-assistant",
@@ -20,6 +21,9 @@
     "typescript",
     "react",
     "vite",
+    "backend",
+    "api",
+    "full-stack",
     "syntax-highlighting",
     "code-analysis"
   ],

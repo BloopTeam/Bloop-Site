@@ -1,20 +1,39 @@
-# Bloop Site
+# Bloop Site - Tech Repository
 
 <p align="center">
   <img src="public/bloop-header.png" alt="Bloop" width="100%" />
 </p>
 
 <p align="center">
-  <strong>The future of AI-powered development.</strong>
+  <strong>The technical foundation for Bloop's AI-powered development platform.</strong>
 </p>
 
 <p align="center">
-  <a href="#features">Features</a> •
-  <a href="#why-bloop">Why Bloop</a> •
+  <a href="#about-this-repo">About This Repo</a> •
   <a href="#getting-started">Getting Started</a> •
-  <a href="#security">Security</a> •
-  <a href="#the-vision">The Vision</a>
+  <a href="#architecture">Architecture</a> •
+  <a href="#tech-stack">Tech Stack</a> •
+  <a href="#security">Security</a>
 </p>
+
+---
+
+## About This Repository
+
+This is the **technical/backend repository** for the Bloop website and application. This repository contains:
+
+- **Frontend UI** - The complete user interface (included here as it's needed for the site)
+- **Backend Infrastructure** - API services, server-side logic, and technical implementations
+- **Site Architecture** - The full-stack implementation for the Bloop platform
+
+> **Note:** This repository is separate from the [Bloop UI](https://github.com/BloopTeam/Bloop-UI) repository, which focuses solely on the UI component library and design system. The UI repo remains untouched and continues to serve as the standalone UI reference.
+
+### Repository Structure
+
+- `src/` - Source code including UI components and backend services
+- `public/` - Static assets and public files
+- Backend services and API implementations (to be developed)
+- Infrastructure and deployment configurations
 
 ---
 
@@ -22,59 +41,7 @@
 
 Bloop is not just another code editor—it's a complete reimagining of how developers interact with AI to build software. Every pixel, every interaction, and every feature has been designed from the ground up to create the most intuitive, powerful, and secure coding experience ever made.
 
-This repository contains the codebase for the Bloop website and application. This is the interface that developers deserve. This is Bloop.
-
----
-
-## Features
-
-### Beautiful by Default
-- Stunning dark theme with signature magenta accents
-- Clean, distraction-free interface
-- Pixel-perfect design at every scale
-
-### AI-First Architecture
-- Integrated AI assistant panel
-- Context-aware suggestions with `@` mentions
-- Slash commands for instant actions (`/edit`, `/fix`, `/explain`)
-- Multiple AI model support with intelligent routing
-
-### Built for Speed
-- Lightning-fast navigation
-- Keyboard-first workflow with command palette
-- Resizable panels with persistent layouts
-- Instant file switching with zero lag
-
-### Developer Experience
-- Full-featured file explorer with context menus
-- Integrated terminal with command history
-- Source control integration with change tracking
-- Extensions marketplace
-- Real-time notifications
-- Draggable tab management
-
-### Thoughtful Details
-- Breadcrumb navigation
-- Advanced syntax highlighting
-- Line numbers with breakpoint support
-- Modified file indicators
-- Intelligent search across files
-
----
-
-## Why Bloop?
-
-The tools developers use should be as innovative as the software they build. Current IDEs are bloated, slow, and weren't designed for the AI era.
-
-**Bloop is different.**
-
-We started from scratch, asking one question: *What would the perfect AI-powered development environment look like?*
-
-The answer is an interface that:
-- **Gets out of your way** — Clean, minimal, focused
-- **Understands context** — AI that knows your codebase
-- **Feels instant** — No lag, no loading, no waiting
-- **Stays secure** — Built with security at its core
+This repository houses the technical implementation that powers the Bloop platform, including both the user interface and the backend services that make it all work.
 
 ---
 
@@ -145,52 +112,85 @@ npm run preview
 
 ## Architecture
 
+This repository follows a full-stack architecture:
+
 ```
 src/
-├── components/          # React components
+├── components/          # React UI components
 │   ├── AssistantPanel   # AI assistant interface
 │   ├── EditorArea       # Code editor with tabs
 │   ├── LeftSidebar      # Navigation and file explorer
 │   ├── MenuBar          # Top navigation with dropdowns
 │   ├── TerminalPanel    # Integrated terminal
 │   └── ...
+├── config/              # Configuration files
+├── hooks/               # React hooks
+├── utils/               # Utility functions and services
+│   ├── codeAnalyzer.ts  # Code analysis utilities
+│   ├── fileSystem.ts    # File system operations
+│   ├── gitUtils.ts      # Git integration
+│   └── security.ts      # Security utilities
 ├── App.tsx              # Root component
 ├── main.tsx             # Application entry point
 └── index.css            # Global styles
+
+# Backend services (to be developed)
+├── api/                 # API routes and endpoints
+├── services/            # Business logic services
+└── infrastructure/      # Deployment and infrastructure configs
 ```
 
----
+### Development Focus
 
-## The Vision
-
-Bloop is here to change the game.
-
-We're not building an incremental improvement. We're building the development environment that will define the next decade of software engineering.
-
-The future of coding is:
-- **Intelligent** — AI that understands, not just autocompletes
-- **Fast** — Milliseconds matter
-- **Secure** — Trust is earned, not assumed
-- **Beautiful** — Because craft matters
-
-**This is just the beginning.**
+This repository is where we build:
+- **Backend APIs** - RESTful and GraphQL endpoints
+- **Server-side Services** - Business logic and data processing
+- **Infrastructure** - Deployment configurations, CI/CD pipelines
+- **Integration Layer** - Connecting UI with backend services
+- **Performance Optimization** - Caching, CDN, and optimization strategies
 
 ---
 
 ## Tech Stack
 
+### Frontend
 | Technology | Purpose |
 |------------|---------|
 | React 18 | Component architecture |
 | TypeScript | Type-safe development |
-| Vite | Build tooling |
-| Lucide | Iconography |
+| Vite | Build tooling and dev server |
+| Tailwind CSS | Styling and design system |
+| Lucide React | Iconography |
+
+### Backend (Planned)
+- API framework (to be determined)
+- Database and data layer
+- Authentication and authorization
+- Real-time communication
+- AI/ML service integration
+
+### Infrastructure
+- Vercel (deployment platform)
+- CI/CD pipelines
+- Monitoring and analytics
+
+---
+
+## Development Workflow
+
+This repository is actively developed for the Bloop platform. When working on this codebase:
+
+1. **UI Changes** - UI components are included here for the site, but major UI design work should be coordinated with the [Bloop UI](https://github.com/BloopTeam/Bloop-UI) repository
+2. **Backend Development** - All backend, API, and infrastructure work happens here
+3. **Integration** - This is where UI and backend come together
 
 ---
 
 ## Contributing
 
 We welcome contributions from developers who share our vision. Please read our contributing guidelines and code of conduct before submitting pull requests.
+
+**Note:** For UI/design contributions, please also check the [Bloop UI](https://github.com/BloopTeam/Bloop-UI) repository.
 
 ---
 
