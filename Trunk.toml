@@ -1,0 +1,13 @@
+[build]
+target = "index.html"
+dist = "dist"
+public_dir = "public"
+
+[watch]
+watch = ["src", "index.html"]
+ignore = ["dist", "target", "node_modules"]
+
+[serve]
+address = "127.0.0.1"
+port = 5173
+open = true

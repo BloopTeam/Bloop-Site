@@ -20,20 +20,33 @@
 
 ## About This Repository
 
-This is the **technical/backend repository** for the Bloop website and application. This repository contains:
+This is the **full-stack technical repository** for the Bloop platform. This repository contains:
 
-- **Frontend UI** - The complete user interface (included here as it's needed for the site)
-- **Backend Infrastructure** - API services, server-side logic, and technical implementations
-- **Site Architecture** - The full-stack implementation for the Bloop platform
+- **Frontend UI** - React/TypeScript application (UI components from Bloop-UI)
+- **Backend Infrastructure** - **75%+ Rust backend** with Node.js/TypeScript fallback
+- **AI Services** - High-performance AI integrations and agent orchestration
+- **Site Architecture** - Complete full-stack implementation
 
-> **Note:** This repository is separate from the [Bloop UI](https://github.com/BloopTeam/Bloop-UI) repository, which focuses solely on the UI component library and design system. The UI repo remains untouched and continues to serve as the standalone UI reference.
+> **Note:** This repository is separate from the [Bloop UI](https://github.com/BloopTeam/Bloop-UI) repository, which contains **only** UI components. The UI repo is pure frontend with no backend code.
+
+### Architecture Overview
+
+**Backend: 75%+ Rust, 25% Node.js**
+- **Rust (`backend/`)** - Primary backend (AI services, agent orchestration, code analysis)
+- **Node.js (`server/`)** - Development fallback and API gateway
+- **Frontend (`src/`)** - React UI components
 
 ### Repository Structure
 
-- `src/` - Source code including UI components and backend services
-- `public/` - Static assets and public files
-- Backend services and API implementations (to be developed)
-- Infrastructure and deployment configurations
+```
+Bloop-Site/
+├── src/              # Frontend React app (UI components)
+├── backend/          # Rust backend (75%+ of backend code)
+│   └── src/         # Rust source code
+├── server/           # Node.js backend (fallback/development)
+│   └── services/    # TypeScript services
+└── public/          # Static assets
+```
 
 ---
 
@@ -74,8 +87,16 @@ Security isn't an afterthought—it's foundational to everything we build.
 ## Getting Started
 
 ### Prerequisites
-- Node.js 18+
+
+**Required:**
+- Node.js 18+ (for frontend)
 - npm, yarn, or pnpm
+
+**Recommended (for Rust backend):**
+- Rust 1.70+ (see [RUST_SETUP.md](./RUST_SETUP.md))
+- Cargo (comes with Rust)
+
+> **Note:** Rust backend is recommended for production. Node.js backend works as a fallback for development.
 
 ### Installation
 
@@ -86,7 +107,7 @@ git clone https://github.com/BloopTeam/Bloop-Site.git
 # Navigate to the project
 cd Bloop-Site
 
-# Install dependencies
+# Install frontend dependencies
 npm install
 
 # Set up environment variables
@@ -95,9 +116,37 @@ cp .env.example .env
 # - OPENAI_API_KEY
 # - ANTHROPIC_API_KEY
 # - GOOGLE_GEMINI_API_KEY
+```
 
-# Start both frontend and backend
+### Running the Application
+
+**Option 1: Rust Backend (Recommended - 75%+ of backend)**
+```bash
+# Install Rust first (see RUST_SETUP.md)
+cd backend
+cargo run
+# Backend runs on http://localhost:3001
+
+# In another terminal, start frontend
+npm run dev
+# Frontend runs on http://localhost:5173
+```
+
+**Option 2: Node.js Backend (Fallback - 25% of backend)**
+```bash
+# Quick start without Rust
+npm run dev:api:node
+# Backend runs on http://localhost:3001
+
+# In another terminal, start frontend
+npm run dev
+# Frontend runs on http://localhost:5173
+```
+
+**Option 3: Both Together (Auto-detects Rust, falls back to Node.js)**
+```bash
 npm run dev:full
+# Tries Rust backend first, falls back to Node.js if unavailable
 ```
 
 - **Frontend**: http://localhost:5173
@@ -106,54 +155,59 @@ npm run dev:full
 
 ### Build for Production
 
+**Rust Backend (Recommended):**
 ```bash
-# Build with optimizations
-npm run build
+# Build Rust backend
+cd backend
+cargo build --release
+# Binary: backend/target/release/bloop-backend
 
-# Preview production build
-npm run preview
+# Build frontend
+npm run build
+```
+
+**Node.js Backend (Fallback):**
+```bash
+# Build Node.js backend
+npm run build:api:node
+
+# Build frontend
+npm run build
 ```
 
 ---
 
 ## Architecture
 
-This repository follows a full-stack architecture:
+This repository follows a **hybrid backend architecture** (75%+ Rust, 25% Node.js):
 
 ```
-src/
-├── components/          # React UI components
-│   ├── AssistantPanel   # AI assistant interface
-│   ├── EditorArea       # Code editor with tabs
-│   ├── LeftSidebar      # Navigation and file explorer
-│   ├── MenuBar          # Top navigation with dropdowns
-│   ├── TerminalPanel    # Integrated terminal
-│   └── ...
-├── config/              # Configuration files
-├── hooks/               # React hooks
-├── utils/               # Utility functions and services
-│   ├── codeAnalyzer.ts  # Code analysis utilities
-│   ├── fileSystem.ts    # File system operations
-│   ├── gitUtils.ts      # Git integration
-│   └── security.ts      # Security utilities
-├── App.tsx              # Root component
-├── main.tsx             # Application entry point
-└── index.css            # Global styles
-
-# Backend services (to be developed)
-├── api/                 # API routes and endpoints
-├── services/            # Business logic services
-└── infrastructure/      # Deployment and infrastructure configs
+Bloop-Site/
+├── src/                  # Frontend (React/TypeScript)
+│   ├── components/       # React UI components
+│   ├── hooks/           # React hooks
+│   └── utils/           # Frontend utilities
+│
+├── backend/              # Rust Backend (75%+ of backend code)
+│   └── src/
+│       ├── main.rs      # Axum web server
+│       ├── api/         # API routes
+│       ├── services/    # AI services, agents, code analysis
+│       └── types/       # Rust types
+│
+└── server/               # Node.js Backend (25% - fallback)
+    ├── index.ts         # Express server
+    ├── api/routes/      # API routes
+    └── services/        # TypeScript services
 ```
 
-### Development Focus
+### Code Distribution
 
-This repository is where we build:
-- **Backend APIs** - RESTful and GraphQL endpoints
-- **Server-side Services** - Business logic and data processing
-- **Infrastructure** - Deployment configurations, CI/CD pipelines
-- **Integration Layer** - Connecting UI with backend services
-- **Performance Optimization** - Caching, CDN, and optimization strategies
+- **75%+ Rust** - AI services, agent orchestration, code analysis
+- **25% Node.js** - API gateway, development fallback
+- **100% TypeScript/React** - Frontend UI
+
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed architecture documentation.
 
 ---
 
@@ -168,18 +222,30 @@ This repository is where we build:
 | Tailwind CSS | Styling and design system |
 | Lucide React | Iconography |
 
-### Backend (Node.js/TypeScript)
-- **Express.js** - Fast, unopinionated web framework
+### Backend (75%+ Rust, 25% Node.js)
+
+**Rust Backend (`backend/`)** - Primary implementation:
+- **Axum** - High-performance async web framework
 - **OpenAI API** - GPT-4 Turbo integration
-- **Anthropic API** - Claude 3.5 Sonnet integration
+- **Anthropic API** - Claude 3.5 Sonnet integration  
 - **Google Gemini API** - Gemini 1.5 Pro integration
 - **Intelligent Model Router** - Auto-selects best AI model per request
-- Easy to run - No Rust installation required
-- Database and data layer (planned)
-- Authentication and authorization (planned)
-- Real-time communication (planned)
+- **Agent Orchestration** - Multi-agent system (200+ agents)
+- **Code Analysis** - AST parsing, dependency graphs
+- **Performance** - 10-100x faster than Node.js for CPU-intensive tasks
 
-> **Note**: We also have a Rust backend (`backend/`) for maximum performance. The Node.js backend (`server/`) is used for development and easy deployment.
+**Node.js Backend (`server/`)** - Development fallback:
+- **Express.js** - Quick development server
+- Same AI integrations (for development/testing)
+- Used when Rust isn't available or for quick prototyping
+
+**Why Rust?**
+- Superior performance for AI workloads
+- Better concurrency for multi-agent systems
+- Memory safety without GC overhead
+- Perfect for code analysis and AST parsing
+
+> **Production:** Rust backend is the primary implementation. Node.js is for development convenience.
 
 ### Infrastructure
 - Vercel (deployment platform)

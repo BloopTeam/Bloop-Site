@@ -40,6 +40,12 @@ build
 coverage
 .nyc_output
 
+# Rust
+target/
+Cargo.lock
+dist/
+pkg/
+
 # Testing
 *.test.js.snap
 .jest
@@ -51,6 +57,3 @@ coverage
 *.tmp
 *.temp
 .cache
-
-# Server build
-dist/server

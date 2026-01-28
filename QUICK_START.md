@@ -1,49 +1,65 @@
 # Quick Start Guide
 
-## 🚀 Get Running in 2 Minutes
+## 🚀 Get Running
 
-### 1. Install Dependencies
+### Option 1: Rust Backend (Recommended - 75%+ of backend)
 
+**1. Install Rust** (if not already installed)
+```bash
+# See RUST_SETUP.md for detailed instructions
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+**2. Install Frontend Dependencies**
 ```bash
 npm install
 ```
 
-### 2. Set Up API Keys
-
+**3. Set Up API Keys**
 Edit `.env` file in the root directory:
-
 ```env
-# Add at least ONE API key to get started:
+# Add at least ONE API key:
 OPENAI_API_KEY=sk-your-key-here
 # OR
 ANTHROPIC_API_KEY=sk-ant-your-key-here
 # OR
 GOOGLE_GEMINI_API_KEY=your-key-here
 
-# Server config (optional)
 PORT=3001
 CORS_ORIGIN=http://localhost:5173
 ```
 
-### 3. Start the Backend
-
+**4. Start Rust Backend**
 ```bash
-npm run dev:api
+cd backend
+cargo run
 ```
 
-You should see:
-```
-🚀 Bloop Backend running on http://localhost:3001
-✅ Health check: http://localhost:3001/health
-```
-
-### 4. Start the Frontend (in another terminal)
-
+**5. Start Frontend** (in another terminal)
 ```bash
 npm run dev
 ```
 
-### 5. Or Run Both Together
+### Option 2: Node.js Backend (Fallback - 25% of backend)
+
+**1. Install Dependencies**
+```bash
+npm install
+```
+
+**2. Set Up API Keys** (same as above)
+
+**3. Start Node.js Backend**
+```bash
+npm run dev:api:node
+```
+
+**4. Start Frontend** (in another terminal)
+```bash
+npm run dev
+```
+
+### Option 3: Auto-Detect (Tries Rust, Falls Back to Node.js)
 
 ```bash
 npm run dev:full
@@ -71,16 +87,25 @@ curl -X POST http://localhost:3001/api/v1/chat \
 
 ```
 Bloop-Site/
-├── src/              # Frontend React app
-├── server/           # Backend API (Node.js/TypeScript)
+├── src/              # Frontend React app (100% TypeScript/React)
+├── backend/          # Rust backend (75%+ of backend code)
+│   └── src/         # Rust source code
+├── server/           # Node.js backend (25% - fallback)
 │   ├── api/         # API routes
-│   ├── services/    # Business logic (AI, agents, context)
-│   └── types/       # TypeScript types
-├── backend/          # Rust backend (optional, for production)
+│   └── services/    # TypeScript services
 └── .env             # Environment variables
 ```
 
+**Code Distribution:**
+- **75%+ Rust** - AI services, agents, code analysis
+- **25% Node.js** - API gateway, development fallback
+- **100% TypeScript/React** - Frontend UI
+
 ## 🐛 Troubleshooting
+
+**Rust not installed?**
+- Install Rust: See `RUST_SETUP.md` for instructions
+- Or use Node.js fallback: `npm run dev:api:node`
 
 **Port 3001 already in use?**
 - Change `PORT` in `.env` to another port (e.g., 3002)
@@ -88,10 +113,13 @@ Bloop-Site/
 **API returns errors?**
 - Make sure at least one API key is set in `.env`
 - Check server logs for error messages
+- Rust backend: Check `backend/` logs
+- Node.js backend: Check terminal output
 
 **Frontend can't connect?**
 - Make sure backend is running on port 3001
 - Check CORS_ORIGIN in `.env` matches frontend URL
+- Verify backend health: `curl http://localhost:3001/health`
 
 ## 🚀 Next Steps
 

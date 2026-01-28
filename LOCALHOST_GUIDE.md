@@ -12,7 +12,9 @@
 **This is the API, not a web page:**
 - URL: `http://localhost:3001`
 - Returns JSON data, not HTML
-- Run with: `npm run dev:api`
+- **Rust backend (recommended):** `cd backend && cargo run`
+- **Node.js backend (fallback):** `npm run dev:api:node`
+- **Auto-detect:** `npm run dev:api` (tries Rust, falls back to Node.js)
 - Used by the frontend to get AI responses
 
 ## 🚀 Quick Start
@@ -27,6 +29,13 @@ This starts both frontend (5173) and backend (3001) automatically.
 
 **Terminal 1 - Backend:**
 ```bash
+# Option A: Rust backend (recommended - 75%+ of backend)
+cd backend && cargo run
+
+# Option B: Node.js backend (fallback - 25%)
+npm run dev:api:node
+
+# Option C: Auto-detect (tries Rust, falls back to Node.js)
 npm run dev:api
 ```
 

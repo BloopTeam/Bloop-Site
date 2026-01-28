@@ -1,0 +1,23 @@
+[package]
+name = "bloop-ui"
+version = "0.2.0"
+edition = "2021"
+authors = ["Bloop Team <bloopcode@proton.me>"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+leptos = { version = "0.6", features = ["csr"] }
+wasm-bindgen = "0.2"
+web-sys = "0.3"
+js-sys = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+gloo-storage = "0.3"
+console_error_panic_hook = "0.1"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
