@@ -1,8 +1,14 @@
-# Bloop UI Architecture
+# Bloop Site Architecture
 
 ## Overview
 
-Bloop UI is built with a modern, scalable architecture designed for extensibility and performance. The application follows a component-based architecture with clear separation of concerns.
+This document describes the architecture of the Bloop Site repository—the technical/backend implementation for the Bloop platform. This repository contains both the frontend UI (needed for the site) and the backend services that power the platform.
+
+> **Note:** This is the tech/backend repository. The standalone UI component library is maintained separately in the [Bloop UI](https://github.com/BloopTeam/Bloop-UI) repository.
+
+## Frontend Architecture
+
+The frontend is built with a modern, scalable architecture designed for extensibility and performance. The application follows a component-based architecture with clear separation of concerns.
 
 ## Core Architecture Principles
 
@@ -198,6 +204,31 @@ npm run preview  # Preview production build
 - GitHub Pages
 - Self-hosted
 
+## Backend Architecture (Planned)
+
+### 1. API Layer
+- RESTful API endpoints
+- GraphQL support (optional)
+- Authentication and authorization
+- Rate limiting and security
+
+### 2. Service Layer
+- Business logic services
+- Data processing pipelines
+- AI/ML service integration
+- Third-party API integrations
+
+### 3. Data Layer
+- Database design and schemas
+- Caching strategies
+- Data persistence and backup
+
+### 4. Infrastructure
+- Deployment configurations
+- CI/CD pipelines
+- Monitoring and logging
+- Scaling strategies
+
 ## Future Architecture Plans
 
 ### 1. Plugin System
@@ -220,6 +251,14 @@ npm run preview  # Preview production build
 - Type checking
 - Refactoring tools
 
+### 5. Backend Services
+- Microservices architecture
+- API gateway
+- Service mesh
+- Event-driven architecture
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on extending the architecture.
+
+**Note:** This repository focuses on backend/tech implementation. For UI/design contributions, please also check the [Bloop UI](https://github.com/BloopTeam/Bloop-UI) repository.
