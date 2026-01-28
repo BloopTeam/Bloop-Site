@@ -31,7 +31,8 @@
   },
   "scripts": {
     "dev": "trunk serve",
-    "build": "trunk build --release",
+    "build": "bash vercel-build.sh",
+    "build:local": "trunk build --release",
     "preview": "trunk serve",
     "lint": "cargo clippy",
     "lint:fix": "cargo clippy --fix",

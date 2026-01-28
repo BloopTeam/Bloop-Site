@@ -1,5 +1,19 @@
 {
-  "buildCommand": "npm run build",
+  "buildCommand": "chmod +x vercel-build.sh && ./vercel-build.sh",
   "outputDirectory": "dist",
-  "framework": "vite"
+  "installCommand": "echo 'Skipping npm install - using Rust build'",
+  "framework": null,
+  "crons": [],
+  "functions": {},
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ]
 }

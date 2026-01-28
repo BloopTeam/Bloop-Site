@@ -1,0 +1,5 @@
+[build]
+incremental = true
+
+[target.wasm32-unknown-unknown]
+runner = 'wasm-bindgen-test-runner'

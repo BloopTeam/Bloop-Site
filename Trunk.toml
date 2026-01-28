@@ -2,6 +2,7 @@
 target = "index.html"
 dist = "dist"
 public_dir = "public"
+release = true
 
 [watch]
 watch = ["src", "index.html"]
@@ -11,3 +12,6 @@ ignore = ["dist", "target", "node_modules"]
 address = "127.0.0.1"
 port = 5173
 open = true
+
+[clean]
+dist = true
