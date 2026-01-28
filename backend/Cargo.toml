@@ -1,0 +1,77 @@
+[package]
+name = "bloop-backend"
+version = "0.1.0"
+edition = "2021"
+authors = ["Bloop Team <bloopcode@proton.me>"]
+description = "High-performance Rust backend for Bloop AI platform"
+
+[dependencies]
+# Web framework
+axum = { version = "0.7", features = ["macros", "multipart"] }
+tokio = { version = "1", features = ["full"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "compression", "trace"] }
+
+# HTTP client for AI APIs
+reqwest = { version = "0.11", features = ["json", "stream"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Async runtime
+futures = "0.3"
+async-stream = "0.3"
+async-trait = "0.1"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Configuration
+dotenv = "0.15"
+config = "0.14"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Security & Auth
+jsonwebtoken = "9.2"
+bcrypt = "0.15"
+argon2 = "0.5"
+
+# Rate limiting
+governor = "0.6"
+
+# Validation
+validator = { version = "0.18", features = ["derive"] }
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# UUID generation
+uuid = { version = "1.6", features = ["v4", "serde"] }
+
+# Code analysis (for Phase 2)
+tree-sitter = "0.21"
+tree-sitter-typescript = "0.21"
+tree-sitter-python = "0.21"
+tree-sitter-rust = "0.21"
+tree-sitter-javascript = "0.21"
+
+# Database (for future phases)
+sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "postgres", "chrono", "uuid"] }
+
+# Caching
+redis = { version = "0.24", features = ["tokio-comp", "connection-manager"] }
+
+# WebSocket support (for Phase 5)
+axum-extra = { version = "0.9", features = ["typed-header"] }
+
+[dev-dependencies]
+tokio-test = "0.4"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"

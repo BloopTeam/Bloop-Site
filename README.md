@@ -89,14 +89,20 @@ cd Bloop-Site
 # Install dependencies
 npm install
 
-# Run security audit
-npm audit
+# Set up environment variables
+cp .env.example .env
+# Edit .env and add at least one AI API key:
+# - OPENAI_API_KEY
+# - ANTHROPIC_API_KEY
+# - GOOGLE_GEMINI_API_KEY
 
-# Start the development server
-npm run dev
+# Start both frontend and backend
+npm run dev:full
 ```
 
-Open [http://localhost:5173](http://localhost:5173) to begin.
+- **Frontend**: http://localhost:5173
+- **Backend API**: http://localhost:3001
+- **Health Check**: http://localhost:3001/health
 
 ### Build for Production
 
@@ -162,12 +168,18 @@ This repository is where we build:
 | Tailwind CSS | Styling and design system |
 | Lucide React | Iconography |
 
-### Backend (Planned)
-- API framework (to be determined)
-- Database and data layer
-- Authentication and authorization
-- Real-time communication
-- AI/ML service integration
+### Backend (Node.js/TypeScript)
+- **Express.js** - Fast, unopinionated web framework
+- **OpenAI API** - GPT-4 Turbo integration
+- **Anthropic API** - Claude 3.5 Sonnet integration
+- **Google Gemini API** - Gemini 1.5 Pro integration
+- **Intelligent Model Router** - Auto-selects best AI model per request
+- Easy to run - No Rust installation required
+- Database and data layer (planned)
+- Authentication and authorization (planned)
+- Real-time communication (planned)
+
+> **Note**: We also have a Rust backend (`backend/`) for maximum performance. The Node.js backend (`server/`) is used for development and easy deployment.
 
 ### Infrastructure
 - Vercel (deployment platform)
