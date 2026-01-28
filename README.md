@@ -22,7 +22,7 @@
 
 This is the **full-stack technical repository** for the Bloop platform. This repository contains:
 
-- **Frontend UI** - React/TypeScript application (UI components from Bloop-UI)
+- **Frontend UI** - Rust/Leptos application (compiles to WASM, UI components from Bloop-UI)
 - **Backend Infrastructure** - **75%+ Rust backend** with Node.js/TypeScript fallback
 - **AI Services** - High-performance AI integrations and agent orchestration
 - **Site Architecture** - Complete full-stack implementation
