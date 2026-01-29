@@ -116,21 +116,9 @@ export default function AssistantPanel({ width = 480 }: AssistantPanelProps) {
         }
       } catch (error) {
         console.error('Failed to fetch models:', error)
-        // Use default models on error
-        setAvailableModels(DEFAULT_MODELS.map(m => ({
-          provider: m.provider,
-          model: m.id,
-          available: false,
-          capabilities: {
-            supports_vision: false,
-            supports_function_calling: true,
-            max_context_length: 0,
-            supports_streaming: true,
-            cost_per_1k_tokens: { input: 0, output: 0 },
-            speed: 'medium',
-            quality: 'medium'
-          }
-        })))
+        // On error, set empty array - modelsList will use DEFAULT_MODELS
+        setAvailableModels([])
+        setBackendConnected(false)
       } finally {
         setModelsLoading(false)
       }
@@ -364,24 +352,39 @@ export default function AssistantPanel({ width = 480 }: AssistantPanelProps) {
   const currentModelInfo = availableModels.find(m => m.model === model) || 
     DEFAULT_MODELS.find(m => m.id === model)
   const currentModel = currentModelInfo ? {
-    id: currentModelInfo.model,
+    id: currentModelInfo.model || currentModelInfo.id,
     name: currentModelInfo.provider === 'auto' ? 'Auto' : 
-          currentModelInfo.provider.charAt(0).toUpperCase() + currentModelInfo.provider.slice(1),
+          (currentModelInfo.provider?.charAt(0).toUpperCase() + currentModelInfo.provider.slice(1)) || DEFAULT_MODELS.find(m => m.id === model)?.name || 'Auto',
     description: currentModelInfo.available 
-      ? `${currentModelInfo.capabilities.max_context_length.toLocaleString()} context, ${currentModelInfo.capabilities.speed} speed`
-      : 'Not configured',
-    provider: currentModelInfo.provider
+      ? `${currentModelInfo.capabilities?.max_context_length?.toLocaleString() || 0} context, ${currentModelInfo.capabilities?.speed || 'medium'} speed`
+      : DEFAULT_MODELS.find(m => m.id === model)?.description || 'Not configured',
+    provider: currentModelInfo.provider || 'auto'
   } : { id: 'auto', name: 'Auto', description: 'Auto-select best model', provider: 'auto' }
   
-  // Get list of models for dropdown (available + auto)
+  // Build comprehensive models list - always show all models
   const modelsList = [
+    // Auto option always first
     { id: 'auto', name: 'Auto', description: 'Automatically selects the best model', provider: 'auto', available: true },
-    ...availableModels.filter(m => m.available).map(m => ({
+    
+    // Add all available models from backend
+    ...availableModels.filter(m => m.available && m.model !== 'auto').map(m => ({
       id: m.model,
       name: m.provider.charAt(0).toUpperCase() + m.provider.slice(1),
       description: `${m.capabilities.max_context_length.toLocaleString()} context${m.capabilities.supports_vision ? ', vision' : ''}`,
       provider: m.provider,
-      available: m.available
+      available: true
+    })),
+    
+    // Add all default models that aren't already in availableModels (as unavailable)
+    ...DEFAULT_MODELS.filter(defaultModel => 
+      defaultModel.id !== 'auto' && 
+      !availableModels.some(avail => avail.model === defaultModel.id)
+    ).map(m => ({
+      id: m.id,
+      name: m.name,
+      description: m.description,
+      provider: m.provider,
+      available: false
     }))
   ]
 
