@@ -2,10 +2,25 @@ import { useState, useRef, useEffect } from 'react'
 import { 
   ChevronDown, AtSign, Image as ImageIcon, Mic, Send, 
   Copy, Check, RefreshCw, Code, Sparkles,
-  MessageSquare, FileCode, FolderOpen, Hash, ThumbsUp, ThumbsDown, ChevronUp, Loader2
+  MessageSquare, FileCode, FolderOpen, Hash, ThumbsUp, ThumbsDown, ChevronUp, Loader2,
+  Plus, X, Trash2, Settings
 } from 'lucide-react'
 import Logo from './Logo'
 import { apiService, type ModelInfo } from '../services/api'
+import { useLocalStorage } from '../hooks/useLocalStorage'
+
+// Interface for custom user-defined models
+interface CustomModel {
+  id: string
+  name: string
+  provider: string
+  apiEndpoint: string
+  apiKey?: string // Optional - user may use env vars
+  description: string
+  maxContextLength?: number
+  supportsVision?: boolean
+  supportsStreaming?: boolean
+}
 
 interface AssistantPanelProps {
   onCollapse: () => void
@@ -83,6 +98,21 @@ export default function AssistantPanel({ width = 480 }: AssistantPanelProps) {
   const [commandFilter, setCommandFilter] = useState('')
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null)
   const [collapsedMessages, setCollapsedMessages] = useState<Set<string>>(new Set())
+  
+  // Custom models state (persisted to localStorage)
+  const [customModels, setCustomModels] = useLocalStorage<CustomModel[]>('bloop-custom-models', [])
+  const [showAddModelModal, setShowAddModelModal] = useState(false)
+  const [editingModel, setEditingModel] = useState<CustomModel | null>(null)
+  const [newModelForm, setNewModelForm] = useState<Partial<CustomModel>>({
+    name: '',
+    provider: '',
+    apiEndpoint: '',
+    apiKey: '',
+    description: '',
+    maxContextLength: 8192,
+    supportsVision: false,
+    supportsStreaming: true
+  })
   
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -336,18 +366,91 @@ export default function AssistantPanel({ width = 480 }: AssistantPanelProps) {
 
   const currentAgent = AGENT_MODES.find(m => m.id === agentMode)!
   
-  // Get current model info from available models or defaults
-  const currentModelInfo = availableModels.find(m => m.model === model) || 
+  // Custom model management functions
+  const handleAddCustomModel = () => {
+    if (!newModelForm.name || !newModelForm.provider || !newModelForm.apiEndpoint) {
+      return // Basic validation
+    }
+    
+    const modelId = `custom-${Date.now()}-${newModelForm.name.toLowerCase().replace(/\s+/g, '-')}`
+    const newModel: CustomModel = {
+      id: modelId,
+      name: newModelForm.name,
+      provider: newModelForm.provider,
+      apiEndpoint: newModelForm.apiEndpoint,
+      apiKey: newModelForm.apiKey,
+      description: newModelForm.description || `Custom ${newModelForm.provider} model`,
+      maxContextLength: newModelForm.maxContextLength || 8192,
+      supportsVision: newModelForm.supportsVision || false,
+      supportsStreaming: newModelForm.supportsStreaming ?? true
+    }
+    
+    if (editingModel) {
+      // Update existing model
+      setCustomModels(prev => prev.map(m => m.id === editingModel.id ? { ...newModel, id: editingModel.id } : m))
+    } else {
+      // Add new model
+      setCustomModels(prev => [...prev, newModel])
+    }
+    
+    // Reset form and close modal
+    setNewModelForm({
+      name: '',
+      provider: '',
+      apiEndpoint: '',
+      apiKey: '',
+      description: '',
+      maxContextLength: 8192,
+      supportsVision: false,
+      supportsStreaming: true
+    })
+    setEditingModel(null)
+    setShowAddModelModal(false)
+  }
+  
+  const handleEditCustomModel = (model: CustomModel) => {
+    setEditingModel(model)
+    setNewModelForm({
+      name: model.name,
+      provider: model.provider,
+      apiEndpoint: model.apiEndpoint,
+      apiKey: model.apiKey || '',
+      description: model.description,
+      maxContextLength: model.maxContextLength,
+      supportsVision: model.supportsVision,
+      supportsStreaming: model.supportsStreaming
+    })
+    setShowAddModelModal(true)
+  }
+  
+  const handleDeleteCustomModel = (modelId: string) => {
+    setCustomModels(prev => prev.filter(m => m.id !== modelId))
+    // If the deleted model was selected, switch to auto
+    if (model === modelId) {
+      setModel('auto')
+    }
+  }
+  
+  // Get current model info from available models, custom models, or defaults
+  const customModelInfo = customModels.find(m => m.id === model)
+  const currentModelInfo = customModelInfo || availableModels.find(m => m.model === model) || 
     DEFAULT_MODELS.find(m => m.id === model)
-  const currentModel = currentModelInfo ? {
+  const currentModel = customModelInfo ? {
+    id: customModelInfo.id,
+    name: customModelInfo.name,
+    description: customModelInfo.description,
+    provider: customModelInfo.provider,
+    isCustom: true
+  } : currentModelInfo ? {
     id: currentModelInfo.model || currentModelInfo.id,
     name: currentModelInfo.provider === 'auto' ? 'Auto' : 
           (currentModelInfo.provider?.charAt(0).toUpperCase() + currentModelInfo.provider.slice(1)) || DEFAULT_MODELS.find(m => m.id === model)?.name || 'Auto',
     description: currentModelInfo.available 
       ? `${currentModelInfo.capabilities?.max_context_length?.toLocaleString() || 0} context, ${currentModelInfo.capabilities?.speed || 'medium'} speed`
       : DEFAULT_MODELS.find(m => m.id === model)?.description || 'Not configured',
-    provider: currentModelInfo.provider || 'auto'
-  } : { id: 'auto', name: 'Auto', description: 'Auto-select best model', provider: 'auto' }
+    provider: currentModelInfo.provider || 'auto',
+    isCustom: false
+  } : { id: 'auto', name: 'Auto', description: 'Auto-select best model', provider: 'auto', isCustom: false }
   
   // Build comprehensive models list - always show all models
   // Start with all default models, then update with backend data if available
@@ -362,7 +465,8 @@ export default function AssistantPanel({ width = 480 }: AssistantPanelProps) {
         name: backendModel.provider.charAt(0).toUpperCase() + backendModel.provider.slice(1),
         description: `${backendModel.capabilities.max_context_length.toLocaleString()} context${backendModel.capabilities.supports_vision ? ', vision' : ''}`,
         provider: backendModel.provider,
-        available: true
+        available: true,
+        isCustom: false
       }
     } else {
       // Use default model data (either not in backend or not available)
@@ -371,10 +475,23 @@ export default function AssistantPanel({ width = 480 }: AssistantPanelProps) {
         name: defaultModel.name,
         description: defaultModel.description,
         provider: defaultModel.provider,
-        available: backendModel?.available || false
+        available: backendModel?.available || false,
+        isCustom: false
       }
     }
   })
+  
+  // Add custom models to the list
+  const customModelsList = customModels.map(cm => ({
+    id: cm.id,
+    name: cm.name,
+    description: cm.description,
+    provider: cm.provider,
+    available: true, // Custom models are always available
+    isCustom: true,
+    apiEndpoint: cm.apiEndpoint,
+    maxContextLength: cm.maxContextLength
+  }))
 
   const renderMessageContent = (content: string) => {
     // Simple markdown-like rendering
@@ -473,6 +590,357 @@ export default function AssistantPanel({ width = 480 }: AssistantPanelProps) {
         style={{ display: 'none' }}
         onChange={handleFileSelect}
       />
+
+      {/* Add Custom Model Modal */}
+      {showAddModelModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.8)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          backdropFilter: 'blur(4px)'
+        }} onClick={() => setShowAddModelModal(false)}>
+          <div 
+            style={{
+              background: '#1a1a1a',
+              border: '1px solid #2a2a2a',
+              borderRadius: '12px',
+              padding: '24px',
+              width: '100%',
+              maxWidth: '480px',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              boxShadow: '0 24px 48px rgba(0,0,0,0.5)'
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '20px'
+            }}>
+              <h2 style={{
+                margin: 0,
+                fontSize: '16px',
+                fontWeight: 600,
+                color: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <Settings size={18} style={{ color: '#FF00FF' }} />
+                {editingModel ? 'Edit Custom Model' : 'Add Custom Model'}
+              </h2>
+              <button
+                onClick={() => {
+                  setShowAddModelModal(false)
+                  setEditingModel(null)
+                  setNewModelForm({
+                    name: '',
+                    provider: '',
+                    apiEndpoint: '',
+                    apiKey: '',
+                    description: '',
+                    maxContextLength: 8192,
+                    supportsVision: false,
+                    supportsStreaming: true
+                  })
+                }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#666',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  display: 'flex'
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            
+            {/* Form Fields */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Model Name */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: '#888', marginBottom: '6px' }}>
+                  Model Name *
+                </label>
+                <input
+                  type="text"
+                  value={newModelForm.name || ''}
+                  onChange={e => setNewModelForm(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="e.g., My Custom GPT"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    background: '#0a0a0a',
+                    border: '1px solid #2a2a2a',
+                    borderRadius: '6px',
+                    color: '#fff',
+                    fontSize: '13px',
+                    outline: 'none',
+                    transition: 'border-color 0.15s'
+                  }}
+                  onFocus={e => e.target.style.borderColor = '#FF00FF'}
+                  onBlur={e => e.target.style.borderColor = '#2a2a2a'}
+                />
+              </div>
+              
+              {/* Provider */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: '#888', marginBottom: '6px' }}>
+                  Provider Name *
+                </label>
+                <input
+                  type="text"
+                  value={newModelForm.provider || ''}
+                  onChange={e => setNewModelForm(prev => ({ ...prev, provider: e.target.value }))}
+                  placeholder="e.g., OpenAI, Anthropic, Custom"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    background: '#0a0a0a',
+                    border: '1px solid #2a2a2a',
+                    borderRadius: '6px',
+                    color: '#fff',
+                    fontSize: '13px',
+                    outline: 'none',
+                    transition: 'border-color 0.15s'
+                  }}
+                  onFocus={e => e.target.style.borderColor = '#FF00FF'}
+                  onBlur={e => e.target.style.borderColor = '#2a2a2a'}
+                />
+              </div>
+              
+              {/* API Endpoint */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: '#888', marginBottom: '6px' }}>
+                  API Endpoint *
+                </label>
+                <input
+                  type="text"
+                  value={newModelForm.apiEndpoint || ''}
+                  onChange={e => setNewModelForm(prev => ({ ...prev, apiEndpoint: e.target.value }))}
+                  placeholder="e.g., https://api.example.com/v1/chat/completions"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    background: '#0a0a0a',
+                    border: '1px solid #2a2a2a',
+                    borderRadius: '6px',
+                    color: '#fff',
+                    fontSize: '13px',
+                    fontFamily: 'monospace',
+                    outline: 'none',
+                    transition: 'border-color 0.15s'
+                  }}
+                  onFocus={e => e.target.style.borderColor = '#FF00FF'}
+                  onBlur={e => e.target.style.borderColor = '#2a2a2a'}
+                />
+              </div>
+              
+              {/* API Key (Optional) */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: '#888', marginBottom: '6px' }}>
+                  API Key <span style={{ color: '#555' }}>(Optional - can use env vars)</span>
+                </label>
+                <input
+                  type="password"
+                  value={newModelForm.apiKey || ''}
+                  onChange={e => setNewModelForm(prev => ({ ...prev, apiKey: e.target.value }))}
+                  placeholder="sk-..."
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    background: '#0a0a0a',
+                    border: '1px solid #2a2a2a',
+                    borderRadius: '6px',
+                    color: '#fff',
+                    fontSize: '13px',
+                    fontFamily: 'monospace',
+                    outline: 'none',
+                    transition: 'border-color 0.15s'
+                  }}
+                  onFocus={e => e.target.style.borderColor = '#FF00FF'}
+                  onBlur={e => e.target.style.borderColor = '#2a2a2a'}
+                />
+              </div>
+              
+              {/* Description */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: '#888', marginBottom: '6px' }}>
+                  Description
+                </label>
+                <input
+                  type="text"
+                  value={newModelForm.description || ''}
+                  onChange={e => setNewModelForm(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="e.g., Fast inference, great for coding"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    background: '#0a0a0a',
+                    border: '1px solid #2a2a2a',
+                    borderRadius: '6px',
+                    color: '#fff',
+                    fontSize: '13px',
+                    outline: 'none',
+                    transition: 'border-color 0.15s'
+                  }}
+                  onFocus={e => e.target.style.borderColor = '#FF00FF'}
+                  onBlur={e => e.target.style.borderColor = '#2a2a2a'}
+                />
+              </div>
+              
+              {/* Max Context Length */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: '#888', marginBottom: '6px' }}>
+                  Max Context Length
+                </label>
+                <input
+                  type="number"
+                  value={newModelForm.maxContextLength || 8192}
+                  onChange={e => setNewModelForm(prev => ({ ...prev, maxContextLength: parseInt(e.target.value) || 8192 }))}
+                  placeholder="8192"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    background: '#0a0a0a',
+                    border: '1px solid #2a2a2a',
+                    borderRadius: '6px',
+                    color: '#fff',
+                    fontSize: '13px',
+                    outline: 'none',
+                    transition: 'border-color 0.15s'
+                  }}
+                  onFocus={e => e.target.style.borderColor = '#FF00FF'}
+                  onBlur={e => e.target.style.borderColor = '#2a2a2a'}
+                />
+              </div>
+              
+              {/* Checkboxes */}
+              <div style={{ display: 'flex', gap: '24px' }}>
+                <label style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '8px', 
+                  fontSize: '12px', 
+                  color: '#888',
+                  cursor: 'pointer'
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={newModelForm.supportsVision || false}
+                    onChange={e => setNewModelForm(prev => ({ ...prev, supportsVision: e.target.checked }))}
+                    style={{
+                      width: '16px',
+                      height: '16px',
+                      accentColor: '#FF00FF',
+                      cursor: 'pointer'
+                    }}
+                  />
+                  Supports Vision
+                </label>
+                <label style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '8px', 
+                  fontSize: '12px', 
+                  color: '#888',
+                  cursor: 'pointer'
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={newModelForm.supportsStreaming ?? true}
+                    onChange={e => setNewModelForm(prev => ({ ...prev, supportsStreaming: e.target.checked }))}
+                    style={{
+                      width: '16px',
+                      height: '16px',
+                      accentColor: '#FF00FF',
+                      cursor: 'pointer'
+                    }}
+                  />
+                  Supports Streaming
+                </label>
+              </div>
+            </div>
+            
+            {/* Actions */}
+            <div style={{
+              display: 'flex',
+              gap: '12px',
+              marginTop: '24px',
+              justifyContent: 'flex-end'
+            }}>
+              <button
+                onClick={() => {
+                  setShowAddModelModal(false)
+                  setEditingModel(null)
+                  setNewModelForm({
+                    name: '',
+                    provider: '',
+                    apiEndpoint: '',
+                    apiKey: '',
+                    description: '',
+                    maxContextLength: 8192,
+                    supportsVision: false,
+                    supportsStreaming: true
+                  })
+                }}
+                style={{
+                  padding: '10px 20px',
+                  background: 'transparent',
+                  border: '1px solid #2a2a2a',
+                  borderRadius: '6px',
+                  color: '#888',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s'
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.borderColor = '#444'
+                  e.currentTarget.style.color = '#aaa'
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.borderColor = '#2a2a2a'
+                  e.currentTarget.style.color = '#888'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddCustomModel}
+                disabled={!newModelForm.name || !newModelForm.provider || !newModelForm.apiEndpoint}
+                style={{
+                  padding: '10px 20px',
+                  background: (!newModelForm.name || !newModelForm.provider || !newModelForm.apiEndpoint) 
+                    ? '#333' 
+                    : '#FF00FF',
+                  border: 'none',
+                  borderRadius: '6px',
+                  color: (!newModelForm.name || !newModelForm.provider || !newModelForm.apiEndpoint) 
+                    ? '#666' 
+                    : '#fff',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  cursor: (!newModelForm.name || !newModelForm.provider || !newModelForm.apiEndpoint) 
+                    ? 'not-allowed' 
+                    : 'pointer',
+                  transition: 'all 0.15s'
+                }}
+              >
+                {editingModel ? 'Save Changes' : 'Add Model'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Messages Area */}
       <div style={{
@@ -1235,6 +1703,171 @@ export default function AssistantPanel({ width = 480 }: AssistantPanelProps) {
                           </div>
                         </div>
                       ))}
+                      
+                      {/* Custom Models Section */}
+                      {customModelsList.length > 0 && (
+                        <>
+                          <div style={{
+                            height: '1px',
+                            background: '#2a2a2a',
+                            margin: '6px 8px'
+                          }} />
+                          <div style={{
+                            padding: '6px 10px',
+                            fontSize: '10px',
+                            color: '#22c55e',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.5px',
+                            fontWeight: 600,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}>
+                            <Plus size={10} />
+                            Custom Models
+                          </div>
+                          {customModelsList.map((m) => (
+                            <div
+                              key={m.id}
+                              style={{
+                                padding: '6px 10px',
+                                cursor: 'pointer',
+                                borderRadius: '4px',
+                                background: m.id === model ? 'rgba(34,197,94,0.15)' : 'transparent',
+                                borderLeft: m.id === model ? '2px solid #22c55e' : '2px solid transparent',
+                                marginBottom: '1px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between'
+                              }}
+                              onMouseEnter={(e) => {
+                                if (m.id !== model) {
+                                  e.currentTarget.style.background = 'rgba(34,197,94,0.08)'
+                                }
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = m.id === model ? 'rgba(34,197,94,0.15)' : 'transparent'
+                              }}
+                            >
+                              <div 
+                                style={{ flex: 1 }}
+                                onClick={() => {
+                                  setModel(m.id)
+                                  setShowModelDropdown(false)
+                                }}
+                              >
+                                <div style={{ 
+                                  fontSize: '12px', 
+                                  color: m.id === model ? '#22c55e' : '#ddd',
+                                  fontWeight: m.id === model ? 500 : 400,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '6px'
+                                }}>
+                                  {m.id === model && <Check size={12} style={{ color: '#22c55e' }} />}
+                                  <span>{m.name}</span>
+                                  <span style={{ 
+                                    fontSize: '9px', 
+                                    background: 'rgba(34,197,94,0.2)', 
+                                    color: '#22c55e',
+                                    padding: '1px 4px',
+                                    borderRadius: '3px'
+                                  }}>
+                                    {m.provider}
+                                  </span>
+                                </div>
+                                <div style={{ fontSize: '10px', color: '#777', marginTop: '2px', marginLeft: m.id === model ? '18px' : '0' }}>
+                                  {m.description}
+                                </div>
+                              </div>
+                              {/* Edit and Delete buttons */}
+                              <div style={{ display: 'flex', gap: '4px' }}>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    const customModel = customModels.find(cm => cm.id === m.id)
+                                    if (customModel) handleEditCustomModel(customModel)
+                                  }}
+                                  style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: '#666',
+                                    cursor: 'pointer',
+                                    padding: '4px',
+                                    borderRadius: '4px',
+                                    display: 'flex',
+                                    alignItems: 'center'
+                                  }}
+                                  onMouseEnter={(e) => e.currentTarget.style.color = '#22c55e'}
+                                  onMouseLeave={(e) => e.currentTarget.style.color = '#666'}
+                                  title="Edit model"
+                                >
+                                  <Settings size={12} />
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleDeleteCustomModel(m.id)
+                                  }}
+                                  style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: '#666',
+                                    cursor: 'pointer',
+                                    padding: '4px',
+                                    borderRadius: '4px',
+                                    display: 'flex',
+                                    alignItems: 'center'
+                                  }}
+                                  onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
+                                  onMouseLeave={(e) => e.currentTarget.style.color = '#666'}
+                                  title="Delete model"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </>
+                      )}
+                      
+                      {/* Add Custom Model Button */}
+                      <div style={{
+                        height: '1px',
+                        background: '#2a2a2a',
+                        margin: '6px 8px'
+                      }} />
+                      <button
+                        onClick={() => {
+                          setShowModelDropdown(false)
+                          setShowAddModelModal(true)
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '8px 10px',
+                          background: 'transparent',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          fontSize: '12px',
+                          color: '#888',
+                          transition: 'all 0.15s'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'rgba(34,197,94,0.1)'
+                          e.currentTarget.style.color = '#22c55e'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'transparent'
+                          e.currentTarget.style.color = '#888'
+                        }}
+                      >
+                        <Plus size={14} />
+                        Add Custom Model
+                      </button>
                       
                       {/* Unavailable models - collapsed section */}
                       {modelsList.filter(m => m.id !== 'auto' && !m.available).length > 0 && (
