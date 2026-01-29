@@ -982,19 +982,23 @@ export default function AssistantPanel({ width = 480 }: AssistantPanelProps) {
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '4px',
-                  padding: '4px 8px',
-                  background: 'transparent',
-                  border: '1px solid #2a2a2a',
+                  gap: '6px',
+                  padding: '4px 10px',
+                  background: showAgentDropdown ? 'rgba(255,0,255,0.1)' : 'transparent',
+                  border: '1px solid',
+                  borderColor: showAgentDropdown ? '#FF00FF' : '#2a2a2a',
                   borderRadius: '4px',
                   cursor: 'pointer',
-                  fontSize: '12px',
-                  color: '#888',
-                  transition: 'all 0.15s'
+                  fontSize: '11px',
+                  color: showAgentDropdown ? '#FF00FF' : '#888',
+                  transition: 'all 0.15s',
+                  fontWeight: 500
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = '#FF00FF'
-                  e.currentTarget.style.color = '#FF00FF'
+                  if (!showAgentDropdown) {
+                    e.currentTarget.style.borderColor = '#444'
+                    e.currentTarget.style.color = '#aaa'
+                  }
                 }}
                 onMouseLeave={(e) => {
                   if (!showAgentDropdown) {
@@ -1003,9 +1007,12 @@ export default function AssistantPanel({ width = 480 }: AssistantPanelProps) {
                   }
                 }}
               >
-                <Logo size={14} variant="icon" />
+                <Logo size={12} variant="icon" />
                 <span>{currentAgent.name}</span>
-                <ChevronDown size={12} style={{ color: '#555' }} />
+                <ChevronDown size={10} style={{ 
+                  transform: showAgentDropdown ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.15s'
+                }} />
               </button>
 
               {showAgentDropdown && (
@@ -1013,13 +1020,13 @@ export default function AssistantPanel({ width = 480 }: AssistantPanelProps) {
                   position: 'absolute',
                   bottom: '100%',
                   left: 0,
-                  background: '#1a1a1a',
+                  background: '#151515',
                   border: '1px solid #2a2a2a',
                   borderRadius: '6px',
-                  padding: '4px',
-                  marginBottom: '4px',
-                  minWidth: '180px',
-                  boxShadow: '0 -4px 20px rgba(0,0,0,0.3)',
+                  padding: '2px',
+                  marginBottom: '6px',
+                  minWidth: '200px',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
                   zIndex: 100
                 }}>
                   {AGENT_MODES.map((mode) => (
@@ -1033,19 +1040,36 @@ export default function AssistantPanel({ width = 480 }: AssistantPanelProps) {
                         display: 'flex',
                         alignItems: 'center',
                         gap: '10px',
-                        padding: '8px 10px',
+                        padding: '6px 10px',
                         cursor: 'pointer',
                         borderRadius: '4px',
-                        background: mode.id === agentMode ? 'rgba(255,0,255,0.1)' : 'transparent'
+                        background: mode.id === agentMode ? 'rgba(255,0,255,0.15)' : 'transparent',
+                        borderLeft: mode.id === agentMode ? '2px solid #FF00FF' : '2px solid transparent',
+                        marginBottom: '1px'
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,0,255,0.1)'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = mode.id === agentMode ? 'rgba(255,0,255,0.1)' : 'transparent'}
+                      onMouseEnter={(e) => {
+                        if (mode.id !== agentMode) {
+                          e.currentTarget.style.background = 'rgba(255,0,255,0.08)'
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = mode.id === agentMode ? 'rgba(255,0,255,0.15)' : 'transparent'
+                      }}
                     >
-                      <span style={{ color: mode.id === agentMode ? '#FF00FF' : '#666' }}>{mode.icon}</span>
-                      <div>
-                        <div style={{ fontSize: '12px', color: mode.id === agentMode ? '#FF00FF' : '#ccc' }}>{mode.name}</div>
-                        <div style={{ fontSize: '10px', color: '#555' }}>{mode.description}</div>
+                      <span style={{ color: mode.id === agentMode ? '#FF00FF' : '#888' }}>{mode.icon}</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ 
+                          fontSize: '12px', 
+                          color: mode.id === agentMode ? '#FF00FF' : '#ddd',
+                          fontWeight: mode.id === agentMode ? 500 : 400
+                        }}>
+                          {mode.name}
+                        </div>
+                        <div style={{ fontSize: '10px', color: '#777', marginTop: '2px' }}>
+                          {mode.description}
+                        </div>
                       </div>
+                      {mode.id === agentMode && <Check size={12} style={{ color: '#FF00FF' }} />}
                     </div>
                   ))}
                 </div>
