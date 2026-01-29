@@ -59,7 +59,7 @@ export interface AIResponse {
 }
 
 class ApiService {
-  private baseUrl: string
+  private readonly baseUrl: string
 
   constructor() {
     this.baseUrl = API_BASE_URL
