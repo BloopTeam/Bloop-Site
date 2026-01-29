@@ -1086,21 +1086,37 @@ export default function AssistantPanel({ width = 480 }: AssistantPanelProps) {
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '4px',
-                  padding: '4px 8px',
-                  background: 'transparent',
-                  border: 'none',
+                  gap: '6px',
+                  padding: '4px 10px',
+                  background: showModelDropdown ? 'rgba(255,0,255,0.1)' : 'transparent',
+                  border: '1px solid',
+                  borderColor: showModelDropdown ? '#FF00FF' : '#2a2a2a',
                   borderRadius: '4px',
                   cursor: 'pointer',
-                  fontSize: '12px',
-                  color: '#666'
+                  fontSize: '11px',
+                  color: showModelDropdown ? '#FF00FF' : '#888',
+                  transition: 'all 0.15s',
+                  fontWeight: 500
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.color = '#ccc'}
-                onMouseLeave={(e) => e.currentTarget.style.color = '#666'}
+                onMouseEnter={(e) => {
+                  if (!showModelDropdown) {
+                    e.currentTarget.style.borderColor = '#444'
+                    e.currentTarget.style.color = '#aaa'
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!showModelDropdown) {
+                    e.currentTarget.style.borderColor = '#2a2a2a'
+                    e.currentTarget.style.color = '#888'
+                  }
+                }}
               >
                 <span>{currentModel.name}</span>
-                {modelsLoading && <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} />}
-                <ChevronDown size={12} />
+                {modelsLoading && <Loader2 size={10} style={{ animation: 'spin 1s linear infinite' }} />}
+                <ChevronDown size={10} style={{ 
+                  transform: showModelDropdown ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.15s'
+                }} />
               </button>
 
               {showModelDropdown && (
@@ -1108,60 +1124,168 @@ export default function AssistantPanel({ width = 480 }: AssistantPanelProps) {
                   position: 'absolute',
                   bottom: '100%',
                   left: 0,
-                  background: '#1a1a1a',
+                  background: '#151515',
                   border: '1px solid #2a2a2a',
                   borderRadius: '6px',
-                  padding: '4px',
-                  marginBottom: '4px',
-                  minWidth: '250px',
-                  maxHeight: '400px',
+                  padding: '2px',
+                  marginBottom: '6px',
+                  minWidth: '280px',
+                  maxWidth: '320px',
+                  maxHeight: '500px',
                   overflowY: 'auto',
-                  boxShadow: '0 -4px 20px rgba(0,0,0,0.3)',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
                   zIndex: 100
                 }}>
                   {modelsLoading ? (
-                    <div style={{ padding: '12px', textAlign: 'center', color: '#666' }}>
-                      <Loader2 size={16} style={{ animation: 'spin 1s linear infinite', display: 'inline-block', marginRight: '8px' }} />
+                    <div style={{ 
+                      padding: '16px', 
+                      textAlign: 'center', 
+                      color: '#666',
+                      fontSize: '11px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px'
+                    }}>
+                      <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
                       Loading models...
                     </div>
                   ) : (
-                    modelsList.map((m) => (
-                      <div
-                        key={m.id}
-                        onClick={() => {
-                          setModel(m.id)
-                          setShowModelDropdown(false)
-                        }}
-                        style={{
-                          padding: '8px 10px',
-                          cursor: m.available ? 'pointer' : 'not-allowed',
-                          borderRadius: '4px',
-                          background: m.id === model ? 'rgba(255,0,255,0.1)' : 'transparent',
-                          opacity: m.available ? 1 : 0.5
-                        }}
-                        onMouseEnter={(e) => {
-                          if (m.available) {
-                            e.currentTarget.style.background = 'rgba(255,0,255,0.1)'
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = m.id === model ? 'rgba(255,0,255,0.1)' : 'transparent'
-                        }}
-                      >
-                        <div style={{ 
-                          fontSize: '12px', 
-                          color: m.id === model ? '#FF00FF' : m.available ? '#ccc' : '#666',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px'
-                        }}>
-                          {m.id === model && <Check size={12} />}
-                          {m.name}
-                          {!m.available && <span style={{ fontSize: '10px', color: '#555' }}>(not configured)</span>}
+                    <>
+                      {/* Auto option - always first */}
+                      {modelsList.filter(m => m.id === 'auto').map((m) => (
+                        <div
+                          key={m.id}
+                          onClick={() => {
+                            setModel(m.id)
+                            setShowModelDropdown(false)
+                          }}
+                          style={{
+                            padding: '6px 10px',
+                            cursor: 'pointer',
+                            borderRadius: '4px',
+                            background: m.id === model ? 'rgba(255,0,255,0.15)' : 'transparent',
+                            borderLeft: m.id === model ? '2px solid #FF00FF' : '2px solid transparent',
+                            marginBottom: '2px'
+                          }}
+                          onMouseEnter={(e) => {
+                            if (m.id !== model) {
+                              e.currentTarget.style.background = 'rgba(255,0,255,0.08)'
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = m.id === model ? 'rgba(255,0,255,0.15)' : 'transparent'
+                          }}
+                        >
+                          <div style={{ 
+                            fontSize: '12px', 
+                            color: m.id === model ? '#FF00FF' : '#ddd',
+                            fontWeight: m.id === model ? 500 : 400,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}>
+                            {m.id === model && <Check size={12} style={{ color: '#FF00FF' }} />}
+                            <span>{m.name}</span>
+                          </div>
+                          <div style={{ fontSize: '10px', color: '#777', marginTop: '2px', marginLeft: m.id === model ? '18px' : '0' }}>
+                            {m.description}
+                          </div>
                         </div>
-                        <div style={{ fontSize: '10px', color: '#555', marginTop: '2px' }}>{m.description}</div>
-                      </div>
-                    ))
+                      ))}
+                      
+                      {/* Divider */}
+                      {modelsList.filter(m => m.id !== 'auto').length > 0 && (
+                        <div style={{
+                          height: '1px',
+                          background: '#2a2a2a',
+                          margin: '4px 8px'
+                        }} />
+                      )}
+                      
+                      {/* Available models */}
+                      {modelsList.filter(m => m.id !== 'auto' && m.available).map((m) => (
+                        <div
+                          key={m.id}
+                          onClick={() => {
+                            setModel(m.id)
+                            setShowModelDropdown(false)
+                          }}
+                          style={{
+                            padding: '6px 10px',
+                            cursor: 'pointer',
+                            borderRadius: '4px',
+                            background: m.id === model ? 'rgba(255,0,255,0.15)' : 'transparent',
+                            borderLeft: m.id === model ? '2px solid #FF00FF' : '2px solid transparent',
+                            marginBottom: '1px'
+                          }}
+                          onMouseEnter={(e) => {
+                            if (m.id !== model) {
+                              e.currentTarget.style.background = 'rgba(255,0,255,0.08)'
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = m.id === model ? 'rgba(255,0,255,0.15)' : 'transparent'
+                          }}
+                        >
+                          <div style={{ 
+                            fontSize: '12px', 
+                            color: m.id === model ? '#FF00FF' : '#ddd',
+                            fontWeight: m.id === model ? 500 : 400,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}>
+                            {m.id === model && <Check size={12} style={{ color: '#FF00FF' }} />}
+                            <span>{m.name}</span>
+                          </div>
+                          <div style={{ fontSize: '10px', color: '#777', marginTop: '2px', marginLeft: m.id === model ? '18px' : '0' }}>
+                            {m.description}
+                          </div>
+                        </div>
+                      ))}
+                      
+                      {/* Unavailable models - collapsed section */}
+                      {modelsList.filter(m => m.id !== 'auto' && !m.available).length > 0 && (
+                        <>
+                          <div style={{
+                            height: '1px',
+                            background: '#2a2a2a',
+                            margin: '6px 8px'
+                          }} />
+                          <div style={{
+                            padding: '6px 10px',
+                            fontSize: '10px',
+                            color: '#555',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.5px',
+                            fontWeight: 600
+                          }}>
+                            Not Configured
+                          </div>
+                          {modelsList.filter(m => m.id !== 'auto' && !m.available).map((m) => (
+                            <div
+                              key={m.id}
+                              style={{
+                                padding: '5px 10px 5px 20px',
+                                cursor: 'not-allowed',
+                                borderRadius: '4px',
+                                opacity: 0.4,
+                                fontSize: '11px',
+                                color: '#666'
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span>{m.name}</span>
+                              </div>
+                              <div style={{ fontSize: '9px', color: '#555', marginTop: '1px' }}>
+                                {m.description}
+                              </div>
+                            </div>
+                          ))}
+                        </>
+                      )}
+                    </>
                   )}
                 </div>
               )}
