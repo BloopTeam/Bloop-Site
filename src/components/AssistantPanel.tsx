@@ -98,21 +98,9 @@ export default function AssistantPanel({ width = 480 }: AssistantPanelProps) {
           setAvailableModels(response.models)
           setBackendConnected(true)
         } else {
-          // Use default models if backend unavailable
-          setAvailableModels(DEFAULT_MODELS.map(m => ({
-            provider: m.provider,
-            model: m.id,
-            available: false,
-            capabilities: {
-              supports_vision: false,
-              supports_function_calling: true,
-              max_context_length: 0,
-              supports_streaming: true,
-              cost_per_1k_tokens: { input: 0, output: 0 },
-              speed: 'medium',
-              quality: 'medium'
-            }
-          })))
+          // Backend returned empty - mark as not connected
+          setAvailableModels([])
+          setBackendConnected(false)
         }
       } catch (error) {
         console.error('Failed to fetch models:', error)
@@ -362,31 +350,31 @@ export default function AssistantPanel({ width = 480 }: AssistantPanelProps) {
   } : { id: 'auto', name: 'Auto', description: 'Auto-select best model', provider: 'auto' }
   
   // Build comprehensive models list - always show all models
-  const modelsList = [
-    // Auto option always first
-    { id: 'auto', name: 'Auto', description: 'Automatically selects the best model', provider: 'auto', available: true },
+  // Start with all default models, then update with backend data if available
+  const modelsList = DEFAULT_MODELS.map(defaultModel => {
+    // Check if this model is available from backend
+    const backendModel = availableModels.find(m => m.model === defaultModel.id)
     
-    // Add all available models from backend
-    ...availableModels.filter(m => m.available && m.model !== 'auto').map(m => ({
-      id: m.model,
-      name: m.provider.charAt(0).toUpperCase() + m.provider.slice(1),
-      description: `${m.capabilities.max_context_length.toLocaleString()} context${m.capabilities.supports_vision ? ', vision' : ''}`,
-      provider: m.provider,
-      available: true
-    })),
-    
-    // Add all default models that aren't already in availableModels (as unavailable)
-    ...DEFAULT_MODELS.filter(defaultModel => 
-      defaultModel.id !== 'auto' && 
-      !availableModels.some(avail => avail.model === defaultModel.id)
-    ).map(m => ({
-      id: m.id,
-      name: m.name,
-      description: m.description,
-      provider: m.provider,
-      available: false
-    }))
-  ]
+    if (backendModel && backendModel.available) {
+      // Use backend data for available models
+      return {
+        id: backendModel.model,
+        name: backendModel.provider.charAt(0).toUpperCase() + backendModel.provider.slice(1),
+        description: `${backendModel.capabilities.max_context_length.toLocaleString()} context${backendModel.capabilities.supports_vision ? ', vision' : ''}`,
+        provider: backendModel.provider,
+        available: true
+      }
+    } else {
+      // Use default model data (either not in backend or not available)
+      return {
+        id: defaultModel.id,
+        name: defaultModel.name,
+        description: defaultModel.description,
+        provider: defaultModel.provider,
+        available: backendModel?.available || false
+      }
+    }
+  })
 
   const renderMessageContent = (content: string) => {
     // Simple markdown-like rendering
