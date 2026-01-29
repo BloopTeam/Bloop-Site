@@ -74,6 +74,7 @@ async fn create_app(config: Config, router: ModelRouter) -> anyhow::Result<Route
     let app = Router::new()
         .route("/health", get(health_check))
         .route("/api/v1/chat", post(api::routes::chat::handle_chat))
+        .route("/api/v1/models", get(api::routes::models::list_models))
         .route("/api/v1/agents/create", post(api::routes::agents::create_agent))
         .route("/api/v1/agents/:id", get(api::routes::agents::get_agent_status))
         .route("/api/v1/context/analyze", post(api::routes::context::analyze_context))
@@ -90,6 +91,51 @@ async fn create_app(config: Config, router: ModelRouter) -> anyhow::Result<Route
     Ok(app)
 }
 
-async fn health_check() -> &'static str {
-    "OK"
+async fn health_check(
+    Extension(config): Extension<Config>,
+    Extension(router): Extension<ModelRouter>,
+) -> axum::response::Json<serde_json::Value> {
+    use crate::types::ModelProvider;
+    
+    let mut providers = std::collections::HashMap::new();
+    
+    // Check which providers are configured
+    let provider_checks = vec![
+        ("openai", ModelProvider::OpenAI, !config.openai_api_key.is_empty()),
+        ("anthropic", ModelProvider::Anthropic, !config.anthropic_api_key.is_empty()),
+        ("google", ModelProvider::Google, !config.google_gemini_api_key.is_empty()),
+        ("moonshot", ModelProvider::Moonshot, !config.moonshot_api_key.is_empty()),
+        ("deepseek", ModelProvider::DeepSeek, !config.deepseek_api_key.is_empty()),
+        ("mistral", ModelProvider::Mistral, !config.mistral_api_key.is_empty()),
+        ("cohere", ModelProvider::Cohere, !config.cohere_api_key.is_empty()),
+        ("perplexity", ModelProvider::Perplexity, !config.perplexity_api_key.is_empty()),
+        ("xai", ModelProvider::XAI, !config.xai_api_key.is_empty()),
+        ("together", ModelProvider::Together, !config.together_api_key.is_empty()),
+        ("anyscale", ModelProvider::Anyscale, !config.anyscale_api_key.is_empty()),
+        ("qwen", ModelProvider::Qwen, !config.qwen_api_key.is_empty()),
+        ("zeroone", ModelProvider::ZeroOne, !config.zeroone_api_key.is_empty()),
+        ("baidu", ModelProvider::Baidu, !config.baidu_api_key.is_empty()),
+    ];
+    
+    let mut available_count = 0;
+    for (name, provider, configured) in provider_checks {
+        let available = configured && router.get_service(provider).is_some();
+        if available {
+            available_count += 1;
+        }
+        providers.insert(name, serde_json::json!({
+            "configured": configured,
+            "available": available
+        }));
+    }
+    
+    axum::response::Json(serde_json::json!({
+        "status": "healthy",
+        "version": env!("CARGO_PKG_VERSION"),
+        "providers": {
+            "total": providers.len(),
+            "available": available_count,
+            "details": providers
+        }
+    }))
 }

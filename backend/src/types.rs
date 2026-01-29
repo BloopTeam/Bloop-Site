@@ -37,6 +37,20 @@ pub struct AIRequest {
     pub context: Option<CodebaseContext>,
 }
 
+impl AIRequest {
+    /// Create a new request with minimal overhead for fallback attempts
+    pub fn clone_for_fallback(&self) -> Self {
+        Self {
+            messages: self.messages.clone(),
+            model: None, // Let router select best model
+            temperature: self.temperature,
+            max_tokens: self.max_tokens,
+            stream: self.stream,
+            context: self.context.clone(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AIResponse {
     pub content: String,
@@ -203,12 +217,24 @@ pub enum Quality {
     Low,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
 pub enum ModelProvider {
     OpenAI,
     Anthropic,
     Google,
+    Moonshot,      // Kimi K2.5
+    DeepSeek,      // Code-focused models
+    Mistral,       // Creativity + code
+    Cohere,        // Enterprise-grade
+    Perplexity,    // Search-enhanced
+    XAI,           // Grok models
+    Meta,          // Llama models
+    Together,      // Together AI
+    Anyscale,      // Anyscale
+    Qwen,          // Alibaba Qwen
+    ZeroOne,       // 01.ai models
+    Baidu,         // Ernie models
     Auto,
 }
 

@@ -9,6 +9,7 @@ import dotenv from 'dotenv'
 import { chatRouter } from './api/routes/chat.js'
 import { agentRouter } from './api/routes/agents.js'
 import { contextRouter } from './api/routes/context.js'
+import { modelsRouter } from './api/routes/models.js'
 
 // Load environment variables
 dotenv.config()
@@ -44,6 +45,7 @@ app.get('/health', (req, res) => {
 })
 
 app.use('/api/v1/chat', chatRouter)
+app.use('/api/v1/models', modelsRouter)
 app.use('/api/v1/agents', agentRouter)
 app.use('/api/v1/context', contextRouter)
 

@@ -2,9 +2,10 @@ import { useState, useRef, useEffect } from 'react'
 import { 
   ChevronDown, AtSign, Image as ImageIcon, Mic, Send, 
   Copy, Check, RefreshCw, Code, Sparkles,
-  MessageSquare, FileCode, FolderOpen, Hash, ThumbsUp, ThumbsDown, ChevronUp
+  MessageSquare, FileCode, FolderOpen, Hash, ThumbsUp, ThumbsDown, ChevronUp, Loader2
 } from 'lucide-react'
 import Logo from './Logo'
+import { apiService, type ModelInfo } from '../services/api'
 
 interface AssistantPanelProps {
   onCollapse: () => void
@@ -23,13 +24,18 @@ interface Message {
 }
 
 type AgentMode = 'agent' | 'chat' | 'edit'
-type ModelType = 'auto' | 'claude-4' | 'gpt-4' | 'gemini'
+type ModelType = 'auto' | string // Can be any model ID from backend
 
-const MODELS: { id: ModelType; name: string; description: string }[] = [
-  { id: 'auto', name: 'Auto', description: 'Automatically selects the best model' },
-  { id: 'claude-4', name: 'Claude 4', description: 'Best for complex reasoning' },
-  { id: 'gpt-4', name: 'GPT-4', description: 'Great for general tasks' },
-  { id: 'gemini', name: 'Gemini Pro', description: 'Fast and efficient' },
+// Default models if backend is unavailable
+const DEFAULT_MODELS: { id: ModelType; name: string; description: string; provider: string }[] = [
+  { id: 'auto', name: 'Auto', description: 'Automatically selects the best model', provider: 'auto' },
+  { id: 'kimi-k2.5', name: 'Kimi K2.5', description: '1T param multimodal (256K context)', provider: 'moonshot' },
+  { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', description: 'High quality, safety-focused', provider: 'anthropic' },
+  { id: 'gpt-4-turbo-preview', name: 'GPT-4 Turbo', description: 'Versatile, well-tested', provider: 'openai' },
+  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: 'Massive 1M context', provider: 'google' },
+  { id: 'deepseek-chat', name: 'DeepSeek', description: 'Code-focused, ultra-fast', provider: 'deepseek' },
+  { id: 'mistral-large-latest', name: 'Mistral Large', description: 'Creativity + code balance', provider: 'mistral' },
+  { id: 'grok-beta', name: 'Grok (xAI)', description: 'Fast, creative', provider: 'xai' },
 ]
 
 const AGENT_MODES: { id: AgentMode; name: string; icon: React.ReactNode; description: string }[] = [
@@ -62,6 +68,9 @@ export default function AssistantPanel({ width = 480 }: AssistantPanelProps) {
   const [isTyping, setIsTyping] = useState(false)
   const [agentMode, setAgentMode] = useState<AgentMode>('agent')
   const [model, setModel] = useState<ModelType>('auto')
+  const [availableModels, setAvailableModels] = useState<ModelInfo[]>([])
+  const [modelsLoading, setModelsLoading] = useState(true)
+  const [backendConnected, setBackendConnected] = useState(false)
   const [showAgentDropdown, setShowAgentDropdown] = useState(false)
   const [showModelDropdown, setShowModelDropdown] = useState(false)
   const [showContextMenu, setShowContextMenu] = useState(false)
@@ -78,6 +87,57 @@ export default function AssistantPanel({ width = 480 }: AssistantPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Fetch available models from backend
+  useEffect(() => {
+    const fetchModels = async () => {
+      try {
+        setModelsLoading(true)
+        const response = await apiService.fetchModels()
+        if (response.models.length > 0) {
+          setAvailableModels(response.models)
+          setBackendConnected(true)
+        } else {
+          // Use default models if backend unavailable
+          setAvailableModels(DEFAULT_MODELS.map(m => ({
+            provider: m.provider,
+            model: m.id,
+            available: false,
+            capabilities: {
+              supports_vision: false,
+              supports_function_calling: true,
+              max_context_length: 0,
+              supports_streaming: true,
+              cost_per_1k_tokens: { input: 0, output: 0 },
+              speed: 'medium',
+              quality: 'medium'
+            }
+          })))
+        }
+      } catch (error) {
+        console.error('Failed to fetch models:', error)
+        // Use default models on error
+        setAvailableModels(DEFAULT_MODELS.map(m => ({
+          provider: m.provider,
+          model: m.id,
+          available: false,
+          capabilities: {
+            supports_vision: false,
+            supports_function_calling: true,
+            max_context_length: 0,
+            supports_streaming: true,
+            cost_per_1k_tokens: { input: 0, output: 0 },
+            speed: 'medium',
+            quality: 'medium'
+          }
+        })))
+      } finally {
+        setModelsLoading(false)
+      }
+    }
+
+    fetchModels()
+  }, [])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -107,7 +167,7 @@ export default function AssistantPanel({ width = 480 }: AssistantPanelProps) {
   }, [input])
 
   const generateResponse = (userInput: string): string => {
-    // Simulate different responses based on input
+    // Fallback response if backend is unavailable
     if (userInput.toLowerCase().includes('hello') || userInput.toLowerCase().includes('hi')) {
       return "Hello! I'm your AI coding assistant. How can I help you today? You can ask me to:\n\n• Explain code\n• Fix bugs\n• Write new features\n• Optimize performance\n• Generate tests"
     }
@@ -121,17 +181,19 @@ export default function AssistantPanel({ width = 480 }: AssistantPanelProps) {
     return "I understand. Let me analyze that and provide a helpful response.\n\n```typescript\n// Here's a code example\nconst result = await processRequest(input);\nconsole.log(result);\n```\n\nWould you like me to explain this further?"
   }
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!input.trim() || isTyping) return
 
+    const userInput = input.trim()
+    
     // Add to command history
-    setCommandHistory(prev => [...prev, input])
+    setCommandHistory(prev => [...prev, userInput])
     setHistoryIndex(-1)
 
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: input,
+      content: userInput,
       timestamp: new Date()
     }
 
@@ -141,19 +203,60 @@ export default function AssistantPanel({ width = 480 }: AssistantPanelProps) {
     setShowContextMenu(false)
     setShowCommandMenu(false)
 
-    // Simulate typing delay
-    const typingDelay = 800 + Math.random() * 1200
-    
-    setTimeout(() => {
+    try {
+      // Try to use backend API if available
+      if (backendConnected) {
+        const response = await apiService.sendChatMessage({
+          messages: [
+            ...messages.map(m => ({
+              role: m.role as 'user' | 'assistant' | 'system',
+              content: m.content
+            })),
+            {
+              role: 'user',
+              content: userInput
+            }
+          ],
+          model: model === 'auto' ? undefined : model,
+          temperature: 0.7,
+          maxTokens: 4000
+        })
+
+        const assistantMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: response.content || 'No response received',
+          timestamp: new Date()
+        }
+        setMessages(prev => [...prev, assistantMessage])
+      } else {
+        // Fallback to simulated response
+        const typingDelay = 800 + Math.random() * 1200
+        setTimeout(() => {
+          const assistantMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: generateResponse(userInput),
+            timestamp: new Date()
+          }
+          setMessages(prev => [...prev, assistantMessage])
+          setIsTyping(false)
+        }, typingDelay)
+        return
+      }
+    } catch (error) {
+      console.error('Error sending message:', error)
+      // Fallback to simulated response on error
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: generateResponse(input),
+        content: `I'm having trouble connecting to the backend. ${generateResponse(userInput)}`,
         timestamp: new Date()
       }
       setMessages(prev => [...prev, assistantMessage])
+    } finally {
       setIsTyping(false)
-    }, typingDelay)
+    }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -252,11 +355,35 @@ export default function AssistantPanel({ width = 480 }: AssistantPanelProps) {
 
   const filteredCommands = SLASH_COMMANDS.filter(cmd =>
     cmd.command.toLowerCase().includes(commandFilter.toLowerCase()) ||
-    cmd.description.toLowerCase().includes(commandFilter.toLowerCase())
+    cmd.description.toLowerCase().includes(cmd.description.toLowerCase())
   )
 
   const currentAgent = AGENT_MODES.find(m => m.id === agentMode)!
-  const currentModel = MODELS.find(m => m.id === model)!
+  
+  // Get current model info from available models or defaults
+  const currentModelInfo = availableModels.find(m => m.model === model) || 
+    DEFAULT_MODELS.find(m => m.id === model)
+  const currentModel = currentModelInfo ? {
+    id: currentModelInfo.model,
+    name: currentModelInfo.provider === 'auto' ? 'Auto' : 
+          currentModelInfo.provider.charAt(0).toUpperCase() + currentModelInfo.provider.slice(1),
+    description: currentModelInfo.available 
+      ? `${currentModelInfo.capabilities.max_context_length.toLocaleString()} context, ${currentModelInfo.capabilities.speed} speed`
+      : 'Not configured',
+    provider: currentModelInfo.provider
+  } : { id: 'auto', name: 'Auto', description: 'Auto-select best model', provider: 'auto' }
+  
+  // Get list of models for dropdown (available + auto)
+  const modelsList = [
+    { id: 'auto', name: 'Auto', description: 'Automatically selects the best model', provider: 'auto', available: true },
+    ...availableModels.filter(m => m.available).map(m => ({
+      id: m.model,
+      name: m.provider.charAt(0).toUpperCase() + m.provider.slice(1),
+      description: `${m.capabilities.max_context_length.toLocaleString()} context${m.capabilities.supports_vision ? ', vision' : ''}`,
+      provider: m.provider,
+      available: m.available
+    }))
+  ]
 
   const renderMessageContent = (content: string) => {
     // Simple markdown-like rendering
@@ -948,6 +1075,7 @@ export default function AssistantPanel({ width = 480 }: AssistantPanelProps) {
                 onMouseLeave={(e) => e.currentTarget.style.color = '#666'}
               >
                 <span>{currentModel.name}</span>
+                {modelsLoading && <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} />}
                 <ChevronDown size={12} />
               </button>
 
@@ -961,30 +1089,56 @@ export default function AssistantPanel({ width = 480 }: AssistantPanelProps) {
                   borderRadius: '6px',
                   padding: '4px',
                   marginBottom: '4px',
-                  minWidth: '200px',
+                  minWidth: '250px',
+                  maxHeight: '400px',
+                  overflowY: 'auto',
                   boxShadow: '0 -4px 20px rgba(0,0,0,0.3)',
                   zIndex: 100
                 }}>
-                  {MODELS.map((m) => (
-                    <div
-                      key={m.id}
-                      onClick={() => {
-                        setModel(m.id)
-                        setShowModelDropdown(false)
-                      }}
-                      style={{
-                        padding: '8px 10px',
-                        cursor: 'pointer',
-                        borderRadius: '4px',
-                        background: m.id === model ? 'rgba(255,0,255,0.1)' : 'transparent'
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,0,255,0.1)'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = m.id === model ? 'rgba(255,0,255,0.1)' : 'transparent'}
-                    >
-                      <div style={{ fontSize: '12px', color: m.id === model ? '#FF00FF' : '#ccc' }}>{m.name}</div>
-                      <div style={{ fontSize: '10px', color: '#555' }}>{m.description}</div>
+                  {modelsLoading ? (
+                    <div style={{ padding: '12px', textAlign: 'center', color: '#666' }}>
+                      <Loader2 size={16} style={{ animation: 'spin 1s linear infinite', display: 'inline-block', marginRight: '8px' }} />
+                      Loading models...
                     </div>
-                  ))}
+                  ) : (
+                    modelsList.map((m) => (
+                      <div
+                        key={m.id}
+                        onClick={() => {
+                          setModel(m.id)
+                          setShowModelDropdown(false)
+                        }}
+                        style={{
+                          padding: '8px 10px',
+                          cursor: m.available ? 'pointer' : 'not-allowed',
+                          borderRadius: '4px',
+                          background: m.id === model ? 'rgba(255,0,255,0.1)' : 'transparent',
+                          opacity: m.available ? 1 : 0.5
+                        }}
+                        onMouseEnter={(e) => {
+                          if (m.available) {
+                            e.currentTarget.style.background = 'rgba(255,0,255,0.1)'
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = m.id === model ? 'rgba(255,0,255,0.1)' : 'transparent'
+                        }}
+                      >
+                        <div style={{ 
+                          fontSize: '12px', 
+                          color: m.id === model ? '#FF00FF' : m.available ? '#ccc' : '#666',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}>
+                          {m.id === model && <Check size={12} />}
+                          {m.name}
+                          {!m.available && <span style={{ fontSize: '10px', color: '#555' }}>(not configured)</span>}
+                        </div>
+                        <div style={{ fontSize: '10px', color: '#555', marginTop: '2px' }}>{m.description}</div>
+                      </div>
+                    ))
+                  )}
                 </div>
               )}
             </div>

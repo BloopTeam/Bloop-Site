@@ -12,13 +12,20 @@ chatRouter.post('/', async (req, res) => {
   try {
     const request: AIRequest = req.body
     
+    // Validate request
+    if (!request.messages || !Array.isArray(request.messages) || request.messages.length === 0) {
+      return res.status(400).json({ error: 'Messages array is required and cannot be empty' })
+    }
+    
     // Select best model
     const modelInfo = router.selectBestModel(request)
     
     // Get service
     const service = router.getService(modelInfo.provider)
     if (!service) {
-      return res.status(503).json({ error: 'Service unavailable' })
+      return res.status(503).json({ 
+        error: 'No AI service available. Please configure at least one API key in your .env file.' 
+      })
     }
     
     // Generate response

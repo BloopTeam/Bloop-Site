@@ -11,6 +11,17 @@ pub struct Config {
     pub openai_api_key: String,
     pub anthropic_api_key: String,
     pub google_gemini_api_key: String,
+    pub moonshot_api_key: String,
+    pub deepseek_api_key: String,
+    pub mistral_api_key: String,
+    pub cohere_api_key: String,
+    pub perplexity_api_key: String,
+    pub xai_api_key: String,
+    pub together_api_key: String,
+    pub anyscale_api_key: String,
+    pub qwen_api_key: String,
+    pub zeroone_api_key: String,
+    pub baidu_api_key: String,
     pub jwt_secret: String,
     pub cors_origin: String,
     pub rate_limit_per_minute: u32,
@@ -30,6 +41,28 @@ impl Config {
             anthropic_api_key: env::var("ANTHROPIC_API_KEY")
                 .unwrap_or_else(|_| String::new()),
             google_gemini_api_key: env::var("GOOGLE_GEMINI_API_KEY")
+                .unwrap_or_else(|_| String::new()),
+            moonshot_api_key: env::var("MOONSHOT_API_KEY")
+                .unwrap_or_else(|_| String::new()),
+            deepseek_api_key: env::var("DEEPSEEK_API_KEY")
+                .unwrap_or_else(|_| String::new()),
+            mistral_api_key: env::var("MISTRAL_API_KEY")
+                .unwrap_or_else(|_| String::new()),
+            cohere_api_key: env::var("COHERE_API_KEY")
+                .unwrap_or_else(|_| String::new()),
+            perplexity_api_key: env::var("PERPLEXITY_API_KEY")
+                .unwrap_or_else(|_| String::new()),
+            xai_api_key: env::var("XAI_API_KEY")
+                .unwrap_or_else(|_| String::new()),
+            together_api_key: env::var("TOGETHER_API_KEY")
+                .unwrap_or_else(|_| String::new()),
+            anyscale_api_key: env::var("ANYSCALE_API_KEY")
+                .unwrap_or_else(|_| String::new()),
+            qwen_api_key: env::var("QWEN_API_KEY")
+                .unwrap_or_else(|_| String::new()),
+            zeroone_api_key: env::var("ZEROONE_API_KEY")
+                .unwrap_or_else(|_| String::new()),
+            baidu_api_key: env::var("BAIDU_API_KEY")
                 .unwrap_or_else(|_| String::new()),
             jwt_secret: env::var("JWT_SECRET")
                 .unwrap_or_else(|_| "change-me-in-production".to_string()),

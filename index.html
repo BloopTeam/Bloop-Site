@@ -42,16 +42,7 @@
         <p>Please enable JavaScript in your browser to use Bloop.</p>
       </div>
     </noscript>
-    <link data-trunk rel="css" href="/src/index.css" />
-    <script type="module">
-      import init from '/pkg/bloop_ui.js';
-      init().then(() => {
-        import('/pkg/bloop_ui.js').then(module => {
-          if (module.main) {
-            module.main();
-          }
-        });
-      });
-    </script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
