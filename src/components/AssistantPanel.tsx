@@ -71,6 +71,7 @@ const SLASH_COMMANDS = [
   { command: '/edit', description: 'Edit selected code' },
   { command: '/explain', description: 'Explain this code' },
   { command: '/fix', description: 'Fix bugs in selection' },
+  { command: '/review', description: 'Review code for issues' },
   { command: '/test', description: 'Generate tests' },
   { command: '/docs', description: 'Generate documentation' },
   { command: '/optimize', description: 'Optimize performance' },
@@ -178,13 +179,97 @@ export default function AssistantPanel({ width = 480 }: AssistantPanelProps) {
       return "Hello! I'm your AI coding assistant. How can I help you today? You can ask me to:\n\n• Explain code\n• Fix bugs\n• Write new features\n• Optimize performance\n• Generate tests"
     }
     if (userInput.toLowerCase().includes('help')) {
-      return "Here's what I can do:\n\n**Commands:**\n• `/edit` - Edit selected code\n• `/explain` - Explain code\n• `/fix` - Fix bugs\n• `/test` - Generate tests\n\n**Context:**\n• Use `@` to reference files\n• Drag & drop images\n• Paste code snippets"
+      return "Here's what I can do:\n\n**Commands:**\n• `/edit` - Edit selected code\n• `/explain` - Explain code\n• `/fix` - Fix bugs\n• `/review` - Review code for issues\n• `/test` - Generate tests\n• `/docs` - Generate documentation\n\n**Context:**\n• Use `@` to reference files\n• Drag & drop images\n• Paste code snippets"
     }
     if (userInput.startsWith('/')) {
       const cmd = userInput.split(' ')[0]
       return `Executing ${cmd}...\n\nI'll analyze the code and provide suggestions based on your request.`
     }
     return "I understand. Let me analyze that and provide a helpful response.\n\n```typescript\n// Here's a code example\nconst result = await processRequest(input);\nconsole.log(result);\n```\n\nWould you like me to explain this further?"
+  }
+
+  const handleCodeReview = async (code: string, language: string, filePath: string) => {
+    setIsTyping(true)
+    try {
+      const result = await apiService.reviewCode(filePath, code, language)
+      const reviewMessage: Message = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: `## Code Review Results\n\n**Score**: ${result.score}/100\n\n**Summary**: ${result.summary}\n\n**Issues Found**: ${result.issues.length}\n\n${result.issues.map((issue: any, idx: number) => 
+          `### ${idx + 1}. ${issue.severity} - ${issue.category}\n` +
+          `**Location**: ${issue.file_path}:${issue.line}:${issue.column}\n` +
+          `**Message**: ${issue.message}\n` +
+          `**Suggestion**: ${issue.suggestion}\n`
+        ).join('\n')}`,
+        timestamp: new Date(),
+      }
+      setMessages(prev => [...prev, reviewMessage])
+    } catch (error) {
+      console.error('Code review failed:', error)
+      const errorMsg: Message = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: `Code review failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        timestamp: new Date(),
+      }
+      setMessages(prev => [...prev, errorMsg])
+    } finally {
+      setIsTyping(false)
+    }
+  }
+
+  const handleGenerateTests = async (code: string, language: string, functionName?: string) => {
+    setIsTyping(true)
+    try {
+      const result = await apiService.generateTests(code, language, functionName)
+      const testMessage: Message = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: `## Generated Tests\n\n**Framework**: ${result.test_framework}\n**Coverage Estimate**: ${result.coverage_estimate}%\n\n**Test Cases**: ${result.test_cases.length}\n\n\`\`\`${language}\n${result.test_cases.map((tc: any) => tc.code).join('\n\n')}\n\`\`\`\n\n${result.setup_code ? `**Setup**:\n\`\`\`${language}\n${result.setup_code}\n\`\`\`` : ''}`,
+        timestamp: new Date(),
+      }
+      setMessages(prev => [...prev, testMessage])
+    } catch (error) {
+      console.error('Test generation failed:', error)
+      const errorMsg: Message = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: `Test generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        timestamp: new Date(),
+      }
+      setMessages(prev => [...prev, errorMsg])
+    } finally {
+      setIsTyping(false)
+    }
+  }
+
+  const handleGenerateDocs = async (code: string, language: string, filePath: string) => {
+    setIsTyping(true)
+    try {
+      const result = await apiService.generateDocs(code, language, filePath)
+      const docsMessage: Message = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: `## Generated Documentation\n\n**Overview**:\n${result.overview}\n\n**API Reference**:\n${result.api_reference.map((api: any) => 
+          `### ${api.name}\n\`\`\`\n${api.signature}\n\`\`\`\n${api.description}\n`
+        ).join('\n')}\n\n**Usage Guide**:\n${result.usage_guide}\n\n**Examples**:\n${result.examples.map((ex: any) => 
+          `### ${ex.title}\n${ex.description}\n\`\`\`${ex.language}\n${ex.code}\n\`\`\`\n`
+        ).join('\n')}`,
+        timestamp: new Date(),
+      }
+      setMessages(prev => [...prev, docsMessage])
+    } catch (error) {
+      console.error('Documentation generation failed:', error)
+      const errorMsg: Message = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: `Documentation generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        timestamp: new Date(),
+      }
+      setMessages(prev => [...prev, errorMsg])
+    } finally {
+      setIsTyping(false)
+    }
   }
 
   const handleSend = async () => {
@@ -210,6 +295,30 @@ export default function AssistantPanel({ width = 480 }: AssistantPanelProps) {
     setShowCommandMenu(false)
 
     try {
+      // Check for special commands
+      if (userInput.startsWith('/review') && backendConnected) {
+        // Extract code from message or use placeholder
+        const codeMatch = userInput.match(/\/review\s+(.*)/s)
+        const code = codeMatch ? codeMatch[1] : '// No code provided'
+        const language = 'typescript' // Could be detected or passed
+        const filePath = 'current-file.ts' // Could be from context
+        await handleCodeReview(code, language, filePath)
+        return
+      } else if (userInput.startsWith('/test') && backendConnected) {
+        const codeMatch = userInput.match(/\/test\s+(.*)/s)
+        const code = codeMatch ? codeMatch[1] : '// No code provided'
+        const language = 'typescript'
+        await handleGenerateTests(code, language)
+        return
+      } else if (userInput.startsWith('/docs') && backendConnected) {
+        const codeMatch = userInput.match(/\/docs\s+(.*)/s)
+        const code = codeMatch ? codeMatch[1] : '// No code provided'
+        const language = 'typescript'
+        const filePath = 'current-file.ts'
+        await handleGenerateDocs(code, language, filePath)
+        return
+      }
+
       // Try to use backend API if available
       if (backendConnected) {
         const response = await apiService.sendChatMessage({

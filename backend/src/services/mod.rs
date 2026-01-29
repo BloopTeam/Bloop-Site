@@ -1,3 +1,4 @@
 pub mod ai;
 pub mod agent;
 pub mod context;
+pub mod codebase;

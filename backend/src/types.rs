@@ -82,6 +82,17 @@ pub struct CodebaseContext {
     pub structure: Option<ProjectStructure>,
 }
 
+impl Default for CodebaseContext {
+    fn default() -> Self {
+        Self {
+            files: None,
+            symbols: None,
+            dependencies: None,
+            structure: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileContext {
     pub path: String,

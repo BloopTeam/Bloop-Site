@@ -27,6 +27,9 @@ mod utils;
 
 use config::Config;
 use services::ai::router::ModelRouter;
+use services::agent::AgentManager;
+use services::codebase::CodebaseIndexer;
+use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -47,10 +50,17 @@ async fn main() -> anyhow::Result<()> {
     info!("📍 Listening on {}:{}", config.host, config.port);
 
     // Initialize model router
-    let router = ModelRouter::new(&config);
+    let router = Arc::new(ModelRouter::new(&config));
+    
+    // Initialize agent manager (returns Arc already)
+    let config_arc = Arc::new(config.clone());
+    let agent_manager = AgentManager::new(Arc::clone(&router), Arc::clone(&config_arc));
+    
+    // Initialize codebase indexer
+    let codebase_indexer = Arc::new(CodebaseIndexer::new());
 
     // Build application
-    let app = create_app(config.clone(), router).await?;
+    let app = create_app(config.clone(), router, agent_manager, codebase_indexer).await?;
 
     // Start server
     let addr = SocketAddr::from(([0, 0, 0, 0], config.port));
@@ -63,7 +73,12 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn create_app(config: Config, router: ModelRouter) -> anyhow::Result<Router> {
+async fn create_app(
+    config: Config, 
+    router: Arc<ModelRouter>,
+    agent_manager: Arc<AgentManager>,
+    codebase_indexer: Arc<CodebaseIndexer>,
+) -> anyhow::Result<Router> {
     // CORS layer
     let cors = CorsLayer::new()
         .allow_origin(Any)
@@ -75,9 +90,26 @@ async fn create_app(config: Config, router: ModelRouter) -> anyhow::Result<Route
         .route("/health", get(health_check))
         .route("/api/v1/chat", post(api::routes::chat::handle_chat))
         .route("/api/v1/models", get(api::routes::models::list_models))
+        .route("/api/v1/agents", get(api::routes::agents::list_agents))
         .route("/api/v1/agents/create", post(api::routes::agents::create_agent))
         .route("/api/v1/agents/:id", get(api::routes::agents::get_agent_status))
+        .route("/api/v1/agents/tasks", post(api::routes::agents::create_task))
+        .route("/api/v1/agents/tasks", get(api::routes::agents::list_tasks))
+        .route("/api/v1/agents/tasks/:id", get(api::routes::agents::get_task_status))
+        .route("/api/v1/agents/metrics", get(api::routes::agents::get_metrics))
+        .route("/api/v1/agents/queue/status", get(api::routes::agents::get_queue_status))
+        .route("/api/v1/agents/health", get(api::routes::agents::get_health_status))
         .route("/api/v1/context/analyze", post(api::routes::context::analyze_context))
+        .route("/api/v1/codebase/search", get(api::routes::codebase::search_codebase))
+        .route("/api/v1/codebase/review", post(api::routes::codebase::review_code))
+        .route("/api/v1/codebase/tests", post(api::routes::codebase::generate_tests))
+        .route("/api/v1/codebase/docs", post(api::routes::codebase::generate_docs))
+        .route("/api/v1/codebase/dependencies/:file_path", get(api::routes::codebase::get_dependencies))
+        .route("/api/v1/files/read/:file_path", get(api::routes::files::read_file))
+        .route("/api/v1/files/write", post(api::routes::files::write_file))
+        .route("/api/v1/files/delete/:file_path", axum::routing::delete(api::routes::files::delete_file))
+        .route("/api/v1/files/list/:dir_path", get(api::routes::files::list_directory))
+        .route("/api/v1/execute", post(api::routes::execute::execute_command))
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())
@@ -85,6 +117,8 @@ async fn create_app(config: Config, router: ModelRouter) -> anyhow::Result<Route
                 .layer(cors)
                 .layer(Extension(config))
                 .layer(Extension(router))
+                .layer(Extension(agent_manager))
+                .layer(Extension(codebase_indexer))
                 .into_inner(),
         );
 
@@ -93,7 +127,7 @@ async fn create_app(config: Config, router: ModelRouter) -> anyhow::Result<Route
 
 async fn health_check(
     Extension(config): Extension<Config>,
-    Extension(router): Extension<ModelRouter>,
+    Extension(router): Extension<Arc<ModelRouter>>,
 ) -> axum::response::Json<serde_json::Value> {
     use crate::types::ModelProvider;
     

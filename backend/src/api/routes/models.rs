@@ -11,6 +11,7 @@ use crate::services::ai::router::ModelRouter;
 use crate::config::Config;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ModelInfo {
@@ -46,7 +47,7 @@ pub struct ModelsResponse {
 
 pub async fn list_models(
     Extension(_config): Extension<Config>,
-    Extension(router): Extension<ModelRouter>,
+    Extension(router): Extension<Arc<ModelRouter>>,
 ) -> Result<Json<ModelsResponse>, StatusCode> {
     let mut models = Vec::new();
     

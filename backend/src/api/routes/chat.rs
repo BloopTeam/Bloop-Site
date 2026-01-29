@@ -9,10 +9,11 @@ use axum::{
 use crate::types::AIRequest;
 use crate::services::ai::router::ModelRouter;
 use crate::config::Config;
+use std::sync::Arc;
 
 pub async fn handle_chat(
     Extension(_config): Extension<Config>,
-    Extension(router): Extension<ModelRouter>,
+    Extension(router): Extension<Arc<ModelRouter>>,
     Json(request): Json<AIRequest>,
 ) -> Result<Json<crate::types::AIResponse>, StatusCode> {
     // Select best model
