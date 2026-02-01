@@ -364,6 +364,203 @@ class MoltbookService {
     })
   }
 
+  // Agent discovery
+  async discoverAgents(options?: {
+    capability?: string
+    sort?: 'karma' | 'recent' | 'active'
+    limit?: number
+  }): Promise<MoltbookAgent[]> {
+    const params = new URLSearchParams()
+    if (options?.capability) params.set('capability', options.capability)
+    if (options?.sort) params.set('sort', options.sort)
+    if (options?.limit) params.set('limit', String(options.limit))
+
+    try {
+      return await this.fetch<MoltbookAgent[]>(`/agents/discover?${params}`)
+    } catch (error) {
+      console.error('[Moltbook] Failed to discover agents:', error)
+      return []
+    }
+  }
+
+  // Follow/unfollow agents
+  async followAgent(agentId: string): Promise<boolean> {
+    if (!this.isRegistered()) return false
+
+    try {
+      await this.fetch(`/agents/${agentId}/follow`, { method: 'POST' })
+      return true
+    } catch (error) {
+      console.error('[Moltbook] Failed to follow agent:', error)
+      return false
+    }
+  }
+
+  async unfollowAgent(agentId: string): Promise<boolean> {
+    if (!this.isRegistered()) return false
+
+    try {
+      await this.fetch(`/agents/${agentId}/unfollow`, { method: 'POST' })
+      return true
+    } catch (error) {
+      console.error('[Moltbook] Failed to unfollow agent:', error)
+      return false
+    }
+  }
+
+  async getFollowing(): Promise<MoltbookAgent[]> {
+    if (!this.isRegistered()) return []
+
+    try {
+      return await this.fetch<MoltbookAgent[]>('/agents/me/following')
+    } catch (error) {
+      console.error('[Moltbook] Failed to get following:', error)
+      return []
+    }
+  }
+
+  async getFollowers(): Promise<MoltbookAgent[]> {
+    if (!this.isRegistered()) return []
+
+    try {
+      return await this.fetch<MoltbookAgent[]>('/agents/me/followers')
+    } catch (error) {
+      console.error('[Moltbook] Failed to get followers:', error)
+      return []
+    }
+  }
+
+  // Direct messaging between agents
+  async sendDirectMessage(toAgentId: string, message: string): Promise<{
+    id: string
+    content: string
+    timestamp: string
+  } | null> {
+    if (!this.isRegistered()) return null
+
+    try {
+      return await this.fetch<{ id: string; content: string; timestamp: string }>('/messages', {
+        method: 'POST',
+        body: JSON.stringify({ toAgentId, message })
+      })
+    } catch (error) {
+      console.error('[Moltbook] Failed to send message:', error)
+      return null
+    }
+  }
+
+  async getDirectMessages(withAgentId?: string): Promise<Array<{
+    id: string
+    fromAgent: MoltbookAgent
+    toAgent: MoltbookAgent
+    content: string
+    timestamp: string
+    read: boolean
+  }>> {
+    if (!this.isRegistered()) return []
+
+    const params = withAgentId ? `?with=${withAgentId}` : ''
+
+    try {
+      return await this.fetch(`/messages${params}`)
+    } catch (error) {
+      console.error('[Moltbook] Failed to get messages:', error)
+      return []
+    }
+  }
+
+  // Notifications
+  async getNotifications(): Promise<Array<{
+    id: string
+    type: 'mention' | 'reply' | 'follow' | 'upvote' | 'skill_download'
+    message: string
+    read: boolean
+    timestamp: string
+    link?: string
+  }>> {
+    if (!this.isRegistered()) return []
+
+    try {
+      return await this.fetch('/notifications')
+    } catch (error) {
+      console.error('[Moltbook] Failed to get notifications:', error)
+      return []
+    }
+  }
+
+  async markNotificationRead(notificationId: string): Promise<void> {
+    if (!this.isRegistered()) return
+
+    try {
+      await this.fetch(`/notifications/${notificationId}/read`, { method: 'POST' })
+    } catch (error) {
+      console.error('[Moltbook] Failed to mark notification read:', error)
+    }
+  }
+
+  // Bookmarks
+  async bookmarkPost(postId: string): Promise<boolean> {
+    if (!this.isRegistered()) return false
+
+    try {
+      await this.fetch(`/posts/${postId}/bookmark`, { method: 'POST' })
+      return true
+    } catch (error) {
+      console.error('[Moltbook] Failed to bookmark:', error)
+      return false
+    }
+  }
+
+  async getBookmarks(): Promise<MoltbookPost[]> {
+    if (!this.isRegistered()) return []
+
+    try {
+      return await this.fetch<MoltbookPost[]>('/bookmarks')
+    } catch (error) {
+      console.error('[Moltbook] Failed to get bookmarks:', error)
+      return []
+    }
+  }
+
+  // Activity feed (personalized)
+  async getActivityFeed(): Promise<Array<{
+    type: 'post' | 'skill' | 'follow' | 'comment'
+    actor: MoltbookAgent
+    target?: MoltbookPost | SharedSkill
+    timestamp: string
+    message: string
+  }>> {
+    if (!this.isRegistered()) return []
+
+    try {
+      return await this.fetch('/activity')
+    } catch (error) {
+      console.error('[Moltbook] Failed to get activity:', error)
+      return []
+    }
+  }
+
+  // Rate a skill
+  async rateSkill(skillId: string, rating: 1 | 2 | 3 | 4 | 5, review?: string): Promise<boolean> {
+    if (!this.isRegistered()) return false
+
+    try {
+      await this.fetch(`/skills/${skillId}/rate`, {
+        method: 'POST',
+        body: JSON.stringify({ rating, review })
+      })
+      return true
+    } catch (error) {
+      console.error('[Moltbook] Failed to rate skill:', error)
+      return false
+    }
+  }
+
+  // Get current agent stats
+  getAgent(): MoltbookAgent | null {
+    return this.agent
+  }
+
   // Logout
   logout(): void {
     this.agent = null

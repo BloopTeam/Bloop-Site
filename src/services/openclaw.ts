@@ -391,6 +391,163 @@ class OpenClawService {
     })
   }
 
+  async debugCode(context: CodeContext, error?: string): Promise<SkillExecutionResult> {
+    return this.executeSkill({
+      skillName: 'bloop-debug',
+      params: { error },
+      context
+    })
+  }
+
+  async optimizeCode(context: CodeContext): Promise<SkillExecutionResult> {
+    return this.executeSkill({
+      skillName: 'bloop-optimize',
+      params: {},
+      context
+    })
+  }
+
+  async scanSecurity(context: CodeContext): Promise<SkillExecutionResult> {
+    return this.executeSkill({
+      skillName: 'bloop-security',
+      params: {},
+      context
+    })
+  }
+
+  // Canvas operations (A2UI)
+  async createCanvas(): Promise<string | null> {
+    if (!this.isConnected() || !this.config.canvas.enabled) return null
+    
+    try {
+      const result = await this.request<{ canvasId: string }>('canvas.create')
+      return result.canvasId
+    } catch (error) {
+      console.error('[OpenClaw] Failed to create canvas:', error)
+      return null
+    }
+  }
+
+  async updateCanvas(canvasId: string, elements: unknown[]): Promise<boolean> {
+    if (!this.isConnected() || !this.config.canvas.enabled) return false
+    
+    try {
+      await this.request('canvas.update', { canvasId, elements })
+      return true
+    } catch (error) {
+      console.error('[OpenClaw] Failed to update canvas:', error)
+      return false
+    }
+  }
+
+  // Streaming responses
+  streamMessage(message: string, options?: {
+    thinkingLevel?: ThinkingLevel
+    model?: string
+    onChunk?: (chunk: string) => void
+    onComplete?: (response: OpenClawMessage) => void
+    onError?: (error: Error) => void
+  }): () => void {
+    if (!this.isConnected()) {
+      options?.onError?.(new Error('Not connected to OpenClaw Gateway'))
+      return () => {}
+    }
+
+    const id = this.send('agent.stream', {
+      message,
+      thinkingLevel: options?.thinkingLevel || this.config.defaultThinkingLevel,
+      model: options?.model
+    })
+
+    const chunkHandler = (data: unknown) => {
+      const chunk = data as { id: string; chunk?: string; complete?: boolean; message?: OpenClawMessage; error?: string }
+      if (chunk.id !== id) return
+      
+      if (chunk.error) {
+        options?.onError?.(new Error(chunk.error))
+        return
+      }
+      
+      if (chunk.chunk) {
+        options?.onChunk?.(chunk.chunk)
+      }
+      
+      if (chunk.complete && chunk.message) {
+        options?.onComplete?.(chunk.message)
+      }
+    }
+
+    const unsubscribe = this.on('agent.stream.chunk', chunkHandler)
+    
+    return () => {
+      unsubscribe()
+      this.send('agent.stream.cancel', { id })
+    }
+  }
+
+  // Batch skill execution
+  async executeBatch(skills: SkillExecutionRequest[]): Promise<SkillExecutionResult[]> {
+    if (!this.isConnected()) {
+      return skills.map(() => ({ success: false, error: 'Not connected' }))
+    }
+
+    try {
+      return await this.request<SkillExecutionResult[]>('skills.batch', { skills })
+    } catch (error) {
+      console.error('[OpenClaw] Batch execution failed:', error)
+      return skills.map(() => ({ success: false, error: String(error) }))
+    }
+  }
+
+  // Agent collaboration
+  async collaborateWith(agentId: string, task: string): Promise<{
+    sessionId: string
+    response: OpenClawMessage
+  } | null> {
+    if (!this.isConnected()) return null
+
+    try {
+      return await this.request<{ sessionId: string; response: OpenClawMessage }>('agent.collaborate', {
+        agentId,
+        task
+      })
+    } catch (error) {
+      console.error('[OpenClaw] Collaboration failed:', error)
+      return null
+    }
+  }
+
+  // Get skill details
+  async getSkillInfo(skillName: string): Promise<{
+    name: string
+    description: string
+    version: string
+    parameters: Array<{ name: string; type: string; required: boolean; description: string }>
+    examples: string[]
+  } | null> {
+    if (!this.isConnected()) return null
+
+    try {
+      return await this.request('skills.info', { skillName })
+    } catch (error) {
+      console.error('[OpenClaw] Failed to get skill info:', error)
+      return null
+    }
+  }
+
+  // Install skill from Moltbook
+  async installSkill(skillMd: string, name: string): Promise<boolean> {
+    if (!this.isConnected()) return false
+
+    try {
+      await this.request('skills.install', { skillMd, name })
+      return true
+    } catch (error) {
+      console.error('[OpenClaw] Failed to install skill:', error)
+      return false
+    }
+  }
+
   // Configuration
   getConfig(): OpenClawConfig {
     return { ...this.config }
