@@ -1,10 +1,12 @@
-import { Terminal, GitBranch, Bell, Check, AlertCircle, Activity, Zap, Shield } from 'lucide-react'
+import { Terminal, GitBranch, Bell, Check, AlertCircle, Activity, Zap, Shield, Plug, Users } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { apiService } from '../services/api'
+import { openClawService } from '../services/openclaw'
+import { moltbookService } from '../services/moltbook'
 
 interface StatusBarProps {
-  terminalVisible?: boolean
-  onToggleTerminal?: () => void
+  readonly terminalVisible?: boolean
+  readonly onToggleTerminal?: () => void
 }
 
 export default function StatusBar({ terminalVisible, onToggleTerminal }: StatusBarProps) {
@@ -15,6 +17,11 @@ export default function StatusBar({ terminalVisible, onToggleTerminal }: StatusB
     active_tasks: number
     success_rate: number
   } | null>(null)
+
+  // OpenClaw and Moltbook status
+  const [openClawConnected, setOpenClawConnected] = useState(false)
+  const [moltbookRegistered, setMoltbookRegistered] = useState(false)
+  const [openClawSkills, setOpenClawSkills] = useState(0)
 
   useEffect(() => {
     const fetchMetrics = async () => {
@@ -27,14 +34,42 @@ export default function StatusBar({ terminalVisible, onToggleTerminal }: StatusB
           active_tasks: data.active_tasks,
           success_rate: data.success_rate
         })
-      } catch (error) {
+      } catch {
         // Silently fail - metrics are optional
       }
     }
 
+    // Check OpenClaw status
+    const checkOpenClaw = async () => {
+      setOpenClawConnected(openClawService.isConnected())
+      if (openClawService.isConnected()) {
+        const skills = await openClawService.listSkills()
+        setOpenClawSkills(skills.length)
+      }
+    }
+
+    // Check Moltbook status
+    const checkMoltbook = () => {
+      setMoltbookRegistered(moltbookService.isRegistered())
+    }
+
     fetchMetrics()
-    const interval = setInterval(fetchMetrics, 5000) // Update every 5 seconds
-    return () => clearInterval(interval)
+    checkOpenClaw()
+    checkMoltbook()
+
+    const metricsInterval = setInterval(fetchMetrics, 5000)
+    const openClawInterval = setInterval(checkOpenClaw, 10000)
+    
+    // Listen for OpenClaw connection events
+    const unsubConnect = openClawService.on('connected', () => setOpenClawConnected(true))
+    const unsubDisconnect = openClawService.on('disconnected', () => setOpenClawConnected(false))
+
+    return () => {
+      clearInterval(metricsInterval)
+      clearInterval(openClawInterval)
+      unsubConnect()
+      unsubDisconnect()
+    }
   }, [])
   return (
     <div style={{
@@ -326,6 +361,57 @@ export default function StatusBar({ terminalVisible, onToggleTerminal }: StatusB
           title="Toggle Terminal (Ctrl+`)"
         >
           <Terminal size={12} />
+        </button>
+
+        {/* OpenClaw Status */}
+        <button 
+          onClick={() => {
+            if (!openClawConnected) {
+              openClawService.connect()
+            }
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '2px 8px',
+            background: openClawConnected ? 'rgba(34, 197, 94, 0.2)' : 'transparent',
+            border: 'none',
+            color: openClawConnected ? '#22c55e' : '#ffffff',
+            cursor: 'pointer',
+            fontSize: '11px',
+            borderRadius: '3px',
+            transition: 'background 0.1s'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.background = openClawConnected ? 'rgba(34, 197, 94, 0.3)' : 'rgba(255,255,255,0.1)'}
+          onMouseLeave={(e) => e.currentTarget.style.background = openClawConnected ? 'rgba(34, 197, 94, 0.2)' : 'transparent'}
+          title={openClawConnected ? `OpenClaw: Connected (${openClawSkills} skills)` : 'OpenClaw: Click to connect'}
+        >
+          <Plug size={12} />
+          <span style={{ fontSize: '9px' }}>OC</span>
+        </button>
+
+        {/* Moltbook Status */}
+        <button 
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '2px 8px',
+            background: moltbookRegistered ? 'rgba(168, 85, 247, 0.2)' : 'transparent',
+            border: 'none',
+            color: moltbookRegistered ? '#a855f7' : '#ffffff',
+            cursor: 'pointer',
+            fontSize: '11px',
+            borderRadius: '3px',
+            transition: 'background 0.1s'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.background = moltbookRegistered ? 'rgba(168, 85, 247, 0.3)' : 'rgba(255,255,255,0.1)'}
+          onMouseLeave={(e) => e.currentTarget.style.background = moltbookRegistered ? 'rgba(168, 85, 247, 0.2)' : 'transparent'}
+          title={moltbookRegistered ? 'Moltbook: Registered' : 'Moltbook: Not registered'}
+        >
+          <Users size={12} />
+          <span style={{ fontSize: '9px' }}>MB</span>
         </button>
 
         {/* Notifications */}

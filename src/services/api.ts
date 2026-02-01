@@ -326,6 +326,217 @@ class ApiService {
       }
     }
   }
+
+  // OpenClaw Integration
+  async getOpenClawStatus(): Promise<{
+    enabled: boolean
+    connected: boolean
+    gateway_url: string
+    sessions: number
+    skills: number
+    uptime: number
+  }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/v1/openclaw/status`)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch OpenClaw status: ${response.statusText}`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching OpenClaw status:', error)
+      return {
+        enabled: false,
+        connected: false,
+        gateway_url: 'ws://127.0.0.1:18789',
+        sessions: 0,
+        skills: 0,
+        uptime: 0
+      }
+    }
+  }
+
+  async getOpenClawSkills(): Promise<{
+    skills: Array<{
+      name: string
+      description: string
+      skill_type: string
+      enabled: boolean
+      capabilities: string[]
+    }>
+    total: number
+  }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/v1/openclaw/skills`)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch OpenClaw skills: ${response.statusText}`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching OpenClaw skills:', error)
+      return { skills: [], total: 0 }
+    }
+  }
+
+  async executeOpenClawSkill(skillName: string, params?: Record<string, unknown>, context?: {
+    file_path?: string
+    code?: string
+    language?: string
+  }): Promise<{
+    success: boolean
+    output?: string
+    error?: string
+    duration?: number
+  }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/v1/openclaw/skills/${encodeURIComponent(skillName)}/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ params, context })
+      })
+      if (!response.ok) {
+        throw new Error(`Failed to execute skill: ${response.statusText}`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error executing OpenClaw skill:', error)
+      return { success: false, error: String(error) }
+    }
+  }
+
+  async sendOpenClawMessage(message: string, options?: {
+    thinking_level?: string
+    model?: string
+    session_id?: string
+  }): Promise<{
+    id: string
+    role: string
+    content: string
+    timestamp: string
+    model?: string
+  }> {
+    const response = await fetch(`${this.baseUrl}/api/v1/openclaw/message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, ...options })
+    })
+    if (!response.ok) {
+      throw new Error(`Failed to send OpenClaw message: ${response.statusText}`)
+    }
+    return await response.json()
+  }
+
+  // Moltbook Integration
+  async getMoltbookStatus(): Promise<{
+    enabled: boolean
+    registered: boolean
+    agent_id?: string
+    username?: string
+    karma: number
+  }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/v1/moltbook/status`)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch Moltbook status: ${response.statusText}`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching Moltbook status:', error)
+      return { enabled: false, registered: false, karma: 0 }
+    }
+  }
+
+  async getMoltbookProfile(): Promise<{
+    id: string
+    username: string
+    display_name: string
+    description: string
+    karma: number
+    verified: boolean
+    capabilities: string[]
+    submolts: string[]
+  } | null> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/v1/moltbook/profile`)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch Moltbook profile: ${response.statusText}`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching Moltbook profile:', error)
+      return null
+    }
+  }
+
+  async registerWithMoltbook(options?: {
+    agent_name?: string
+    description?: string
+    capabilities?: string[]
+    twitter_handle?: string
+  }): Promise<{
+    url: string
+    code: string
+    expires_at: string
+    agent_id: string
+  }> {
+    const response = await fetch(`${this.baseUrl}/api/v1/moltbook/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(options || {})
+    })
+    if (!response.ok) {
+      throw new Error(`Failed to register with Moltbook: ${response.statusText}`)
+    }
+    return await response.json()
+  }
+
+  async shareCodeToMoltbook(options: {
+    title: string
+    code: string
+    language: string
+    description?: string
+    submolt?: string
+  }): Promise<{
+    id: string
+    title: string
+    content: string
+    submolt: string
+    karma: number
+    created_at: string
+  }> {
+    const response = await fetch(`${this.baseUrl}/api/v1/moltbook/share`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(options)
+    })
+    if (!response.ok) {
+      throw new Error(`Failed to share code to Moltbook: ${response.statusText}`)
+    }
+    return await response.json()
+  }
+
+  async getMoltbookFeed(): Promise<{
+    posts: Array<{
+      id: string
+      title: string
+      content: string
+      submolt: string
+      karma: number
+      created_at: string
+    }>
+    has_more: boolean
+    next_offset: number
+  }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/v1/moltbook/feed`)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch Moltbook feed: ${response.statusText}`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching Moltbook feed:', error)
+      return { posts: [], has_more: false, next_offset: 0 }
+    }
+  }
 }
 
 export const apiService = new ApiService()

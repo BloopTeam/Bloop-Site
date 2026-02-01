@@ -30,9 +30,11 @@
     "npm": ">=8.0.0"
   },
   "scripts": {
-    "dev": "trunk serve",
-    "build": "trunk build --release",
-    "preview": "trunk serve",
+    "dev": "vite",
+    "dev:rust": "trunk serve",
+    "build": "vite build",
+    "build:rust": "trunk build --release",
+    "preview": "vite preview",
     "lint": "cargo clippy",
     "lint:fix": "cargo clippy --fix",
     "format": "cargo fmt",

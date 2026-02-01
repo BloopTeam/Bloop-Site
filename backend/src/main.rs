@@ -110,6 +110,20 @@ async fn create_app(
         .route("/api/v1/files/delete/:file_path", axum::routing::delete(api::routes::files::delete_file))
         .route("/api/v1/files/list/:dir_path", get(api::routes::files::list_directory))
         .route("/api/v1/execute", post(api::routes::execute::execute_command))
+        // OpenClaw integration routes
+        .route("/api/v1/openclaw/status", get(api::routes::openclaw::get_status))
+        .route("/api/v1/openclaw/sessions", get(api::routes::openclaw::list_sessions))
+        .route("/api/v1/openclaw/sessions/:id/history", get(api::routes::openclaw::get_session_history))
+        .route("/api/v1/openclaw/message", post(api::routes::openclaw::send_message))
+        .route("/api/v1/openclaw/skills", get(api::routes::openclaw::list_skills))
+        .route("/api/v1/openclaw/skills/:name/execute", post(api::routes::openclaw::execute_skill))
+        // Moltbook integration routes
+        .route("/api/v1/moltbook/status", get(api::routes::moltbook::get_status))
+        .route("/api/v1/moltbook/profile", get(api::routes::moltbook::get_profile))
+        .route("/api/v1/moltbook/register", post(api::routes::moltbook::register_agent))
+        .route("/api/v1/moltbook/share", post(api::routes::moltbook::share_code))
+        .route("/api/v1/moltbook/skills/trending", get(api::routes::moltbook::get_trending_skills))
+        .route("/api/v1/moltbook/feed", get(api::routes::moltbook::get_feed))
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())

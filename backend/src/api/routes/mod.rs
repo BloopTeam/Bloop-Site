@@ -5,3 +5,5 @@ pub mod models;
 pub mod codebase;
 pub mod files;
 pub mod execute;
+pub mod openclaw;
+pub mod moltbook;
