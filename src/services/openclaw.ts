@@ -119,7 +119,26 @@ class OpenClawService {
 
   private handleMessage(data: string): void {
     try {
+      // Validate message size (max 1MB)
+      if (data.length > 1024 * 1024) {
+        console.error('[OpenClaw] Message too large:', data.length)
+        return
+      }
+
+      // Parse and validate JSON
       const message: GatewayMessage = JSON.parse(data)
+      
+      // Validate message structure
+      if (!message.type) {
+        console.error('[OpenClaw] Invalid message: missing type')
+        return
+      }
+
+      // Sanitize payload if it's a string
+      if (typeof message.payload === 'string' && message.payload.length > 10000) {
+        console.warn('[OpenClaw] Payload too large, truncating')
+        message.payload = message.payload.substring(0, 10000)
+      }
       
       // Handle response to a request
       if (message.id && this.messageHandlers.has(message.id)) {
@@ -132,6 +151,7 @@ class OpenClawService {
       this.emit(message.type, message.payload)
     } catch (error) {
       console.error('[OpenClaw] Failed to parse message:', error)
+      // Don't emit invalid messages
     }
   }
 
@@ -140,9 +160,32 @@ class OpenClawService {
       throw new Error('Not connected to OpenClaw Gateway')
     }
 
+    // Validate payload size
+    const payloadStr = JSON.stringify(payload)
+    if (payloadStr.length > 10000) {
+      throw new Error('Payload too large (max 10KB)')
+    }
+
+    // Sanitize payload if it's a string
+    let sanitizedPayload = payload
+    if (typeof payload === 'string') {
+      sanitizedPayload = payload
+        .replace(/<script/gi, '')
+        .replace(/<\/script>/gi, '')
+        .replace(/javascript:/gi, '')
+        .substring(0, 10000)
+    }
+
     const id = `msg_${++this.messageId}_${Date.now()}`
-    const message: GatewayMessage = { type: type as GatewayMessage['type'], id, payload }
-    this.ws?.send(JSON.stringify(message))
+    const message: GatewayMessage = { type: type as GatewayMessage['type'], id, payload: sanitizedPayload }
+    
+    try {
+      this.ws?.send(JSON.stringify(message))
+    } catch (error) {
+      console.error('[OpenClaw] Failed to send message:', error)
+      throw error
+    }
+    
     return id
   }
 

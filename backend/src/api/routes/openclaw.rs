@@ -8,7 +8,11 @@ use axum::{
     response::Json,
 };
 use serde::{Deserialize, Serialize};
+use validator::Validate;
+use std::sync::Arc;
 use crate::config::Config;
+use crate::database::Database;
+use crate::middleware::security::{sanitize_string, validate_skill_name, MAX_STRING_LENGTH};
 
 // Types for OpenClaw integration
 
@@ -40,11 +44,18 @@ pub struct OpenClawSkill {
     pub capabilities: Vec<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct SendMessageRequest {
+    #[validate(length(max = "MAX_STRING_LENGTH"))]
     pub message: String,
+    
+    #[validate(length(max = "50"))]
     pub thinking_level: Option<String>,
+    
+    #[validate(length(max = "100"))]
     pub model: Option<String>,
+    
+    #[validate(length(max = "255"))]
     pub session_id: Option<String>,
 }
 
@@ -57,16 +68,23 @@ pub struct MessageResponse {
     pub model: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct ExecuteSkillRequest {
     pub params: Option<serde_json::Value>,
+    
+    #[validate]
     pub context: Option<CodeContext>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct CodeContext {
+    #[validate(length(max = "1000"))]
     pub file_path: Option<String>,
+    
+    #[validate(length(max = "MAX_STRING_LENGTH"))]
     pub code: Option<String>,
+    
+    #[validate(length(max = "50"))]
     pub language: Option<String>,
 }
 
@@ -105,8 +123,40 @@ pub async fn get_status(
 /// List OpenClaw sessions
 pub async fn list_sessions(
     Extension(_config): Extension<Config>,
+    Extension(database): Extension<Option<Arc<Database>>>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    // In production, this would query the Gateway
+    // Try to get from database first
+    if let Some(ref db) = database {
+        match sqlx::query_as::<_, crate::database::models::OpenClawSession>(
+            "SELECT * FROM openclaw_sessions ORDER BY created_at DESC LIMIT 100"
+        )
+        .fetch_all(db.pool())
+        .await
+        {
+            Ok(sessions) => {
+                let session_data: Vec<serde_json::Value> = sessions
+                    .into_iter()
+                    .map(|s| serde_json::json!({
+                        "id": s.session_id,
+                        "channel": s.channel,
+                        "status": s.status,
+                        "model": s.model,
+                        "created_at": s.created_at.to_rfc3339()
+                    }))
+                    .collect();
+                
+                return Ok(Json(serde_json::json!({
+                    "sessions": session_data,
+                    "total": session_data.len()
+                })));
+            }
+            Err(e) => {
+                tracing::warn!("Failed to fetch sessions from database: {}", e);
+            }
+        }
+    }
+
+    // Fallback: In production, this would query the Gateway
     Ok(Json(serde_json::json!({
         "sessions": [],
         "total": 0
@@ -128,10 +178,29 @@ pub async fn get_session_history(
 /// Send message to OpenClaw agent
 pub async fn send_message(
     Extension(_config): Extension<Config>,
+    Extension(database): Extension<Option<Arc<Database>>>,
     Json(request): Json<SendMessageRequest>,
 ) -> Result<Json<MessageResponse>, StatusCode> {
     use chrono::Utc;
     use uuid::Uuid;
+
+    // Validate input
+    request.validate()
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    // Sanitize message
+    let sanitized_message = sanitize_string(&request.message, MAX_STRING_LENGTH);
+    
+    // Log to database if available
+    if let Some(ref db) = database {
+        if let Some(ref session_id) = request.session_id {
+            // Could log message to database here
+            let _ = db.pool().execute(
+                sqlx::query("UPDATE openclaw_sessions SET updated_at = NOW() WHERE session_id = $1")
+                    .bind(session_id)
+            ).await;
+        }
+    }
 
     // In production, this would send to the Gateway
     // For now, return a mock response
@@ -140,7 +209,7 @@ pub async fn send_message(
         role: "assistant".to_string(),
         content: format!(
             "OpenClaw integration is configured. Message received: {}",
-            request.message
+            sanitized_message
         ),
         timestamp: Utc::now().to_rfc3339(),
         model: request.model,
@@ -150,7 +219,40 @@ pub async fn send_message(
 /// List available skills
 pub async fn list_skills(
     Extension(_config): Extension<Config>,
+    Extension(database): Extension<Option<Arc<Database>>>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Try to get from database first
+    if let Some(ref db) = database {
+        match sqlx::query_as::<_, crate::database::models::OpenClawSkill>(
+            "SELECT * FROM openclaw_skills WHERE enabled = true ORDER BY name"
+        )
+        .fetch_all(db.pool())
+        .await
+        {
+            Ok(db_skills) => {
+                let skills_data: Vec<serde_json::Value> = db_skills
+                    .into_iter()
+                    .map(|s| serde_json::json!({
+                        "name": s.name,
+                        "description": s.description,
+                        "skill_type": s.skill_type,
+                        "enabled": s.enabled,
+                        "capabilities": s.capabilities
+                    }))
+                    .collect();
+                
+                return Ok(Json(serde_json::json!({
+                    "skills": skills_data,
+                    "total": skills_data.len()
+                })));
+            }
+            Err(e) => {
+                tracing::warn!("Failed to fetch skills from database: {}", e);
+            }
+        }
+    }
+
+    // Fallback to hardcoded skills
     let skills = get_bloop_skills();
     
     Ok(Json(serde_json::json!({
@@ -162,37 +264,76 @@ pub async fn list_skills(
 /// Execute a skill
 pub async fn execute_skill(
     Extension(_config): Extension<Config>,
+    Extension(database): Extension<Option<Arc<Database>>>,
     Path(skill_name): Path<String>,
     Json(request): Json<ExecuteSkillRequest>,
 ) -> Result<Json<SkillResult>, StatusCode> {
+    use chrono::Utc;
+    use uuid::Uuid;
+
+    // Validate skill name
+    let validated_name = validate_skill_name(&skill_name)
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    // Validate request
+    request.validate()
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    // Sanitize context if present
+    let sanitized_context = request.context.map(|ctx| CodeContext {
+        file_path: ctx.file_path.map(|p| sanitize_string(&p, 1000)),
+        code: ctx.code.map(|c| sanitize_string(&c, MAX_STRING_LENGTH)),
+        language: ctx.language.map(|l| sanitize_string(&l, 50)),
+    });
+
     // Find the skill
     let skills = get_bloop_skills();
-    let skill = skills.iter().find(|s| s.name == skill_name);
+    let skill = skills.iter().find(|s| s.name == validated_name);
 
-    match skill {
+    let start_time = std::time::Instant::now();
+
+    let result = match skill {
         Some(s) => {
             // In production, execute the skill via Gateway
             // For now, return mock result
-            Ok(Json(SkillResult {
+            SkillResult {
                 success: true,
                 output: Some(format!(
-                    "Executed skill '{}' with context: {:?}",
-                    s.name,
-                    request.context
+                    "Executed skill '{}' successfully",
+                    s.name
                 )),
                 error: None,
-                duration: Some(100),
-            }))
+                duration: Some(start_time.elapsed().as_millis() as u64),
+            }
         }
         None => {
-            Ok(Json(SkillResult {
+            SkillResult {
                 success: false,
                 output: None,
-                error: Some(format!("Skill '{}' not found", skill_name)),
+                error: Some(format!("Skill '{}' not found", validated_name)),
                 duration: None,
-            }))
+            }
         }
+    };
+
+    // Log execution to database if available
+    if let Some(ref db) = database {
+        let _ = sqlx::query(
+            "INSERT INTO openclaw_executions (skill_name, success, output, error, duration_ms, params, context)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)"
+        )
+        .bind(&validated_name)
+        .bind(result.success)
+        .bind(result.output.as_ref())
+        .bind(result.error.as_ref())
+        .bind(result.duration.map(|d| d as i32))
+        .bind(&request.params)
+        .bind(&sanitized_context.as_ref().map(|c| serde_json::to_value(c).ok()).flatten())
+        .execute(db.pool())
+        .await;
     }
+
+    Ok(Json(result))
 }
 
 // Get Bloop-specific skills

@@ -58,8 +58,9 @@ tree-sitter-python = "0.21"
 tree-sitter-rust = "0.21"
 tree-sitter-javascript = "0.21"
 
-# Database (for future phases)
-sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "postgres", "chrono", "uuid"] }
+# Database
+sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "postgres", "chrono", "uuid", "migrate"] }
+rust_decimal = { version = "1.33", features = ["serde-with-str"] }
 
 # Caching
 redis = { version = "0.24", features = ["tokio-comp", "connection-manager"] }

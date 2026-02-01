@@ -7,3 +7,4 @@ pub mod files;
 pub mod execute;
 pub mod openclaw;
 pub mod moltbook;
+pub mod health;

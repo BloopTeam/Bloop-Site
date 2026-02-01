@@ -24,6 +24,7 @@ mod middleware;
 mod services;
 mod types;
 mod utils;
+mod database;
 
 use config::Config;
 use services::ai::router::ModelRouter;
@@ -59,8 +60,26 @@ async fn main() -> anyhow::Result<()> {
     // Initialize codebase indexer
     let codebase_indexer = Arc::new(CodebaseIndexer::new());
 
+    // Initialize database if URL is provided
+    let database = if let Some(ref db_url) = config.database_url {
+        info!("📦 Connecting to database...");
+        match database::Database::new(db_url).await {
+            Ok(db) => {
+                info!("✅ Database connected");
+                Some(Arc::new(db))
+            }
+            Err(e) => {
+                tracing::warn!("⚠️  Database connection failed: {}. Continuing without database.", e);
+                None
+            }
+        }
+    } else {
+        info!("ℹ️  No database URL provided, running without database");
+        None
+    };
+
     // Build application
-    let app = create_app(config.clone(), router, agent_manager, codebase_indexer).await?;
+    let app = create_app(config.clone(), router, agent_manager, codebase_indexer, database).await?;
 
     // Start server
     let addr = SocketAddr::from(([0, 0, 0, 0], config.port));
@@ -78,6 +97,7 @@ async fn create_app(
     router: Arc<ModelRouter>,
     agent_manager: Arc<AgentManager>,
     codebase_indexer: Arc<CodebaseIndexer>,
+    database: Option<Arc<database::Database>>,
 ) -> anyhow::Result<Router> {
     // CORS layer
     let cors = CorsLayer::new()
@@ -87,7 +107,9 @@ async fn create_app(
 
     // Build router
     let app = Router::new()
-        .route("/health", get(health_check))
+        .route("/health", get(api::routes::health::health_check))
+        .route("/health/ready", get(api::routes::health::readiness))
+        .route("/health/live", get(api::routes::health::liveness))
         .route("/api/v1/chat", post(api::routes::chat::handle_chat))
         .route("/api/v1/models", get(api::routes::models::list_models))
         .route("/api/v1/agents", get(api::routes::agents::list_agents))
@@ -128,27 +150,19 @@ async fn create_app(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())
                 .layer(CompressionLayer::new())
+                .layer(axum::middleware::from_fn(middleware::security::security_headers_middleware))
+                .layer(axum::middleware::from_fn(middleware::security::validate_payload_size))
                 .layer(cors)
                 .layer(Extension(config))
                 .layer(Extension(router))
                 .layer(Extension(agent_manager))
                 .layer(Extension(codebase_indexer))
+                .layer(Extension(database))
                 .into_inner(),
         );
 
     Ok(app)
 }
-
-async fn health_check(
-    Extension(config): Extension<Config>,
-    Extension(router): Extension<Arc<ModelRouter>>,
-) -> axum::response::Json<serde_json::Value> {
-    use crate::types::ModelProvider;
-    
-    let mut providers = std::collections::HashMap::new();
-    
-    // Check which providers are configured
-    let provider_checks = vec![
         ("openai", ModelProvider::OpenAI, !config.openai_api_key.is_empty()),
         ("anthropic", ModelProvider::Anthropic, !config.anthropic_api_key.is_empty()),
         ("google", ModelProvider::Google, !config.google_gemini_api_key.is_empty()),

@@ -27,6 +27,10 @@ pub struct Config {
     pub rate_limit_per_minute: u32,
     pub database_url: Option<String>,
     pub redis_url: Option<String>,
+    // Security settings
+    pub max_request_size: usize,
+    pub enable_csrf: bool,
+    pub allowed_websocket_origins: Vec<String>,
 }
 
 impl Config {
@@ -74,6 +78,18 @@ impl Config {
                 .unwrap_or(100),
             database_url: env::var("DATABASE_URL").ok(),
             redis_url: env::var("REDIS_URL").ok(),
+            max_request_size: env::var("MAX_REQUEST_SIZE")
+                .unwrap_or_else(|_| "10485760".to_string()) // 10MB default
+                .parse()
+                .unwrap_or(10 * 1024 * 1024),
+            enable_csrf: env::var("ENABLE_CSRF")
+                .map(|v| v == "true")
+                .unwrap_or(false),
+            allowed_websocket_origins: env::var("ALLOWED_WS_ORIGINS")
+                .unwrap_or_else(|_| "http://localhost:5173,ws://localhost:5173".to_string())
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .collect(),
         })
     }
 }
