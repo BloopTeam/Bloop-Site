@@ -7,12 +7,15 @@ use axum::{
     http::StatusCode,
     response::Json,
 };
+use axum::extract::Request;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 use std::sync::Arc;
 use crate::config::Config;
 use crate::database::Database;
 use crate::middleware::security::{sanitize_string, validate_skill_name, MAX_STRING_LENGTH};
+use crate::types::errors::{ApiError, ApiResult, error_codes};
+use crate::middleware::request_id::get_request_id;
 
 // Types for OpenClaw integration
 
@@ -179,26 +182,47 @@ pub async fn get_session_history(
 pub async fn send_message(
     Extension(_config): Extension<Config>,
     Extension(database): Extension<Option<Arc<Database>>>,
-    Json(request): Json<SendMessageRequest>,
-) -> Result<Json<MessageResponse>, StatusCode> {
+    request: Request,
+    Json(body): Json<SendMessageRequest>,
+) -> ApiResult<Json<MessageResponse>> {
     use chrono::Utc;
     use uuid::Uuid;
+    use axum::extract::Request;
+
+    // Get request ID for error tracking
+    let request_id = get_request_id(&request)
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
 
     // Validate input
-    request.validate()
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    if let Err(errors) = body.validate() {
+        let error_msg = errors
+            .field_errors()
+            .iter()
+            .map(|(field, errors)| {
+                format!("{}: {}", field, errors.iter().map(|e| e.message.clone()).collect::<Vec<_>>().join(", "))
+            })
+            .collect::<Vec<_>>()
+            .join("; ");
+        
+        return Err(ApiError::validation_error(format!("Validation failed: {}", error_msg))
+            .with_request_id(request_id));
+    }
 
     // Sanitize message
     let sanitized_message = sanitize_string(&request.message, MAX_STRING_LENGTH);
     
     // Log to database if available
     if let Some(ref db) = database {
-        if let Some(ref session_id) = request.session_id {
+        if let Some(ref session_id) = body.session_id {
             // Could log message to database here
-            let _ = db.pool().execute(
+            if let Err(e) = db.pool().execute(
                 sqlx::query("UPDATE openclaw_sessions SET updated_at = NOW() WHERE session_id = $1")
                     .bind(session_id)
-            ).await;
+            ).await {
+                tracing::error!("Failed to update session: {}", e);
+                return Err(ApiError::database_error("Failed to update session".to_string())
+                    .with_request_id(request_id));
+            }
         }
     }
 
@@ -212,7 +236,7 @@ pub async fn send_message(
             sanitized_message
         ),
         timestamp: Utc::now().to_rfc3339(),
-        model: request.model,
+        model: body.model,
     }))
 }
 
