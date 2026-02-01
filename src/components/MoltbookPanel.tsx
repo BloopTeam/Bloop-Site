@@ -196,174 +196,94 @@ export default function MoltbookPanel({ onClose, onInstallSkill }: MoltbookPanel
     }}>
       {/* Header */}
       <div style={{
-        padding: '14px 16px',
-        borderBottom: '1px solid #2a2a2a',
+        padding: '12px 16px',
+        borderBottom: '1px solid #1a1a1a',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        background: '#252526'
+        justifyContent: 'space-between'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{
-            width: '32px',
-            height: '32px',
-            borderRadius: '8px',
-            background: 'rgba(168, 85, 247, 0.15)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}>
-            <Users size={18} color="#a855f7" />
-          </div>
-          <div>
-            <div style={{ fontWeight: 600, color: '#ffffff', fontSize: '14px' }}>Moltbook</div>
-            {currentAgent ? (
-              <div style={{ fontSize: '11px', color: '#888888', marginTop: '2px' }}>
-                @{currentAgent.username}
-              </div>
-            ) : (
-              <div style={{ fontSize: '11px', color: '#888888', marginTop: '2px' }}>
-                Not registered
-              </div>
-            )}
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: '6px' }}>
-          <button
-            onClick={loadData}
-            disabled={loading}
-            style={{
-              padding: '6px',
-              background: 'transparent',
-              border: '1px solid #3c3c3c',
-              borderRadius: '6px',
-              color: '#888888',
-              cursor: loading ? 'wait' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'all 0.2s'
-            }}
-            onMouseEnter={(e) => {
-              if (!loading) {
-                e.currentTarget.style.borderColor = '#a855f7'
-                e.currentTarget.style.color = '#a855f7'
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!loading) {
-                e.currentTarget.style.borderColor = '#3c3c3c'
-                e.currentTarget.style.color = '#888888'
-              }
-            }}
-          >
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-          </button>
-          <a
-            href="https://moltbook.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              padding: '6px',
-              background: 'transparent',
-              border: '1px solid #3c3c3c',
-              borderRadius: '6px',
-              color: '#888888',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'all 0.2s',
-              textDecoration: 'none'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = '#a855f7'
-              e.currentTarget.style.color = '#a855f7'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = '#3c3c3c'
-              e.currentTarget.style.color = '#888888'
-            }}
-          >
-            <ExternalLink size={14} />
-          </a>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Users size={16} color="#cccccc" />
+          <span style={{ fontSize: '13px', color: '#cccccc' }}>Moltbook</span>
+          {currentAgent && (
+            <span style={{ fontSize: '11px', color: '#666', marginLeft: '4px' }}>
+              @{currentAgent.username}
+            </span>
+          )}
         </div>
       </div>
 
       {/* Tabs */}
       <div style={{ 
         display: 'flex', 
-        borderBottom: '1px solid #2a2a2a',
-        background: '#252526',
-        padding: '0 8px'
+        borderBottom: '1px solid #1a1a1a'
       }}>
         <button 
           onClick={() => setActiveTab('feed')} 
           style={{
-            ...tabStyle(activeTab === 'feed'),
-            padding: '10px 16px',
-            marginTop: '4px',
-            borderRadius: '6px 6px 0 0'
+            padding: '8px 16px',
+            background: 'transparent',
+            border: 'none',
+            borderBottom: activeTab === 'feed' ? '1px solid #cccccc' : '1px solid transparent',
+            color: activeTab === 'feed' ? '#cccccc' : '#666',
+            cursor: 'pointer',
+            fontSize: '12px'
           }}
         >
-          <MessageSquare size={14} />
           Feed
         </button>
         <button 
           onClick={() => setActiveTab('skills')} 
           style={{
-            ...tabStyle(activeTab === 'skills'),
-            padding: '10px 16px',
-            marginTop: '4px',
-            borderRadius: '6px 6px 0 0'
+            padding: '8px 16px',
+            background: 'transparent',
+            border: 'none',
+            borderBottom: activeTab === 'skills' ? '1px solid #cccccc' : '1px solid transparent',
+            color: activeTab === 'skills' ? '#cccccc' : '#666',
+            cursor: 'pointer',
+            fontSize: '12px'
           }}
         >
-          <Zap size={14} />
           Skills
         </button>
         <button 
           onClick={() => setActiveTab('discover')} 
           style={{
-            ...tabStyle(activeTab === 'discover'),
-            padding: '10px 16px',
-            marginTop: '4px',
-            borderRadius: '6px 6px 0 0'
+            padding: '8px 16px',
+            background: 'transparent',
+            border: 'none',
+            borderBottom: activeTab === 'discover' ? '1px solid #cccccc' : '1px solid transparent',
+            color: activeTab === 'discover' ? '#cccccc' : '#666',
+            cursor: 'pointer',
+            fontSize: '12px'
           }}
         >
-          <Users size={14} />
           Discover
         </button>
         <button 
           onClick={() => setActiveTab('notifications')} 
           style={{
-            ...tabStyle(activeTab === 'notifications'),
-            padding: '10px 16px',
-            marginTop: '4px',
-            borderRadius: '6px 6px 0 0',
+            padding: '8px 16px',
+            background: 'transparent',
+            border: 'none',
+            borderBottom: activeTab === 'notifications' ? '1px solid #cccccc' : '1px solid transparent',
+            color: activeTab === 'notifications' ? '#cccccc' : '#666',
+            cursor: 'pointer',
+            fontSize: '12px',
             position: 'relative'
           }}
         >
-          <Bell size={14} />
           Notifications
           {hasUnreadNotifications && (
             <span style={{
               position: 'absolute',
-              top: '6px',
+              top: '4px',
               right: '8px',
-              background: '#ef4444',
-              color: '#ffffff',
+              width: '6px',
+              height: '6px',
               borderRadius: '50%',
-              width: '18px',
-              height: '18px',
-              fontSize: '10px',
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              border: '2px solid #252526'
-            }}>
-              {notifications.filter(n => !n.read).length}
-            </span>
+              background: '#cccccc'
+            }} />
           )}
         </button>
       </div>
@@ -375,39 +295,25 @@ export default function MoltbookPanel({ onClose, onInstallSkill }: MoltbookPanel
           <div>
             {/* Sort Options */}
             <div style={{ 
-              padding: '12px 16px', 
+              padding: '8px 12px', 
               display: 'flex', 
-              gap: '8px',
-              borderBottom: '1px solid #2a2a2a',
-              background: '#252526'
+              gap: '4px',
+              borderBottom: '1px solid #1a1a1a'
             }}>
               {(['hot', 'new', 'top', 'discussed'] as FeedSort[]).map(sort => (
                 <button
                   key={sort}
                   onClick={() => setFeedSort(sort)}
                   style={{
-                    ...sortButtonStyle(feedSort === sort),
-                    padding: '6px 14px',
-                    borderRadius: '8px',
-                    fontWeight: feedSort === sort ? 500 : 400,
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (feedSort !== sort) {
-                      e.currentTarget.style.background = '#3c3c3c'
-                      e.currentTarget.style.color = '#cccccc'
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (feedSort !== sort) {
-                      e.currentTarget.style.background = '#3c3c3c'
-                      e.currentTarget.style.color = '#888888'
-                    }
+                    padding: '4px 10px',
+                    background: feedSort === sort ? '#141414' : 'transparent',
+                    border: 'none',
+                    borderRadius: '4px',
+                    color: feedSort === sort ? '#cccccc' : '#666',
+                    cursor: 'pointer',
+                    fontSize: '11px'
                   }}
                 >
-                  {sort === 'hot' && <TrendingUp size={13} style={{ marginRight: '6px' }} />}
-                  {sort === 'new' && <Clock size={13} style={{ marginRight: '6px' }} />}
-                  {sort === 'top' && <Award size={13} style={{ marginRight: '6px' }} />}
                   {sort.charAt(0).toUpperCase() + sort.slice(1)}
                 </button>
               ))}
@@ -429,14 +335,12 @@ export default function MoltbookPanel({ onClose, onInstallSkill }: MoltbookPanel
                   <div
                     key={post.id}
                     style={{
-                      padding: '16px 20px',
-                      borderBottom: '1px solid #2a2a2a',
+                      padding: '12px 16px',
+                      borderBottom: '1px solid #1a1a1a',
                       display: 'flex',
-                      gap: '16px',
-                      transition: 'background 0.2s',
-                      cursor: 'pointer'
+                      gap: '12px'
                     }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = '#252526'}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#141414'}
                     onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                   >
                     {/* Vote buttons */}
@@ -452,31 +356,17 @@ export default function MoltbookPanel({ onClose, onInstallSkill }: MoltbookPanel
                         style={{
                           background: 'transparent',
                           border: 'none',
-                          color: '#888888',
+                          color: '#666',
                           cursor: 'pointer',
-                          padding: '6px',
-                          borderRadius: '6px',
-                          transition: 'all 0.2s',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.color = '#22c55e'
-                          e.currentTarget.style.background = 'rgba(34, 197, 94, 0.1)'
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.color = '#888888'
-                          e.currentTarget.style.background = 'transparent'
+                          padding: '2px'
                         }}
                       >
-                        <ChevronUp size={20} />
+                        <ChevronUp size={16} />
                       </button>
                       <span style={{ 
-                        fontSize: '14px', 
-                        fontWeight: 600,
-                        color: post.karma > 0 ? '#22c55e' : post.karma < 0 ? '#ef4444' : '#888888',
-                        minWidth: '24px',
+                        fontSize: '12px',
+                        color: '#666',
+                        minWidth: '20px',
                         textAlign: 'center'
                       }}>
                         {post.karma}
@@ -486,25 +376,12 @@ export default function MoltbookPanel({ onClose, onInstallSkill }: MoltbookPanel
                         style={{
                           background: 'transparent',
                           border: 'none',
-                          color: '#888888',
+                          color: '#666',
                           cursor: 'pointer',
-                          padding: '6px',
-                          borderRadius: '6px',
-                          transition: 'all 0.2s',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.color = '#ef4444'
-                          e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.color = '#888888'
-                          e.currentTarget.style.background = 'transparent'
+                          padding: '2px'
                         }}
                       >
-                        <ChevronDown size={20} />
+                        <ChevronDown size={16} />
                       </button>
                     </div>
 
@@ -513,39 +390,34 @@ export default function MoltbookPanel({ onClose, onInstallSkill }: MoltbookPanel
                       <div style={{ 
                         display: 'flex', 
                         alignItems: 'center', 
-                        gap: '8px',
+                        gap: '6px',
                         marginBottom: '6px',
                         fontSize: '11px',
-                        color: '#888888'
+                        color: '#666'
                       }}>
-                        <span style={{ color: '#a855f7' }}>m/{post.submolt}</span>
+                        <span>m/{post.submolt}</span>
                         <span>•</span>
                         <span>@{post.author.username}</span>
-                        {post.author.verified && (
-                          <Award size={12} color="#a855f7" />
-                        )}
                         <span>•</span>
                         <span>{new Date(post.createdAt).toLocaleDateString()}</span>
                       </div>
 
                       <h3 style={{ 
-                        margin: '0 0 10px 0',
-                        fontSize: '15px',
-                        fontWeight: 600,
-                        color: '#ffffff',
-                        lineHeight: 1.4
+                        margin: '0 0 8px 0',
+                        fontSize: '13px',
+                        color: '#cccccc'
                       }}>
                         {post.title}
                       </h3>
 
                       <p style={{ 
-                        margin: '0 0 14px 0',
-                        fontSize: '13px',
-                        color: '#cccccc',
-                        lineHeight: 1.6
+                        margin: '0 0 10px 0',
+                        fontSize: '12px',
+                        color: '#999',
+                        lineHeight: 1.5
                       }}>
-                        {post.content.length > 300 
-                          ? post.content.slice(0, 300) + '...' 
+                        {post.content.length > 200 
+                          ? post.content.slice(0, 200) + '...' 
                           : post.content}
                       </p>
 
@@ -575,88 +447,13 @@ export default function MoltbookPanel({ onClose, onInstallSkill }: MoltbookPanel
                       {/* Actions */}
                       <div style={{ 
                         display: 'flex', 
-                        gap: '20px',
-                        fontSize: '12px',
-                        color: '#888888'
+                        gap: '16px',
+                        fontSize: '11px',
+                        color: '#666'
                       }}>
-                        <button style={{
-                          background: 'transparent',
-                          border: 'none',
-                          color: '#888888',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          fontSize: '12px',
-                          fontWeight: 500,
-                          padding: '4px 8px',
-                          borderRadius: '6px',
-                          transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.color = '#a855f7'
-                          e.currentTarget.style.background = 'rgba(168, 85, 247, 0.1)'
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.color = '#888888'
-                          e.currentTarget.style.background = 'transparent'
-                        }}
-                        >
-                          <MessageSquare size={14} />
-                          {post.commentCount}
-                        </button>
-                        <button style={{
-                          background: 'transparent',
-                          border: 'none',
-                          color: '#888888',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          fontSize: '12px',
-                          fontWeight: 500,
-                          padding: '4px 8px',
-                          borderRadius: '6px',
-                          transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.color = '#a855f7'
-                          e.currentTarget.style.background = 'rgba(168, 85, 247, 0.1)'
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.color = '#888888'
-                          e.currentTarget.style.background = 'transparent'
-                        }}
-                        >
-                          <Share2 size={14} />
-                          Share
-                        </button>
-                        <button style={{
-                          background: 'transparent',
-                          border: 'none',
-                          color: '#888888',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          fontSize: '12px',
-                          fontWeight: 500,
-                          padding: '4px 8px',
-                          borderRadius: '6px',
-                          transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.color = '#a855f7'
-                          e.currentTarget.style.background = 'rgba(168, 85, 247, 0.1)'
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.color = '#888888'
-                          e.currentTarget.style.background = 'transparent'
-                        }}
-                        >
-                          <Bookmark size={14} />
-                          Save
-                        </button>
+                        <span>{post.commentCount} comments</span>
+                        <span>Share</span>
+                        <span>Save</span>
                       </div>
                     </div>
                   </div>

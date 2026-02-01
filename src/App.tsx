@@ -178,35 +178,19 @@ export default function App() {
                 {/* Panel Tabs */}
                 <div style={{
                   display: 'flex',
-                  borderBottom: '1px solid #2a2a2a',
-                  background: '#252526',
-                  padding: '0 8px'
+                  borderBottom: '1px solid #1a1a1a'
                 }}>
                   <button
                     onClick={() => setRightPanelMode('assistant')}
                     style={{
                       flex: 1,
-                      padding: '10px 16px',
-                      marginTop: '4px',
-                      background: rightPanelMode === 'assistant' ? '#1e1e1e' : 'transparent',
+                      padding: '8px 16px',
+                      background: 'transparent',
                       border: 'none',
-                      borderBottom: rightPanelMode === 'assistant' ? '2px solid #FF00FF' : '2px solid transparent',
-                      color: rightPanelMode === 'assistant' ? '#ffffff' : '#888888',
+                      borderBottom: rightPanelMode === 'assistant' ? '1px solid #cccccc' : '1px solid transparent',
+                      color: rightPanelMode === 'assistant' ? '#cccccc' : '#666',
                       cursor: 'pointer',
-                      fontSize: '12px',
-                      fontWeight: rightPanelMode === 'assistant' ? 600 : 500,
-                      borderRadius: '6px 6px 0 0',
-                      transition: 'all 0.2s'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (rightPanelMode !== 'assistant') {
-                        e.currentTarget.style.color = '#cccccc'
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (rightPanelMode !== 'assistant') {
-                        e.currentTarget.style.color = '#888888'
-                      }
+                      fontSize: '12px'
                     }}
                   >
                     Assistant
@@ -215,27 +199,13 @@ export default function App() {
                     onClick={() => setRightPanelMode('openclaw')}
                     style={{
                       flex: 1,
-                      padding: '10px 16px',
-                      marginTop: '4px',
-                      background: rightPanelMode === 'openclaw' ? '#1e1e1e' : 'transparent',
+                      padding: '8px 16px',
+                      background: 'transparent',
                       border: 'none',
-                      borderBottom: rightPanelMode === 'openclaw' ? '2px solid #22c55e' : '2px solid transparent',
-                      color: rightPanelMode === 'openclaw' ? '#ffffff' : '#888888',
+                      borderBottom: rightPanelMode === 'openclaw' ? '1px solid #cccccc' : '1px solid transparent',
+                      color: rightPanelMode === 'openclaw' ? '#cccccc' : '#666',
                       cursor: 'pointer',
-                      fontSize: '12px',
-                      fontWeight: rightPanelMode === 'openclaw' ? 600 : 500,
-                      borderRadius: '6px 6px 0 0',
-                      transition: 'all 0.2s'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (rightPanelMode !== 'openclaw') {
-                        e.currentTarget.style.color = '#cccccc'
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (rightPanelMode !== 'openclaw') {
-                        e.currentTarget.style.color = '#888888'
-                      }
+                      fontSize: '12px'
                     }}
                   >
                     OpenClaw
@@ -244,27 +214,13 @@ export default function App() {
                     onClick={() => setRightPanelMode('moltbook')}
                     style={{
                       flex: 1,
-                      padding: '10px 16px',
-                      marginTop: '4px',
-                      background: rightPanelMode === 'moltbook' ? '#1e1e1e' : 'transparent',
+                      padding: '8px 16px',
+                      background: 'transparent',
                       border: 'none',
-                      borderBottom: rightPanelMode === 'moltbook' ? '2px solid #a855f7' : '2px solid transparent',
-                      color: rightPanelMode === 'moltbook' ? '#ffffff' : '#888888',
+                      borderBottom: rightPanelMode === 'moltbook' ? '1px solid #cccccc' : '1px solid transparent',
+                      color: rightPanelMode === 'moltbook' ? '#cccccc' : '#666',
                       cursor: 'pointer',
-                      fontSize: '12px',
-                      fontWeight: rightPanelMode === 'moltbook' ? 600 : 500,
-                      borderRadius: '6px 6px 0 0',
-                      transition: 'all 0.2s'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (rightPanelMode !== 'moltbook') {
-                        e.currentTarget.style.color = '#cccccc'
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (rightPanelMode !== 'moltbook') {
-                        e.currentTarget.style.color = '#888888'
-                      }
+                      fontSize: '12px'
                     }}
                   >
                     Moltbook
