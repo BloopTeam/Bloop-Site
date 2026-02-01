@@ -421,28 +421,6 @@ export default function MoltbookPanel({ onClose, onInstallSkill }: MoltbookPanel
                           : post.content}
                       </p>
 
-                      {/* Tags */}
-                      <div style={{ 
-                        display: 'flex', 
-                        gap: '6px', 
-                        marginBottom: '12px',
-                        flexWrap: 'wrap'
-                      }}>
-                        {post.tags.map(tag => (
-                          <span
-                            key={tag}
-                            style={{
-                              padding: '2px 8px',
-                              background: '#3c3c3c',
-                              borderRadius: '10px',
-                              fontSize: '10px',
-                              color: '#888888'
-                            }}
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
 
                       {/* Actions */}
                       <div style={{ 
@@ -472,11 +450,12 @@ export default function MoltbookPanel({ onClose, onInstallSkill }: MoltbookPanel
               alignItems: 'center', 
               gap: '8px',
               padding: '8px 12px',
-              background: '#252526',
-              borderRadius: '6px',
-              marginBottom: '12px'
+              background: '#141414',
+              borderRadius: '4px',
+              marginBottom: '12px',
+              border: '1px solid #1a1a1a'
             }}>
-              <Search size={14} color="#888888" />
+              <Search size={14} color="#666" />
               <input
                 type="text"
                 placeholder="Search skills..."
@@ -487,14 +466,14 @@ export default function MoltbookPanel({ onClose, onInstallSkill }: MoltbookPanel
                   background: 'transparent',
                   border: 'none',
                   color: '#cccccc',
-                  fontSize: '13px',
+                  fontSize: '12px',
                   outline: 'none'
                 }}
               />
             </div>
 
             {/* Skills List */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
               {skills.filter(s => 
                 s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 s.description.toLowerCase().includes(searchQuery.toLowerCase())
@@ -502,109 +481,56 @@ export default function MoltbookPanel({ onClose, onInstallSkill }: MoltbookPanel
                 <div
                   key={skill.id}
                   style={{
-                    padding: '14px',
-                    background: '#252526',
-                    borderRadius: '8px',
-                    border: '1px solid #3c3c3c'
+                    padding: '12px',
+                    background: 'transparent',
+                    border: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '12px'
                   }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#141414'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                 >
-                  <div style={{ 
-                    display: 'flex', 
-                    alignItems: 'flex-start', 
-                    justifyContent: 'space-between' 
-                  }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: '8px',
-                        marginBottom: '6px'
-                      }}>
-                        <FileCode size={16} color="#a855f7" />
-                        <span style={{ 
-                          color: '#ffffff', 
-                          fontSize: '14px', 
-                          fontWeight: 500 
-                        }}>
-                          {skill.name}
-                        </span>
-                        <span style={{ 
-                          color: '#888888', 
-                          fontSize: '11px' 
-                        }}>
-                          v{skill.version}
-                        </span>
-                      </div>
-
-                      <p style={{ 
-                        margin: '0 0 10px 0',
-                        fontSize: '12px',
-                        color: '#888888'
-                      }}>
-                        {skill.description}
-                      </p>
-
-                      <div style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: '16px',
-                        fontSize: '11px',
-                        color: '#888888'
-                      }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <Download size={12} />
-                          {skill.downloads.toLocaleString()}
-                        </span>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          {renderStars(skill.rating)}
-                          <span style={{ marginLeft: '4px' }}>{skill.rating.toFixed(1)}</span>
-                        </span>
-                        <span>by @{skill.author.username}</span>
-                      </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ 
+                      color: '#cccccc', 
+                      fontSize: '13px',
+                      marginBottom: '2px'
+                    }}>
+                      {skill.name}
                     </div>
-
-                    <button
-                      onClick={() => handleInstallSkill(skill)}
-                      style={{
-                        padding: '6px 12px',
-                        background: '#a855f7',
-                        border: 'none',
-                        borderRadius: '4px',
-                        color: '#ffffff',
-                        cursor: 'pointer',
-                        fontSize: '11px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px'
-                      }}
-                    >
-                      <Download size={12} />
-                      Install
-                    </button>
+                    <div style={{ 
+                      color: '#666', 
+                      fontSize: '11px'
+                    }}>
+                      {skill.description}
+                    </div>
+                    <div style={{ 
+                      display: 'flex', 
+                      gap: '12px',
+                      marginTop: '6px',
+                      fontSize: '10px',
+                      color: '#666'
+                    }}>
+                      <span>{skill.downloads.toLocaleString()} downloads</span>
+                      <span>{skill.rating.toFixed(1)}★</span>
+                    </div>
                   </div>
-
-                  {/* Tags */}
-                  <div style={{ 
-                    display: 'flex', 
-                    gap: '6px', 
-                    marginTop: '10px',
-                    flexWrap: 'wrap'
-                  }}>
-                    {skill.tags.map(tag => (
-                      <span
-                        key={tag}
-                        style={{
-                          padding: '2px 8px',
-                          background: '#3c3c3c',
-                          borderRadius: '10px',
-                          fontSize: '10px',
-                          color: '#888888'
-                        }}
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
+                  <button
+                    onClick={() => handleInstallSkill(skill)}
+                    style={{
+                      padding: '4px 12px',
+                      background: 'transparent',
+                      border: '1px solid #1a1a1a',
+                      borderRadius: '4px',
+                      color: '#cccccc',
+                      cursor: 'pointer',
+                      fontSize: '11px'
+                    }}
+                  >
+                    Install
+                  </button>
                 </div>
               ))}
             </div>
@@ -624,89 +550,55 @@ export default function MoltbookPanel({ onClose, onInstallSkill }: MoltbookPanel
               Top Agents
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
               {agents.map(agent => (
                 <div
                   key={agent.id}
                   style={{
-                    padding: '14px',
-                    background: '#252526',
-                    borderRadius: '8px',
-                    border: '1px solid #3c3c3c',
+                    padding: '12px',
+                    background: 'transparent',
                     display: 'flex',
                     alignItems: 'center',
+                    justifyContent: 'space-between',
                     gap: '12px'
                   }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#141414'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                 >
-                  {/* Avatar */}
-                  <div style={{
-                    width: '44px',
-                    height: '44px',
-                    borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #a855f7, #6366f1)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#ffffff',
-                    fontWeight: 'bold',
-                    fontSize: '16px'
-                  }}>
-                    {agent.displayName.charAt(0)}
-                  </div>
-
-                  {/* Info */}
                   <div style={{ flex: 1 }}>
                     <div style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: '6px',
+                      color: '#cccccc', 
+                      fontSize: '13px',
+                      marginBottom: '2px'
+                    }}>
+                      {agent.displayName}
+                    </div>
+                    <div style={{ 
+                      color: '#666', 
+                      fontSize: '11px',
                       marginBottom: '4px'
                     }}>
-                      <span style={{ color: '#ffffff', fontSize: '14px', fontWeight: 500 }}>
-                        {agent.displayName}
-                      </span>
-                      {agent.verified && (
-                        <Award size={14} color="#a855f7" />
-                      )}
-                      <span style={{ color: '#888888', fontSize: '12px' }}>
-                        @{agent.username}
-                      </span>
-                    </div>
-                    <p style={{ 
-                      margin: '0 0 6px 0',
-                      fontSize: '12px',
-                      color: '#888888'
-                    }}>
                       {agent.description}
-                    </p>
+                    </div>
                     <div style={{ 
-                      display: 'flex', 
-                      gap: '12px',
-                      fontSize: '11px',
-                      color: '#888888'
+                      fontSize: '10px',
+                      color: '#666'
                     }}>
-                      <span>{agent.karma.toLocaleString()} karma</span>
-                      <span>{agent.stats.followers.toLocaleString()} followers</span>
+                      {agent.karma.toLocaleString()} karma • {agent.stats.followers.toLocaleString()} followers
                     </div>
                   </div>
-
-                  {/* Follow button */}
                   <button
                     onClick={() => handleFollowAgent(agent.id)}
                     style={{
-                      padding: '6px 12px',
-                      background: '#3c3c3c',
-                      border: 'none',
+                      padding: '4px 12px',
+                      background: 'transparent',
+                      border: '1px solid #1a1a1a',
                       borderRadius: '4px',
-                      color: '#ffffff',
+                      color: '#cccccc',
                       cursor: 'pointer',
-                      fontSize: '11px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px'
+                      fontSize: '11px'
                     }}
                   >
-                    <UserPlus size={12} />
                     Follow
                   </button>
                 </div>
@@ -718,36 +610,33 @@ export default function MoltbookPanel({ onClose, onInstallSkill }: MoltbookPanel
               <>
                 <div style={{ 
                   fontSize: '11px', 
-                  color: '#888888', 
-                  margin: '20px 0 12px 0',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px'
+                  color: '#666', 
+                  margin: '16px 0 8px 0'
                 }}>
-                  Popular Communities
+                  Communities
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
                   {submolts.map(submolt => (
-                    <button
+                    <div
                       key={submolt.id}
                       style={{
-                        padding: '8px 14px',
-                        background: '#252526',
-                        border: '1px solid #3c3c3c',
-                        borderRadius: '16px',
-                        color: '#cccccc',
-                        cursor: 'pointer',
-                        fontSize: '12px',
+                        padding: '8px 12px',
+                        background: 'transparent',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '6px'
+                        justifyContent: 'space-between',
+                        fontSize: '12px',
+                        color: '#cccccc',
+                        cursor: 'pointer'
                       }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = '#141414'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                     >
-                      <BookOpen size={14} color="#a855f7" />
-                      m/{submolt.name}
-                      <span style={{ color: '#888888', fontSize: '10px' }}>
+                      <span>m/{submolt.name}</span>
+                      <span style={{ color: '#666', fontSize: '10px' }}>
                         {submolt.memberCount.toLocaleString()}
                       </span>
-                    </button>
+                    </div>
                   ))}
                 </div>
               </>

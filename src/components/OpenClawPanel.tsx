@@ -422,35 +422,21 @@ export default function OpenClawPanel({
           <div style={{ padding: '12px' }}>
             {/* Current context */}
             <div style={{
-              padding: '12px',
-              background: '#252526',
-              borderRadius: '8px',
-              marginBottom: '16px'
+              padding: '10px 12px',
+              background: '#141414',
+              borderRadius: '4px',
+              marginBottom: '12px',
+              border: '1px solid #1a1a1a',
+              fontSize: '11px',
+              color: '#999'
             }}>
-              <div style={{ 
-                fontSize: '11px', 
-                color: '#888888', 
-                marginBottom: '8px',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px'
-              }}>
-                Current Context
+              <div style={{ marginBottom: '4px' }}>
+                <span style={{ color: '#666' }}>File: </span>
+                {currentFilePath || 'None'}
               </div>
-              <div style={{ display: 'flex', gap: '16px', fontSize: '12px' }}>
-                <div>
-                  <span style={{ color: '#888888' }}>File: </span>
-                  <span style={{ color: '#ffffff' }}>{currentFilePath || 'None'}</span>
-                </div>
-                <div>
-                  <span style={{ color: '#888888' }}>Language: </span>
-                  <span style={{ color: '#ffffff' }}>{currentLanguage || 'Unknown'}</span>
-                </div>
-                <div>
-                  <span style={{ color: '#888888' }}>Code: </span>
-                  <span style={{ color: '#ffffff' }}>
-                    {currentCode ? `${currentCode.split('\n').length} lines` : 'None'}
-                  </span>
-                </div>
+              <div>
+                <span style={{ color: '#666' }}>Language: </span>
+                {currentLanguage || 'Unknown'}
               </div>
             </div>
 
@@ -458,80 +444,48 @@ export default function OpenClawPanel({
             {(executing || executionResult) && (
               <div style={{
                 padding: '12px',
-                background: '#252526',
-                borderRadius: '8px',
-                marginBottom: '16px',
-                border: `1px solid ${executionResult?.success ? '#22c55e' : executionResult?.error ? '#ef4444' : '#3c3c3c'}`
+                background: '#141414',
+                borderRadius: '4px',
+                marginBottom: '12px',
+                border: '1px solid #1a1a1a'
               }}>
                 <div style={{ 
                   display: 'flex', 
                   alignItems: 'center', 
-                  justifyContent: 'space-between',
-                  marginBottom: '12px'
+                  gap: '8px',
+                  marginBottom: '10px',
+                  fontSize: '12px',
+                  color: '#cccccc'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    {executing ? (
-                      <Loader2 size={16} color="#007acc" className="animate-spin" />
-                    ) : executionResult?.success ? (
-                      <CheckCircle size={16} color="#22c55e" />
-                    ) : (
-                      <XCircle size={16} color="#ef4444" />
-                    )}
-                    <span style={{ color: '#ffffff', fontSize: '13px', fontWeight: 500 }}>
-                      {executing ? 'Executing...' : selectedSkill?.replace('bloop-', '').replace(/-/g, ' ')}
-                    </span>
-                  </div>
-                  {executionResult?.duration && (
-                    <div style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: '4px',
-                      color: '#888888',
-                      fontSize: '11px'
-                    }}>
-                      <Clock size={12} />
-                      {executionResult.duration}ms
-                    </div>
+                  {executing ? (
+                    <Loader2 size={14} color="#cccccc" className="animate-spin" />
+                  ) : executionResult?.success ? (
+                    <CheckCircle size={14} color="#cccccc" />
+                  ) : (
+                    <XCircle size={14} color="#666" />
                   )}
+                  <span>
+                    {executing ? 'Executing...' : selectedSkill?.replace('bloop-', '').replace(/-/g, ' ')}
+                  </span>
                 </div>
 
                 {executionResult && (
-                  <div style={{ position: 'relative' }}>
-                    <pre style={{
-                      margin: 0,
-                      padding: '12px',
-                      background: '#1e1e1e',
-                      borderRadius: '6px',
-                      fontSize: '12px',
-                      fontFamily: "'JetBrains Mono', monospace",
-                      whiteSpace: 'pre-wrap',
-                      wordBreak: 'break-word',
-                      maxHeight: '300px',
-                      overflow: 'auto',
-                      color: executionResult.error ? '#ef4444' : '#cccccc'
-                    }}>
-                      {executionResult.output || executionResult.error}
-                    </pre>
-                    {executionResult.output && (
-                      <button
-                        onClick={handleCopyResult}
-                        style={{
-                          position: 'absolute',
-                          top: '8px',
-                          right: '8px',
-                          padding: '4px',
-                          background: '#3c3c3c',
-                          border: 'none',
-                          borderRadius: '4px',
-                          color: '#888888',
-                          cursor: 'pointer'
-                        }}
-                        title="Copy to clipboard"
-                      >
-                        <Copy size={12} />
-                      </button>
-                    )}
-                  </div>
+                  <pre style={{
+                    margin: 0,
+                    padding: '10px',
+                    background: '#0a0a0a',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    fontFamily: "'JetBrains Mono', monospace",
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    maxHeight: '300px',
+                    overflow: 'auto',
+                    color: executionResult.error ? '#999' : '#cccccc',
+                    border: '1px solid #1a1a1a'
+                  }}>
+                    {executionResult.output || executionResult.error}
+                  </pre>
                 )}
               </div>
             )}
@@ -541,38 +495,37 @@ export default function OpenClawPanel({
               <div>
                 <div style={{ 
                   fontSize: '11px', 
-                  color: '#888888', 
-                  marginBottom: '8px',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px'
+                  color: '#666', 
+                  marginBottom: '8px'
                 }}>
                   History
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
                   {executionHistory.map((entry, idx) => (
                     <div
                       key={idx}
                       style={{
                         padding: '8px 12px',
-                        background: '#252526',
-                        borderRadius: '6px',
+                        background: 'transparent',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        fontSize: '12px'
+                        fontSize: '11px'
                       }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = '#141414'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         {entry.result.success ? (
-                          <CheckCircle size={12} color="#22c55e" />
+                          <CheckCircle size={12} color="#cccccc" />
                         ) : (
-                          <XCircle size={12} color="#ef4444" />
+                          <XCircle size={12} color="#666" />
                         )}
                         <span style={{ color: '#cccccc' }}>
                           {entry.skill.replace('bloop-', '')}
                         </span>
                       </div>
-                      <span style={{ color: '#666666', fontSize: '10px' }}>
+                      <span style={{ color: '#666', fontSize: '10px' }}>
                         {entry.timestamp.toLocaleTimeString()}
                       </span>
                     </div>
