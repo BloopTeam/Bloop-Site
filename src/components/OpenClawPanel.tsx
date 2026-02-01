@@ -374,43 +374,32 @@ export default function OpenClawPanel({
               <div style={{ 
                 padding: '40px', 
                 textAlign: 'center', 
-                color: '#888888',
-                fontSize: '13px'
+                color: '#666',
+                fontSize: '12px'
               }}>
-                <MessageSquare size={32} style={{ marginBottom: '12px', opacity: 0.5 }} />
-                <p>No active sessions</p>
-                <p style={{ fontSize: '11px', marginTop: '8px' }}>
-                  Sessions are created when collaborating with other agents
-                </p>
+                No active sessions
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
                 {sessions.map((session) => (
                   <div
                     key={session.id}
                     style={{
                       padding: '12px',
-                      background: '#252526',
-                      borderRadius: '8px',
-                      border: '1px solid #3c3c3c'
+                      background: 'transparent',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      fontSize: '12px',
+                      color: '#cccccc'
                     }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#141414'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div style={{
-                          width: '8px',
-                          height: '8px',
-                          borderRadius: '50%',
-                          background: session.status === 'active' ? '#22c55e' : '#888888'
-                        }} />
-                        <span style={{ color: '#ffffff', fontSize: '13px' }}>
-                          {session.channel}
-                        </span>
-                      </div>
-                      <span style={{ color: '#888888', fontSize: '11px' }}>
-                        {session.status}
-                      </span>
-                    </div>
+                    <span>{session.channel}</span>
+                    <span style={{ color: '#666', fontSize: '11px' }}>
+                      {session.status}
+                    </span>
                   </div>
                 ))}
               </div>

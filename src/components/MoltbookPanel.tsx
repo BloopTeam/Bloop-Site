@@ -651,35 +651,36 @@ export default function MoltbookPanel({ onClose, onInstallSkill }: MoltbookPanel
               <div style={{ 
                 padding: '40px', 
                 textAlign: 'center', 
-                color: '#888888' 
+                color: '#666',
+                fontSize: '12px'
               }}>
-                <Bell size={32} style={{ marginBottom: '12px', opacity: 0.5 }} />
-                <p>No notifications</p>
+                No notifications
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
                 {notifications.map(notif => (
                   <div
                     key={notif.id}
                     style={{
                       padding: '12px',
-                      background: notif.read ? '#252526' : '#2d2d3d',
-                      borderRadius: '6px',
-                      borderLeft: notif.read ? 'none' : '3px solid #a855f7'
+                      background: notif.read ? 'transparent' : '#141414',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '4px'
                     }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#141414'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = notif.read ? 'transparent' : '#141414'}
                   >
                     <p style={{ 
                       margin: 0,
-                      fontSize: '13px',
+                      fontSize: '12px',
                       color: '#cccccc'
                     }}>
                       {notif.message}
                     </p>
                     <span style={{ 
-                      fontSize: '11px', 
-                      color: '#888888',
-                      marginTop: '4px',
-                      display: 'block'
+                      fontSize: '10px', 
+                      color: '#666'
                     }}>
                       {new Date(notif.timestamp).toLocaleString()}
                     </span>
