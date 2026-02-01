@@ -223,6 +223,109 @@ class ApiService {
     if (!response.ok) throw new Error(`Documentation generation failed: ${response.statusText}`)
     return await response.json()
   }
+
+  // Agent metrics and monitoring (Phase 2)
+  async getAgentMetrics(): Promise<{
+    total_agents_created: number
+    total_tasks_executed: number
+    successful_tasks: number
+    failed_tasks: number
+    success_rate: number
+    total_execution_time_ms: number
+    average_execution_time_ms: number
+    total_tokens_used: number
+    active_agents: number
+    active_tasks: number
+    queue_status: {
+      queue_size: number
+      queue_capacity: number
+      concurrent_tasks: number
+      max_concurrent: number
+      circuit_breaker_open: boolean
+    }
+    health_status: {
+      unhealthy_agents: number
+      unhealthy_agent_ids: string[]
+    }
+  }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/v1/agents/metrics`)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch metrics: ${response.statusText}`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching agent metrics:', error)
+      // Return default values if backend is unavailable
+      return {
+        total_agents_created: 0,
+        total_tasks_executed: 0,
+        successful_tasks: 0,
+        failed_tasks: 0,
+        success_rate: 0,
+        total_execution_time_ms: 0,
+        average_execution_time_ms: 0,
+        total_tokens_used: 0,
+        active_agents: 0,
+        active_tasks: 0,
+        queue_status: {
+          queue_size: 0,
+          queue_capacity: 2000,
+          concurrent_tasks: 0,
+          max_concurrent: 200,
+          circuit_breaker_open: false
+        },
+        health_status: {
+          unhealthy_agents: 0,
+          unhealthy_agent_ids: []
+        }
+      }
+    }
+  }
+
+  async getQueueStatus(): Promise<{
+    queue_size: number
+    queue_capacity: number
+    concurrent_tasks: number
+    max_concurrent: number
+    circuit_breaker_open: boolean
+  }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/v1/agents/queue/status`)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch queue status: ${response.statusText}`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching queue status:', error)
+      return {
+        queue_size: 0,
+        queue_capacity: 2000,
+        concurrent_tasks: 0,
+        max_concurrent: 200,
+        circuit_breaker_open: false
+      }
+    }
+  }
+
+  async getHealthStatus(): Promise<{
+    unhealthy_agents: number
+    unhealthy_agent_ids: string[]
+  }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/v1/agents/health`)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch health status: ${response.statusText}`)
+      }
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching health status:', error)
+      return {
+        unhealthy_agents: 0,
+        unhealthy_agent_ids: []
+      }
+    }
+  }
 }
 
 export const apiService = new ApiService()
