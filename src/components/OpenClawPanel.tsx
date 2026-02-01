@@ -194,44 +194,60 @@ export default function OpenClawPanel({
     }}>
       {/* Header */}
       <div style={{
-        padding: '12px 16px',
-        borderBottom: '1px solid #3c3c3c',
+        padding: '14px 16px',
+        borderBottom: '1px solid #2a2a2a',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between'
+        justifyContent: 'space-between',
+        background: '#252526'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Zap size={18} color="#22c55e" />
-          <span style={{ fontWeight: 500, color: '#ffffff' }}>OpenClaw</span>
-          <span style={{
-            padding: '2px 8px',
-            borderRadius: '10px',
-            fontSize: '10px',
-            background: connected ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)',
-            color: connected ? '#22c55e' : '#ef4444'
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: '8px',
+            background: connected ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
           }}>
-            {connected ? 'Connected' : 'Offline'}
-          </span>
+            <Zap size={18} color={connected ? "#22c55e" : "#ef4444"} />
+          </div>
+          <div>
+            <div style={{ fontWeight: 600, color: '#ffffff', fontSize: '14px' }}>OpenClaw</div>
+            <div style={{ fontSize: '11px', color: '#888888', marginTop: '2px' }}>
+              {connected ? 'Gateway connected' : 'Not connected'}
+            </div>
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: '4px' }}>
+        <div style={{ display: 'flex', gap: '6px' }}>
           {!connected && (
             <button
               onClick={handleConnect}
               disabled={loading}
               style={{
-                padding: '4px 12px',
-                background: '#007acc',
+                padding: '6px 14px',
+                background: loading ? '#3c3c3c' : '#22c55e',
                 border: 'none',
-                borderRadius: '4px',
+                borderRadius: '6px',
                 color: '#ffffff',
                 cursor: loading ? 'wait' : 'pointer',
-                fontSize: '11px',
+                fontSize: '12px',
+                fontWeight: 500,
                 display: 'flex',
                 alignItems: 'center',
-                gap: '4px'
+                gap: '6px',
+                transition: 'all 0.2s',
+                opacity: loading ? 0.6 : 1
+              }}
+              onMouseEnter={(e) => {
+                if (!loading) e.currentTarget.style.background = '#16a34a'
+              }}
+              onMouseLeave={(e) => {
+                if (!loading) e.currentTarget.style.background = '#22c55e'
               }}
             >
-              {loading ? <Loader2 size={12} className="animate-spin" /> : <Plug size={12} />}
+              {loading ? <Loader2 size={14} className="animate-spin" /> : <Plug size={14} />}
               Connect
             </button>
           )}
@@ -239,11 +255,28 @@ export default function OpenClawPanel({
             onClick={loadData}
             disabled={loading}
             style={{
-              padding: '4px 8px',
+              padding: '6px',
               background: 'transparent',
-              border: 'none',
+              border: '1px solid #3c3c3c',
+              borderRadius: '6px',
               color: '#888888',
-              cursor: 'pointer'
+              cursor: loading ? 'wait' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              if (!loading) {
+                e.currentTarget.style.borderColor = '#22c55e'
+                e.currentTarget.style.color = '#22c55e'
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!loading) {
+                e.currentTarget.style.borderColor = '#3c3c3c'
+                e.currentTarget.style.color = '#888888'
+              }
             }}
           >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
@@ -252,16 +285,65 @@ export default function OpenClawPanel({
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', borderBottom: '1px solid #3c3c3c' }}>
-        <button onClick={() => setActiveTab('skills')} style={tabStyle(activeTab === 'skills')}>
+      <div style={{ 
+        display: 'flex', 
+        borderBottom: '1px solid #2a2a2a',
+        background: '#252526',
+        padding: '0 8px'
+      }}>
+        <button 
+          onClick={() => setActiveTab('skills')} 
+          style={{
+            ...tabStyle(activeTab === 'skills'),
+            padding: '10px 16px',
+            marginTop: '4px',
+            borderRadius: '6px 6px 0 0'
+          }}
+        >
           <Zap size={14} />
-          Skills ({displaySkills.length})
+          <span>Skills</span>
+          <span style={{
+            marginLeft: '6px',
+            padding: '2px 6px',
+            borderRadius: '10px',
+            background: activeTab === 'skills' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(255, 255, 255, 0.1)',
+            fontSize: '10px',
+            fontWeight: 500
+          }}>
+            {displaySkills.length}
+          </span>
         </button>
-        <button onClick={() => setActiveTab('sessions')} style={tabStyle(activeTab === 'sessions')}>
+        <button 
+          onClick={() => setActiveTab('sessions')} 
+          style={{
+            ...tabStyle(activeTab === 'sessions'),
+            padding: '10px 16px',
+            marginTop: '4px',
+            borderRadius: '6px 6px 0 0'
+          }}
+        >
           <Users size={14} />
-          Sessions ({sessions.length})
+          <span>Sessions</span>
+          <span style={{
+            marginLeft: '6px',
+            padding: '2px 6px',
+            borderRadius: '10px',
+            background: activeTab === 'sessions' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(255, 255, 255, 0.1)',
+            fontSize: '10px',
+            fontWeight: 500
+          }}>
+            {sessions.length}
+          </span>
         </button>
-        <button onClick={() => setActiveTab('execute')} style={tabStyle(activeTab === 'execute')}>
+        <button 
+          onClick={() => setActiveTab('execute')} 
+          style={{
+            ...tabStyle(activeTab === 'execute'),
+            padding: '10px 16px',
+            marginTop: '4px',
+            borderRadius: '6px 6px 0 0'
+          }}
+        >
           <Terminal size={14} />
           Execute
         </button>
@@ -270,18 +352,23 @@ export default function OpenClawPanel({
       {/* Content */}
       <div style={{ flex: 1, overflow: 'auto' }}>
         {activeTab === 'skills' && (
-          <div style={{ padding: '12px' }}>
+          <div style={{ padding: '16px' }}>
             {/* Search */}
             <div style={{ 
               display: 'flex', 
               alignItems: 'center', 
-              gap: '8px',
-              padding: '8px 12px',
+              gap: '10px',
+              padding: '10px 14px',
               background: '#252526',
-              borderRadius: '6px',
-              marginBottom: '12px'
-            }}>
-              <Search size={14} color="#888888" />
+              borderRadius: '8px',
+              marginBottom: '16px',
+              border: '1px solid #2a2a2a',
+              transition: 'border-color 0.2s'
+            }}
+            onFocus={(e) => e.currentTarget.style.borderColor = '#22c55e'}
+            onBlur={(e) => e.currentTarget.style.borderColor = '#2a2a2a'}
+            >
+              <Search size={16} color="#888888" />
               <input
                 type="text"
                 placeholder="Search skills..."
@@ -291,54 +378,90 @@ export default function OpenClawPanel({
                   flex: 1,
                   background: 'transparent',
                   border: 'none',
-                  color: '#cccccc',
+                  color: '#ffffff',
                   fontSize: '13px',
-                  outline: 'none'
+                  outline: 'none',
+                  fontWeight: 400
                 }}
               />
             </div>
 
             {/* Skills List */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {displaySkills.map((skill) => (
                 <div
                   key={skill.name}
                   style={{
-                    padding: '12px',
+                    padding: '16px',
                     background: '#252526',
-                    borderRadius: '8px',
-                    border: '1px solid #3c3c3c',
-                    transition: 'border-color 0.15s',
+                    borderRadius: '10px',
+                    border: '1px solid #2a2a2a',
+                    transition: 'all 0.2s',
                     cursor: 'pointer'
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.borderColor = SKILL_COLORS[skill.name] || '#007acc'}
-                  onMouseLeave={(e) => e.currentTarget.style.borderColor = '#3c3c3c'}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = SKILL_COLORS[skill.name] || '#007acc'
+                    e.currentTarget.style.transform = 'translateY(-2px)'
+                    e.currentTarget.style.boxShadow = `0 4px 12px ${SKILL_COLORS[skill.name]}20`
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = '#2a2a2a'
+                    e.currentTarget.style.transform = 'translateY(0)'
+                    e.currentTarget.style.boxShadow = 'none'
+                  }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flex: 1 }}>
                       <div style={{
-                        width: '32px',
-                        height: '32px',
-                        borderRadius: '8px',
-                        background: `${SKILL_COLORS[skill.name] || '#007acc'}20`,
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '10px',
+                        background: `${SKILL_COLORS[skill.name] || '#007acc'}15`,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        color: SKILL_COLORS[skill.name] || '#007acc'
+                        color: SKILL_COLORS[skill.name] || '#007acc',
+                        flexShrink: 0
                       }}>
-                        {SKILL_ICONS[skill.name] || <Zap size={16} />}
+                        {SKILL_ICONS[skill.name] || <Zap size={20} />}
                       </div>
-                      <div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ 
                           color: '#ffffff', 
-                          fontSize: '13px', 
-                          fontWeight: 500,
-                          marginBottom: '2px'
+                          fontSize: '14px', 
+                          fontWeight: 600,
+                          marginBottom: '4px',
+                          lineHeight: 1.3
                         }}>
                           {skill.name.replace('bloop-', '').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
                         </div>
-                        <div style={{ color: '#888888', fontSize: '11px' }}>
+                        <div style={{ color: '#999999', fontSize: '12px', lineHeight: 1.5 }}>
                           {skill.description}
+                        </div>
+                        
+                        {/* Capabilities */}
+                        <div style={{ 
+                          display: 'flex', 
+                          gap: '6px', 
+                          marginTop: '12px',
+                          flexWrap: 'wrap'
+                        }}>
+                          {skill.capabilities.slice(0, 4).map(cap => (
+                            <span
+                              key={cap}
+                              style={{
+                                padding: '4px 10px',
+                                background: '#1e1e1e',
+                                borderRadius: '12px',
+                                fontSize: '10px',
+                                color: '#888888',
+                                fontWeight: 500,
+                                border: '1px solid #2a2a2a'
+                              }}
+                            >
+                              {cap}
+                            </span>
+                          ))}
                         </div>
                       </div>
                     </div>
@@ -346,44 +469,37 @@ export default function OpenClawPanel({
                       onClick={() => handleExecuteSkill(skill.name)}
                       disabled={executing}
                       style={{
-                        padding: '6px 12px',
+                        padding: '8px 16px',
                         background: SKILL_COLORS[skill.name] || '#007acc',
                         border: 'none',
-                        borderRadius: '4px',
+                        borderRadius: '8px',
                         color: '#ffffff',
-                        cursor: 'pointer',
-                        fontSize: '11px',
+                        cursor: executing ? 'wait' : 'pointer',
+                        fontSize: '12px',
+                        fontWeight: 500,
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '4px'
+                        gap: '6px',
+                        transition: 'all 0.2s',
+                        opacity: executing ? 0.6 : 1,
+                        flexShrink: 0
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!executing) {
+                          e.currentTarget.style.transform = 'scale(1.05)'
+                          e.currentTarget.style.boxShadow = `0 4px 12px ${SKILL_COLORS[skill.name]}40`
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!executing) {
+                          e.currentTarget.style.transform = 'scale(1)'
+                          e.currentTarget.style.boxShadow = 'none'
+                        }
                       }}
                     >
-                      <Play size={12} />
+                      <Play size={14} />
                       Run
                     </button>
-                  </div>
-                  
-                  {/* Capabilities */}
-                  <div style={{ 
-                    display: 'flex', 
-                    gap: '6px', 
-                    marginTop: '10px',
-                    flexWrap: 'wrap'
-                  }}>
-                    {skill.capabilities.map(cap => (
-                      <span
-                        key={cap}
-                        style={{
-                          padding: '2px 8px',
-                          background: '#3c3c3c',
-                          borderRadius: '10px',
-                          fontSize: '10px',
-                          color: '#888888'
-                        }}
-                      >
-                        {cap}
-                      </span>
-                    ))}
                   </div>
                 </div>
               ))}

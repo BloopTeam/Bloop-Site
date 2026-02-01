@@ -196,37 +196,65 @@ export default function MoltbookPanel({ onClose, onInstallSkill }: MoltbookPanel
     }}>
       {/* Header */}
       <div style={{
-        padding: '12px 16px',
-        borderBottom: '1px solid #3c3c3c',
+        padding: '14px 16px',
+        borderBottom: '1px solid #2a2a2a',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between'
+        justifyContent: 'space-between',
+        background: '#252526'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Users size={18} color="#a855f7" />
-          <span style={{ fontWeight: 500, color: '#ffffff' }}>Moltbook</span>
-          {currentAgent && (
-            <span style={{
-              padding: '2px 8px',
-              borderRadius: '10px',
-              fontSize: '10px',
-              background: 'rgba(168, 85, 247, 0.2)',
-              color: '#a855f7'
-            }}>
-              @{currentAgent.username}
-            </span>
-          )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: '8px',
+            background: 'rgba(168, 85, 247, 0.15)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <Users size={18} color="#a855f7" />
+          </div>
+          <div>
+            <div style={{ fontWeight: 600, color: '#ffffff', fontSize: '14px' }}>Moltbook</div>
+            {currentAgent ? (
+              <div style={{ fontSize: '11px', color: '#888888', marginTop: '2px' }}>
+                @{currentAgent.username}
+              </div>
+            ) : (
+              <div style={{ fontSize: '11px', color: '#888888', marginTop: '2px' }}>
+                Not registered
+              </div>
+            )}
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: '4px' }}>
+        <div style={{ display: 'flex', gap: '6px' }}>
           <button
             onClick={loadData}
             disabled={loading}
             style={{
-              padding: '4px 8px',
+              padding: '6px',
               background: 'transparent',
-              border: 'none',
+              border: '1px solid #3c3c3c',
+              borderRadius: '6px',
               color: '#888888',
-              cursor: 'pointer'
+              cursor: loading ? 'wait' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              if (!loading) {
+                e.currentTarget.style.borderColor = '#a855f7'
+                e.currentTarget.style.color = '#a855f7'
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!loading) {
+                e.currentTarget.style.borderColor = '#3c3c3c'
+                e.currentTarget.style.color = '#888888'
+              }
             }}
           >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
@@ -236,13 +264,25 @@ export default function MoltbookPanel({ onClose, onInstallSkill }: MoltbookPanel
             target="_blank"
             rel="noopener noreferrer"
             style={{
-              padding: '4px 8px',
+              padding: '6px',
               background: 'transparent',
-              border: 'none',
+              border: '1px solid #3c3c3c',
+              borderRadius: '6px',
               color: '#888888',
               cursor: 'pointer',
               display: 'flex',
-              alignItems: 'center'
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.2s',
+              textDecoration: 'none'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = '#a855f7'
+              e.currentTarget.style.color = '#a855f7'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = '#3c3c3c'
+              e.currentTarget.style.color = '#888888'
             }}
           >
             <ExternalLink size={14} />
@@ -251,32 +291,76 @@ export default function MoltbookPanel({ onClose, onInstallSkill }: MoltbookPanel
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', borderBottom: '1px solid #3c3c3c' }}>
-        <button onClick={() => setActiveTab('feed')} style={tabStyle(activeTab === 'feed')}>
+      <div style={{ 
+        display: 'flex', 
+        borderBottom: '1px solid #2a2a2a',
+        background: '#252526',
+        padding: '0 8px'
+      }}>
+        <button 
+          onClick={() => setActiveTab('feed')} 
+          style={{
+            ...tabStyle(activeTab === 'feed'),
+            padding: '10px 16px',
+            marginTop: '4px',
+            borderRadius: '6px 6px 0 0'
+          }}
+        >
           <MessageSquare size={14} />
           Feed
         </button>
-        <button onClick={() => setActiveTab('skills')} style={tabStyle(activeTab === 'skills')}>
+        <button 
+          onClick={() => setActiveTab('skills')} 
+          style={{
+            ...tabStyle(activeTab === 'skills'),
+            padding: '10px 16px',
+            marginTop: '4px',
+            borderRadius: '6px 6px 0 0'
+          }}
+        >
           <Zap size={14} />
           Skills
         </button>
-        <button onClick={() => setActiveTab('discover')} style={tabStyle(activeTab === 'discover')}>
+        <button 
+          onClick={() => setActiveTab('discover')} 
+          style={{
+            ...tabStyle(activeTab === 'discover'),
+            padding: '10px 16px',
+            marginTop: '4px',
+            borderRadius: '6px 6px 0 0'
+          }}
+        >
           <Users size={14} />
           Discover
         </button>
-        <button onClick={() => setActiveTab('notifications')} style={tabStyle(activeTab === 'notifications')}>
+        <button 
+          onClick={() => setActiveTab('notifications')} 
+          style={{
+            ...tabStyle(activeTab === 'notifications'),
+            padding: '10px 16px',
+            marginTop: '4px',
+            borderRadius: '6px 6px 0 0',
+            position: 'relative'
+          }}
+        >
           <Bell size={14} />
+          Notifications
           {hasUnreadNotifications && (
             <span style={{
+              position: 'absolute',
+              top: '6px',
+              right: '8px',
               background: '#ef4444',
               color: '#ffffff',
               borderRadius: '50%',
-              width: '16px',
-              height: '16px',
+              width: '18px',
+              height: '18px',
               fontSize: '10px',
+              fontWeight: 600,
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center'
+              justifyContent: 'center',
+              border: '2px solid #252526'
             }}>
               {notifications.filter(n => !n.read).length}
             </span>
@@ -291,20 +375,39 @@ export default function MoltbookPanel({ onClose, onInstallSkill }: MoltbookPanel
           <div>
             {/* Sort Options */}
             <div style={{ 
-              padding: '12px', 
+              padding: '12px 16px', 
               display: 'flex', 
               gap: '8px',
-              borderBottom: '1px solid #3c3c3c'
+              borderBottom: '1px solid #2a2a2a',
+              background: '#252526'
             }}>
               {(['hot', 'new', 'top', 'discussed'] as FeedSort[]).map(sort => (
                 <button
                   key={sort}
                   onClick={() => setFeedSort(sort)}
-                  style={sortButtonStyle(feedSort === sort)}
+                  style={{
+                    ...sortButtonStyle(feedSort === sort),
+                    padding: '6px 14px',
+                    borderRadius: '8px',
+                    fontWeight: feedSort === sort ? 500 : 400,
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (feedSort !== sort) {
+                      e.currentTarget.style.background = '#3c3c3c'
+                      e.currentTarget.style.color = '#cccccc'
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (feedSort !== sort) {
+                      e.currentTarget.style.background = '#3c3c3c'
+                      e.currentTarget.style.color = '#888888'
+                    }
+                  }}
                 >
-                  {sort === 'hot' && <TrendingUp size={12} style={{ marginRight: '4px' }} />}
-                  {sort === 'new' && <Clock size={12} style={{ marginRight: '4px' }} />}
-                  {sort === 'top' && <Award size={12} style={{ marginRight: '4px' }} />}
+                  {sort === 'hot' && <TrendingUp size={13} style={{ marginRight: '6px' }} />}
+                  {sort === 'new' && <Clock size={13} style={{ marginRight: '6px' }} />}
+                  {sort === 'top' && <Award size={13} style={{ marginRight: '6px' }} />}
                   {sort.charAt(0).toUpperCase() + sort.slice(1)}
                 </button>
               ))}
@@ -326,18 +429,23 @@ export default function MoltbookPanel({ onClose, onInstallSkill }: MoltbookPanel
                   <div
                     key={post.id}
                     style={{
-                      padding: '16px',
-                      borderBottom: '1px solid #3c3c3c',
+                      padding: '16px 20px',
+                      borderBottom: '1px solid #2a2a2a',
                       display: 'flex',
-                      gap: '12px'
+                      gap: '16px',
+                      transition: 'background 0.2s',
+                      cursor: 'pointer'
                     }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#252526'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                   >
                     {/* Vote buttons */}
                     <div style={{ 
                       display: 'flex', 
                       flexDirection: 'column', 
                       alignItems: 'center',
-                      gap: '4px'
+                      gap: '2px',
+                      paddingTop: '2px'
                     }}>
                       <button
                         onClick={() => handleVote(post.id, 'up')}
@@ -346,15 +454,30 @@ export default function MoltbookPanel({ onClose, onInstallSkill }: MoltbookPanel
                           border: 'none',
                           color: '#888888',
                           cursor: 'pointer',
-                          padding: '4px'
+                          padding: '6px',
+                          borderRadius: '6px',
+                          transition: 'all 0.2s',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.color = '#22c55e'
+                          e.currentTarget.style.background = 'rgba(34, 197, 94, 0.1)'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.color = '#888888'
+                          e.currentTarget.style.background = 'transparent'
                         }}
                       >
-                        <ChevronUp size={18} />
+                        <ChevronUp size={20} />
                       </button>
                       <span style={{ 
-                        fontSize: '13px', 
-                        fontWeight: 500,
-                        color: post.karma > 0 ? '#22c55e' : post.karma < 0 ? '#ef4444' : '#888888'
+                        fontSize: '14px', 
+                        fontWeight: 600,
+                        color: post.karma > 0 ? '#22c55e' : post.karma < 0 ? '#ef4444' : '#888888',
+                        minWidth: '24px',
+                        textAlign: 'center'
                       }}>
                         {post.karma}
                       </span>
@@ -365,10 +488,23 @@ export default function MoltbookPanel({ onClose, onInstallSkill }: MoltbookPanel
                           border: 'none',
                           color: '#888888',
                           cursor: 'pointer',
-                          padding: '4px'
+                          padding: '6px',
+                          borderRadius: '6px',
+                          transition: 'all 0.2s',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.color = '#ef4444'
+                          e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.color = '#888888'
+                          e.currentTarget.style.background = 'transparent'
                         }}
                       >
-                        <ChevronDown size={18} />
+                        <ChevronDown size={20} />
                       </button>
                     </div>
 
@@ -393,22 +529,23 @@ export default function MoltbookPanel({ onClose, onInstallSkill }: MoltbookPanel
                       </div>
 
                       <h3 style={{ 
-                        margin: '0 0 8px 0',
-                        fontSize: '14px',
-                        fontWeight: 500,
-                        color: '#ffffff'
+                        margin: '0 0 10px 0',
+                        fontSize: '15px',
+                        fontWeight: 600,
+                        color: '#ffffff',
+                        lineHeight: 1.4
                       }}>
                         {post.title}
                       </h3>
 
                       <p style={{ 
-                        margin: '0 0 12px 0',
+                        margin: '0 0 14px 0',
                         fontSize: '13px',
                         color: '#cccccc',
-                        lineHeight: 1.5
+                        lineHeight: 1.6
                       }}>
-                        {post.content.length > 200 
-                          ? post.content.slice(0, 200) + '...' 
+                        {post.content.length > 300 
+                          ? post.content.slice(0, 300) + '...' 
                           : post.content}
                       </p>
 
@@ -438,7 +575,7 @@ export default function MoltbookPanel({ onClose, onInstallSkill }: MoltbookPanel
                       {/* Actions */}
                       <div style={{ 
                         display: 'flex', 
-                        gap: '16px',
+                        gap: '20px',
                         fontSize: '12px',
                         color: '#888888'
                       }}>
@@ -449,9 +586,22 @@ export default function MoltbookPanel({ onClose, onInstallSkill }: MoltbookPanel
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '4px',
-                          fontSize: '12px'
-                        }}>
+                          gap: '6px',
+                          fontSize: '12px',
+                          fontWeight: 500,
+                          padding: '4px 8px',
+                          borderRadius: '6px',
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.color = '#a855f7'
+                          e.currentTarget.style.background = 'rgba(168, 85, 247, 0.1)'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.color = '#888888'
+                          e.currentTarget.style.background = 'transparent'
+                        }}
+                        >
                           <MessageSquare size={14} />
                           {post.commentCount}
                         </button>
@@ -462,9 +612,22 @@ export default function MoltbookPanel({ onClose, onInstallSkill }: MoltbookPanel
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '4px',
-                          fontSize: '12px'
-                        }}>
+                          gap: '6px',
+                          fontSize: '12px',
+                          fontWeight: 500,
+                          padding: '4px 8px',
+                          borderRadius: '6px',
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.color = '#a855f7'
+                          e.currentTarget.style.background = 'rgba(168, 85, 247, 0.1)'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.color = '#888888'
+                          e.currentTarget.style.background = 'transparent'
+                        }}
+                        >
                           <Share2 size={14} />
                           Share
                         </button>
@@ -475,9 +638,22 @@ export default function MoltbookPanel({ onClose, onInstallSkill }: MoltbookPanel
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '4px',
-                          fontSize: '12px'
-                        }}>
+                          gap: '6px',
+                          fontSize: '12px',
+                          fontWeight: 500,
+                          padding: '4px 8px',
+                          borderRadius: '6px',
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.color = '#a855f7'
+                          e.currentTarget.style.background = 'rgba(168, 85, 247, 0.1)'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.color = '#888888'
+                          e.currentTarget.style.background = 'transparent'
+                        }}
+                        >
                           <Bookmark size={14} />
                           Save
                         </button>
