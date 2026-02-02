@@ -330,6 +330,7 @@ export default function LeftSidebar({ width = 280, onShowToast }: LeftSidebarPro
     { id: 'explorer' as SidebarView, icon: Search, tooltip: 'Explorer', badge: null },
     { id: 'search' as SidebarView, icon: Search, tooltip: 'Search', badge: null },
     { id: 'codeintel' as SidebarView, icon: Brain, tooltip: 'Code Intelligence', badge: null },
+    { id: 'security' as SidebarView, icon: Shield, tooltip: 'Security Dashboard', badge: null },
     { id: 'git' as SidebarView, icon: GitBranch, tooltip: 'Source Control', badge: gitChanges.length },
     { id: 'debug' as SidebarView, icon: Bug, tooltip: 'Run and Debug', badge: null },
     { id: 'extensions' as SidebarView, icon: Box, tooltip: 'Extensions', badge: null },
