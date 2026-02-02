@@ -5,3 +5,4 @@ pub mod codebase;
 pub mod company;
 pub mod visual;
 pub mod integrations;
+pub mod collaboration;

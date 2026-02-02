@@ -33,6 +33,7 @@ use services::ai::router::ModelRouter;
 use services::agent::AgentManager;
 use services::codebase::CodebaseIndexer;
 use services::company::CompanyOrchestrator;
+use services::collaboration::{SessionManager, CollaborationWebSocket};
 use std::sync::Arc;
 
 #[tokio::main]
@@ -105,6 +106,18 @@ async fn main() -> anyhow::Result<()> {
     );
     info!("Agent Company initialized");
 
+    // Initialize collaboration services (Phase 4)
+    let session_manager = SessionManager::new(
+        database.clone(),
+        Arc::clone(&audit_logger),
+    );
+    let collaboration_websocket = CollaborationWebSocket::new(
+        Arc::clone(&session_manager),
+        Arc::clone(&agent_manager),
+        Arc::clone(&codebase_indexer),
+    );
+    info!("Collaboration services initialized");
+
     // Build application
     let app = create_app(
         config.clone(), 
@@ -116,6 +129,8 @@ async fn main() -> anyhow::Result<()> {
         audit_logger,
         vulnerability_scanner,
         threat_detector,
+        session_manager,
+        collaboration_websocket,
     ).await?;
 
     // Start server
@@ -139,6 +154,8 @@ async fn create_app(
     audit_logger: Arc<security::AuditLogger>,
     vulnerability_scanner: Arc<security::VulnerabilityScanner>,
     threat_detector: Arc<security::ThreatDetector>,
+    session_manager: Arc<SessionManager>,
+    collaboration_websocket: Arc<CollaborationWebSocket>,
 ) -> anyhow::Result<Router> {
     // CORS layer
     let cors = CorsLayer::new()
@@ -191,6 +208,11 @@ async fn create_app(
         .route("/api/v1/company/status", get(api::routes::company::get_status))
         .route("/api/v1/company/members", get(api::routes::company::get_members))
         .route("/api/v1/company/teams", get(api::routes::company::get_teams))
+        // Collaboration routes (Phase 4)
+        .route("/api/v1/collaboration/sessions", axum::routing::post(api::routes::collaboration::create_session))
+        .route("/api/v1/collaboration/sessions/:id", get(api::routes::collaboration::get_session))
+        .route("/api/v1/collaboration/sessions/:id/join", axum::routing::post(api::routes::collaboration::join_session))
+        .route("/api/v1/collaboration/ws/:session_id", get(api::routes::collaboration::collaboration_websocket_handler))
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())
