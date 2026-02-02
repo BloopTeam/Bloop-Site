@@ -65,11 +65,23 @@ rust_decimal = { version = "1.33", features = ["serde-with-str"] }
 # Caching
 redis = { version = "0.24", features = ["tokio-comp", "connection-manager"] }
 
-# WebSocket support (for Phase 5)
+# WebSocket support
 axum-extra = { version = "0.9", features = ["typed-header"] }
+tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
+futures-util = "0.3"
+
+# Security & Encryption
+aes-gcm = "0.10"
+rand = "0.8"
+base64 = "0.21"
+regex = "1.10"
 
 [dev-dependencies]
 tokio-test = "0.4"
+
+[[test]]
+name = "company_tests"
+path = "tests/company_tests.rs"
 
 [profile.release]
 opt-level = 3

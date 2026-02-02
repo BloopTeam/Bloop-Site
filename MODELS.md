@@ -4,31 +4,31 @@ Bloop supports **15+ AI providers** with **intelligent model routing** to automa
 
 ## Quick Model Selection Guide
 
-### 🎯 For Code Tasks
+### For Code Tasks
 - **DeepSeek** - Best for pure coding, fastest, cheapest
 - **Kimi K2.5** - Best for complex code with vision (256K context)
 - **Anyscale** - Best for large codebases (128K context)
 - **Gemini 1.5** - Best for massive codebases (1M context!)
 
-### 🎨 For Creative Tasks
+### For Creative Tasks
 - **Grok (xAI)** - Fast, creative, great for brainstorming
 - **Mistral Large** - Balanced creativity + code
 - **Claude 3.5** - High-quality creative writing
 - **GPT-4 Turbo** - Versatile creative + code
 
-### 🏢 For Enterprise Tasks
+### For Enterprise Tasks
 - **Claude 3.5** - Best quality, safety-focused
 - **GPT-4 Turbo** - Most capable, widely tested
 - **Cohere** - Enterprise-grade instruction following
 
-### 🔍 For Research/Search Tasks
+### For Research/Search Tasks
 - **Perplexity** - Real-time web search integration
 
-### 🌍 For Multilingual Tasks
+### For Multilingual Tasks
 - **Qwen** - Excellent Chinese + English
 - **Baidu Ernie** - Chinese-focused, vision support
 
-### 💰 For Budget-Conscious Tasks
+### For Budget-Conscious Tasks
 - **DeepSeek** - Ultra-cheap, code-focused
 - **Together AI** - Very cheap, open-source models
 - **ZeroOne** - Very cheap, excellent reasoning
@@ -36,10 +36,10 @@ Bloop supports **15+ AI providers** with **intelligent model routing** to automa
 
 ## Complete Model List
 
-### 1. Moonshot AI (Kimi K2.5) ⭐ NEW
+### 1. Moonshot AI (Kimi K2.5) NEW
 - **Model**: `kimi-k2.5`
 - **Context**: 256K tokens
-- **Vision**: ✅ Yes
+- **Vision**: Yes
 - **Specialization**: Multimodal, agentic, code + creativity
 - **Best for**: Complex coding with vision, agent workflows
 - **API Key**: `MOONSHOT_API_KEY`
@@ -47,7 +47,7 @@ Bloop supports **15+ AI providers** with **intelligent model routing** to automa
 ### 2. DeepSeek
 - **Model**: `deepseek-chat`
 - **Context**: 64K tokens
-- **Vision**: ❌ No
+- **Vision**: No
 - **Specialization**: Code-focused
 - **Best for**: Pure coding tasks, refactoring, debugging
 - **API Key**: `DEEPSEEK_API_KEY`
@@ -55,7 +55,7 @@ Bloop supports **15+ AI providers** with **intelligent model routing** to automa
 ### 3. Google Gemini
 - **Model**: `gemini-1.5-pro`
 - **Context**: 1M tokens (largest!)
-- **Vision**: ✅ Yes
+- **Vision**: Yes
 - **Specialization**: Multimodal, massive context
 - **Best for**: Huge codebases, complex analysis
 - **API Key**: `GOOGLE_GEMINI_API_KEY`
@@ -63,7 +63,7 @@ Bloop supports **15+ AI providers** with **intelligent model routing** to automa
 ### 4. Anthropic Claude
 - **Model**: `claude-3-5-sonnet-20241022`
 - **Context**: 200K tokens
-- **Vision**: ✅ Yes
+- **Vision**: Yes
 - **Specialization**: High quality, safety-focused
 - **Best for**: Enterprise, production code, critical tasks
 - **API Key**: `ANTHROPIC_API_KEY`
@@ -71,7 +71,7 @@ Bloop supports **15+ AI providers** with **intelligent model routing** to automa
 ### 5. OpenAI GPT
 - **Model**: `gpt-4-turbo-preview`
 - **Context**: 128K tokens
-- **Vision**: ✅ Yes
+- **Vision**: Yes
 - **Specialization**: Versatile, well-tested
 - **Best for**: General purpose, production
 - **API Key**: `OPENAI_API_KEY`
@@ -79,7 +79,7 @@ Bloop supports **15+ AI providers** with **intelligent model routing** to automa
 ### 6. Mistral AI
 - **Model**: `mistral-large-latest`
 - **Context**: 32K tokens
-- **Vision**: ✅ Yes
+- **Vision**: Yes
 - **Specialization**: Creativity + code balance
 - **Best for**: Creative coding, design + implementation
 - **API Key**: `MISTRAL_API_KEY`
@@ -87,7 +87,7 @@ Bloop supports **15+ AI providers** with **intelligent model routing** to automa
 ### 7. xAI (Grok)
 - **Model**: `grok-beta`
 - **Context**: 131K tokens
-- **Vision**: ❌ No
+- **Vision**: No
 - **Specialization**: Fast, creative
 - **Best for**: Brainstorming, creative tasks, fast responses
 - **API Key**: `XAI_API_KEY`
@@ -95,7 +95,7 @@ Bloop supports **15+ AI providers** with **intelligent model routing** to automa
 ### 8. Perplexity
 - **Model**: `llama-3.1-sonar-large-128k-online`
 - **Context**: 4K tokens (but with web search)
-- **Vision**: ❌ No
+- **Vision**: No
 - **Specialization**: Search-enhanced, real-time info
 - **Best for**: Research, current events, documentation lookup
 - **API Key**: `PERPLEXITY_API_KEY`
@@ -103,7 +103,7 @@ Bloop supports **15+ AI providers** with **intelligent model routing** to automa
 ### 9. Cohere
 - **Model**: `command-r-plus`
 - **Context**: 4K tokens
-- **Vision**: ❌ No
+- **Vision**: No
 - **Specialization**: Enterprise, instruction following
 - **Best for**: Structured tasks, enterprise workflows
 - **API Key**: `COHERE_API_KEY`
@@ -111,7 +111,7 @@ Bloop supports **15+ AI providers** with **intelligent model routing** to automa
 ### 10. Together AI
 - **Model**: `meta-llama/Meta-Llama-3-70B-Instruct-Turbo`
 - **Context**: 32K tokens
-- **Vision**: ❌ No
+- **Vision**: No
 - **Specialization**: Open-source models
 - **Best for**: Cost-effective general tasks
 - **API Key**: `TOGETHER_API_KEY`
@@ -119,7 +119,7 @@ Bloop supports **15+ AI providers** with **intelligent model routing** to automa
 ### 11. Anyscale
 - **Model**: `meta-llama/Meta-Llama-3.1-405B-Instruct`
 - **Context**: 128K tokens
-- **Vision**: ❌ No
+- **Vision**: No
 - **Specialization**: High-performance inference
 - **Best for**: Large codebases, performance-critical
 - **API Key**: `ANYSCALE_API_KEY`
@@ -127,7 +127,7 @@ Bloop supports **15+ AI providers** with **intelligent model routing** to automa
 ### 12. Qwen (Alibaba)
 - **Model**: `qwen-plus`
 - **Context**: 32K tokens
-- **Vision**: ✅ Yes
+- **Vision**: Yes
 - **Specialization**: Multilingual (Chinese + English)
 - **Best for**: Chinese codebases, multilingual projects
 - **API Key**: `QWEN_API_KEY`
@@ -135,7 +135,7 @@ Bloop supports **15+ AI providers** with **intelligent model routing** to automa
 ### 13. ZeroOne (01.ai)
 - **Model**: `yi-1.5-34b-chat`
 - **Context**: 200K tokens
-- **Vision**: ❌ No
+- **Vision**: No
 - **Specialization**: Excellent reasoning
 - **Best for**: Complex reasoning tasks, logic-heavy code
 - **API Key**: `ZEROONE_API_KEY`
@@ -143,7 +143,7 @@ Bloop supports **15+ AI providers** with **intelligent model routing** to automa
 ### 14. Baidu Ernie
 - **Model**: `ernie-4.0-8k`
 - **Context**: 128K tokens
-- **Vision**: ✅ Yes
+- **Vision**: Yes
 - **Specialization**: Chinese-focused
 - **Best for**: Chinese language projects, vision tasks
 - **API Key**: `BAIDU_API_KEY`

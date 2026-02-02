@@ -25,12 +25,14 @@ mod middleware;
 mod services;
 mod types;
 mod utils;
+mod security;
 mod database;
 
 use config::Config;
 use services::ai::router::ModelRouter;
 use services::agent::AgentManager;
 use services::codebase::CodebaseIndexer;
+use services::company::CompanyOrchestrator;
 use std::sync::Arc;
 
 #[tokio::main]
@@ -50,49 +52,77 @@ async fn main() -> anyhow::Result<()> {
 
     // Validate configuration
     if let Err(e) = config_validation::validate_config(&config) {
-        tracing::error!("❌ Configuration validation failed: {}", e);
+        tracing::error!("Configuration validation failed: {}", e);
         return Err(e.into());
     }
 
-    info!("🚀 Starting Bloop Backend v{}", env!("CARGO_PKG_VERSION"));
-    info!("📍 Listening on {}:{}", config.host, config.port);
+    info!("Starting Bloop Backend v{}", env!("CARGO_PKG_VERSION"));
+    info!("Listening on {}:{}", config.host, config.port);
 
     // Initialize model router
     let router = Arc::new(ModelRouter::new(&config));
     
-    // Initialize agent manager (returns Arc already)
+    // Initialize agent manager
     let config_arc = Arc::new(config.clone());
-    let agent_manager = AgentManager::new(Arc::clone(&router), Arc::clone(&config_arc));
+    let agent_manager = Arc::new(AgentManager::new(Arc::clone(&router), Arc::clone(&config_arc)));
     
     // Initialize codebase indexer
     let codebase_indexer = Arc::new(CodebaseIndexer::new());
 
+    // Initialize security services
+    let validator = Arc::new(security::AdvancedValidator::new());
+    let audit_logger = Arc::new(security::AuditLogger::new(10000));
+    let vulnerability_scanner = Arc::new(security::VulnerabilityScanner::new());
+    let threat_detector = Arc::new(security::ThreatDetector::new());
+    let rate_limiter = Arc::new(security::AdaptiveRateLimiter::default());
+    
+    info!("Security services initialized");
+
     // Initialize database if URL is provided
     let database = if let Some(ref db_url) = config.database_url {
-        info!("📦 Connecting to database...");
+        info!("Connecting to database...");
         match database::Database::new(db_url).await {
             Ok(db) => {
-                info!("✅ Database connected");
+                info!("Database connected");
                 Some(Arc::new(db))
             }
             Err(e) => {
-                tracing::warn!("⚠️  Database connection failed: {}. Continuing without database.", e);
+                tracing::warn!("Database connection failed: {}. Continuing without database.", e);
                 None
             }
         }
     } else {
-        info!("ℹ️  No database URL provided, running without database");
+        info!("No database URL provided, running without database");
         None
     };
 
+    // Initialize agent company orchestrator (after database)
+    let company_orchestrator = CompanyOrchestrator::new(
+        Arc::clone(&agent_manager),
+        Arc::clone(&router),
+        Arc::clone(&config_arc),
+        database.clone(),
+    );
+    info!("Agent Company initialized");
+
     // Build application
-    let app = create_app(config.clone(), router, agent_manager, codebase_indexer, database).await?;
+    let app = create_app(
+        config.clone(), 
+        router, 
+        agent_manager, 
+        codebase_indexer, 
+        database, 
+        company_orchestrator,
+        audit_logger,
+        vulnerability_scanner,
+        threat_detector,
+    ).await?;
 
     // Start server
     let addr = SocketAddr::from(([0, 0, 0, 0], config.port));
     let listener = tokio::net::TcpListener::bind(addr).await?;
 
-    info!("✅ Server ready at http://{}", addr);
+    info!("Server ready at http://{}", addr);
 
     axum::serve(listener, app).await?;
 
@@ -105,6 +135,10 @@ async fn create_app(
     agent_manager: Arc<AgentManager>,
     codebase_indexer: Arc<CodebaseIndexer>,
     database: Option<Arc<database::Database>>,
+    company_orchestrator: Arc<CompanyOrchestrator>,
+    audit_logger: Arc<security::AuditLogger>,
+    vulnerability_scanner: Arc<security::VulnerabilityScanner>,
+    threat_detector: Arc<security::ThreatDetector>,
 ) -> anyhow::Result<Router> {
     // CORS layer
     let cors = CorsLayer::new()
@@ -153,6 +187,10 @@ async fn create_app(
         .route("/api/v1/moltbook/share", post(api::routes::moltbook::share_code))
         .route("/api/v1/moltbook/skills/trending", get(api::routes::moltbook::get_trending_skills))
         .route("/api/v1/moltbook/feed", get(api::routes::moltbook::get_feed))
+        // Company routes
+        .route("/api/v1/company/status", get(api::routes::company::get_status))
+        .route("/api/v1/company/members", get(api::routes::company::get_members))
+        .route("/api/v1/company/teams", get(api::routes::company::get_teams))
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())
@@ -166,6 +204,10 @@ async fn create_app(
                 .layer(Extension(agent_manager))
                 .layer(Extension(codebase_indexer))
                 .layer(Extension(database))
+                .layer(Extension(company_orchestrator))
+                .layer(Extension(audit_logger))
+                .layer(Extension(vulnerability_scanner))
+                .layer(Extension(threat_detector))
                 .into_inner(),
         );
 

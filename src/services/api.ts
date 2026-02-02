@@ -537,6 +537,125 @@ class ApiService {
       return { posts: [], has_more: false, next_offset: 0 }
     }
   }
+
+  // Code Intelligence APIs
+  async searchCodebase(query: string): Promise<any[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/v1/codebase/search?q=${encodeURIComponent(query)}`)
+      if (!response.ok) {
+        throw new Error(`Failed to search codebase: ${response.statusText}`)
+      }
+      const data = await response.json()
+      return data.results || []
+    } catch (error) {
+      console.error('Error searching codebase:', error)
+      return []
+    }
+  }
+
+  async findSymbolUsages(symbolName: string): Promise<any[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/v1/codebase/references/${encodeURIComponent(symbolName)}`)
+      if (!response.ok) {
+        throw new Error(`Failed to find usages: ${response.statusText}`)
+      }
+      const data = await response.json()
+      return data.usages || []
+    } catch (error) {
+      console.error('Error finding usages:', error)
+      return []
+    }
+  }
+
+  async getFileDependencies(filePath: string): Promise<string[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/v1/codebase/dependencies/${encodeURIComponent(filePath)}`)
+      if (!response.ok) {
+        throw new Error(`Failed to get dependencies: ${response.statusText}`)
+      }
+      const data = await response.json()
+      return data.dependencies || []
+    } catch (error) {
+      console.error('Error getting dependencies:', error)
+      return []
+    }
+  }
+
+  async detectPatterns(filePath: string): Promise<any[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/v1/codebase/patterns/${encodeURIComponent(filePath)}`)
+      if (!response.ok) {
+        throw new Error(`Failed to detect patterns: ${response.statusText}`)
+      }
+      const data = await response.json()
+      return data.patterns || []
+    } catch (error) {
+      console.error('Error detecting patterns:', error)
+      return []
+    }
+  }
+
+  async indexFile(filePath: string, content: string, language: string): Promise<void> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/v1/codebase/index`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: filePath, content, language })
+      })
+      if (!response.ok) {
+        throw new Error(`Failed to index file: ${response.statusText}`)
+      }
+    } catch (error) {
+      console.error('Error indexing file:', error)
+    }
+  }
+
+  // Security APIs
+  async getSecurityEvents(): Promise<any[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/v1/security/events`)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch security events: ${response.statusText}`)
+      }
+      const data = await response.json()
+      return data.events || []
+    } catch (error) {
+      console.error('Error fetching security events:', error)
+      return []
+    }
+  }
+
+  async getVulnerabilities(): Promise<any[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/v1/security/vulnerabilities`)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch vulnerabilities: ${response.statusText}`)
+      }
+      const data = await response.json()
+      return data.vulnerabilities || []
+    } catch (error) {
+      console.error('Error fetching vulnerabilities:', error)
+      return []
+    }
+  }
+
+  async scanCodeForVulnerabilities(code: string, language: string): Promise<any[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/v1/security/scan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, language })
+      })
+      if (!response.ok) {
+        throw new Error(`Failed to scan code: ${response.statusText}`)
+      }
+      const data = await response.json()
+      return data.vulnerabilities || []
+    } catch (error) {
+      console.error('Error scanning code:', error)
+      return []
+    }
+  }
 }
 
 export const apiService = new ApiService()

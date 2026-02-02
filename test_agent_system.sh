@@ -90,4 +90,4 @@ curl -s -X POST "$BASE_URL/api/v1/agents/tasks" \
   }" | jq '.'
 echo ""
 
-echo "✅ Tests complete!"
+echo "Tests complete!"

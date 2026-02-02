@@ -126,4 +126,4 @@ try {
 }
 Write-Host ""
 
-Write-Host "✅ Tests complete!" -ForegroundColor Green
+Write-Host "Tests complete!" -ForegroundColor Green

@@ -51,6 +51,6 @@ app.use('/api/v1/context', contextRouter)
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`🚀 Bloop Backend running on http://localhost:${PORT}`)
-  console.log(`✅ Health check: http://localhost:${PORT}/health`)
+  console.log(`Bloop Backend running on http://localhost:${PORT}`)
+  console.log(`Health check: http://localhost:${PORT}/health`)
 })

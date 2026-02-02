@@ -13,7 +13,7 @@ pub fn validate_config(config: &Config) -> Result<()> {
 
     // Validate JWT secret in production
     if config.jwt_secret == "change-me-in-production" {
-        tracing::warn!("⚠️  Using default JWT secret. Change JWT_SECRET in production!");
+        tracing::warn!("Using default JWT secret. Change JWT_SECRET in production!");
     }
 
     // Validate database URL format if provided
@@ -32,7 +32,7 @@ pub fn validate_config(config: &Config) -> Result<()> {
 
     // Validate CORS origin
     if config.cors_origin.is_empty() {
-        tracing::warn!("⚠️  CORS_ORIGIN is empty. CORS may not work correctly.");
+        tracing::warn!("CORS_ORIGIN is empty. CORS may not work correctly.");
     }
 
     // Validate request size limits
@@ -41,7 +41,7 @@ pub fn validate_config(config: &Config) -> Result<()> {
     }
 
     if config.max_request_size > 100 * 1024 * 1024 {
-        tracing::warn!("⚠️  MAX_REQUEST_SIZE is very large ({}MB). Consider reducing it.", config.max_request_size / 1024 / 1024);
+        tracing::warn!("MAX_REQUEST_SIZE is very large ({}MB). Consider reducing it.", config.max_request_size / 1024 / 1024);
     }
 
     // Check if at least one AI provider is configured
@@ -61,7 +61,7 @@ pub fn validate_config(config: &Config) -> Result<()> {
         || !config.baidu_api_key.is_empty();
 
     if !has_provider {
-        tracing::warn!("⚠️  No AI provider API keys configured. AI features will not work.");
+        tracing::warn!("No AI provider API keys configured. AI features will not work.");
     }
 
     Ok(())

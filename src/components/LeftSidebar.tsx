@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { 
-  Search, GitBranch, Settings, Box, Bug, Play,
+  Search, GitBranch, Settings, Box, Bug, Play, Brain, Shield,
   ChevronRight, ChevronDown, FileCode, FileText, Folder,
   File, FolderPlus, Trash2, Copy, Edit3, Plus, RefreshCw,
   Check, GitCommit, Download, Star, ChevronsDownUp, ChevronsUpDown, Eye
@@ -9,6 +9,8 @@ import ContextMenu, { ContextMenuItem } from './ContextMenu'
 import { ToastMessage } from './Toast'
 import Logo from './Logo'
 import GitView from './GitView'
+import { CodeIntelligencePanel } from './CodeIntelligencePanel'
+import { SecurityDashboard } from './SecurityDashboard'
 
 interface LeftSidebarProps {
   onCollapse: () => void
@@ -16,7 +18,7 @@ interface LeftSidebarProps {
   onShowToast?: (type: ToastMessage['type'], message: string) => void
 }
 
-type SidebarView = 'explorer' | 'search' | 'git' | 'debug' | 'extensions'
+type SidebarView = 'explorer' | 'search' | 'codeintel' | 'security' | 'git' | 'debug' | 'extensions'
 
 interface ContextMenuState {
   visible: boolean
@@ -327,6 +329,7 @@ export default function LeftSidebar({ width = 280, onShowToast }: LeftSidebarPro
   const sidebarItems = [
     { id: 'explorer' as SidebarView, icon: Search, tooltip: 'Explorer', badge: null },
     { id: 'search' as SidebarView, icon: Search, tooltip: 'Search', badge: null },
+    { id: 'codeintel' as SidebarView, icon: Brain, tooltip: 'Code Intelligence', badge: null },
     { id: 'git' as SidebarView, icon: GitBranch, tooltip: 'Source Control', badge: gitChanges.length },
     { id: 'debug' as SidebarView, icon: Bug, tooltip: 'Run and Debug', badge: null },
     { id: 'extensions' as SidebarView, icon: Box, tooltip: 'Extensions', badge: null },
@@ -412,6 +415,19 @@ export default function LeftSidebar({ width = 280, onShowToast }: LeftSidebarPro
             )}
           </div>
         )
+
+      case 'codeintel':
+        return (
+          <CodeIntelligencePanel
+            onNavigateToFile={(filePath, line, column) => {
+              setSelectedFile(filePath.split('/').pop() || filePath)
+              onShowToast?.('info', `Navigating to ${filePath}:${line}:${column}`)
+            }}
+          />
+        )
+
+      case 'security':
+        return <SecurityDashboard />
 
       case 'git':
         return (

@@ -76,23 +76,76 @@ impl CodebaseIndexer {
         }
     }
     
-    /// Index a file
+    /// Index a file with full code intelligence
     pub async fn index_file(&self, path: String, content: String, language: String) {
-        // TODO: Parse AST, extract symbols, analyze dependencies
-        // For now, placeholder
+        use super::ast_parser::ASTParser;
+        use super::symbol_extractor::SymbolExtractor;
+        use super::reference_tracker::ReferenceTracker;
+        use super::dependency_analyzer::DependencyAnalyzer;
+        use std::sync::Arc;
+        
+        // Create parser and extractor
+        let reference_tracker = Arc::new(ReferenceTracker::new());
+        let mut parser = ASTParser::new();
+        let mut extractor = SymbolExtractor::new(Arc::clone(&reference_tracker));
+        
+        // Parse AST
+        let ast = match parser.parse(&content, &language) {
+            Ok(ast) => ast,
+            Err(e) => {
+                tracing::warn!("Failed to parse {}: {}", path, e);
+                return;
+            }
+        };
+        
+        // Extract symbols
+        let symbols = extractor.extract(&content, &language, &path).await;
+        
+        // Extract imports
+        let imports = extractor.extract_imports(&content, &language, &path).await;
+        
+        // Analyze dependencies
+        let dependencies = DependencyAnalyzer::analyze_dependencies(&imports, &symbols);
+        
+        // Extract exports (symbols that are exported)
+        let exports: Vec<String> = symbols.iter()
+            .filter(|s| matches!(s.kind, SymbolKind::Export | SymbolKind::Function | SymbolKind::Class))
+            .map(|s| s.name.clone())
+            .collect();
+        
+        // Calculate content hash
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        let mut hasher = DefaultHasher::new();
+        content.hash(&mut hasher);
+        let content_hash = format!("{:x}", hasher.finish());
+        
         let file_index = FileIndex {
             path: path.clone(),
             language,
-            symbols: vec![],
-            imports: vec![],
-            exports: vec![],
-            dependencies: vec![],
+            symbols: symbols.clone(),
+            imports: imports.clone(),
+            exports,
+            dependencies,
             last_modified: Utc::now(),
-            content_hash: format!("{:x}", content.len() as u64), // Simple hash for now
+            content_hash,
         };
         
+        // Store in index
         let mut files = self.files.write().await;
-        files.insert(path, file_index);
+        files.insert(path.clone(), file_index);
+        
+        // Index symbols for fast lookup
+        let mut symbol_map = self.symbols.write().await;
+        for symbol in symbols {
+            symbol_map.entry(symbol.name.clone())
+                .or_insert_with(Vec::new)
+                .push(symbol);
+        }
+        
+        // Store file dependencies
+        let mut deps_map = self.file_dependencies.write().await;
+        deps_map.insert(path, imports);
     }
     
     /// Find symbol by name

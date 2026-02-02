@@ -52,8 +52,75 @@ impl SemanticSearch {
     
     /// Find similar code patterns
     pub async fn find_similar(&self, code: &str) -> Vec<SearchResult> {
-        // TODO: Use code embeddings to find similar patterns
-        vec![]
+        // Extract symbols from the provided code
+        use super::ast_parser::ASTParser;
+        let mut parser = ASTParser::new();
+        
+        // Try to detect language
+        let language = parser.detect_language(code).unwrap_or_else(|_| "unknown".to_string());
+        
+        // Parse and extract symbols
+        let symbols = parser.extract_symbols(code, &language);
+        
+        if symbols.is_empty() {
+            return vec![];
+        }
+        
+        // Find similar symbols by name and structure
+        let mut results = Vec::new();
+        let all_symbols = self.indexer.search("").await; // Get all symbols
+        
+        for symbol in symbols {
+            for candidate in &all_symbols {
+                let similarity = self.calculate_code_similarity(&symbol, candidate);
+                if similarity > 0.5 {
+                    results.push(SearchResult {
+                        symbol: candidate.clone(),
+                        relevance_score: similarity,
+                        context: format!("Similar to {}", symbol.name),
+                        related_symbols: vec![],
+                    });
+                }
+            }
+        }
+        
+        // Sort by relevance
+        results.sort_by(|a, b| b.relevance_score.partial_cmp(&a.relevance_score).unwrap());
+        results.into_iter().take(10).collect()
+    }
+
+    fn calculate_code_similarity(&self, symbol1: &super::ast_parser::ParsedSymbol, symbol2: &CodeSymbol) -> f64 {
+        let mut score = 0.0;
+        
+        // Name similarity
+        if symbol1.name == symbol2.name {
+            score += 0.4;
+        } else if symbol1.name.to_lowercase() == symbol2.name.to_lowercase() {
+            score += 0.3;
+        } else if symbol1.name.contains(&symbol2.name) || symbol2.name.contains(&symbol1.name) {
+            score += 0.2;
+        }
+        
+        // Kind similarity
+        use super::indexer::SymbolKind;
+        let kind_match = match (&symbol1.kind, &symbol2.kind) {
+            (super::ast_parser::SymbolKind::Function, SymbolKind::Function) |
+            (super::ast_parser::SymbolKind::Class, SymbolKind::Class) |
+            (super::ast_parser::SymbolKind::Struct, SymbolKind::Struct) => true,
+            _ => false,
+        };
+        if kind_match {
+            score += 0.3;
+        }
+        
+        // Signature similarity (if available)
+        if let (Some(sig1), Some(sig2)) = (&symbol1.signature, &symbol2.signature) {
+            if sig1 == sig2 {
+                score += 0.3;
+            }
+        }
+        
+        score.min(1.0)
     }
     
     /// Find usages of a symbol
