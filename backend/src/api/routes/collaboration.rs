@@ -5,7 +5,7 @@
  * Compatible with Phase 1, 2, 3
  */
 use axum::{
-    extract::{Extension, Path, Query, WebSocketUpgrade},
+    extract::{Extension, Path, WebSocketUpgrade},
     http::StatusCode,
     response::{Json, Response},
     routing::get,
