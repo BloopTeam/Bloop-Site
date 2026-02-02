@@ -188,11 +188,6 @@ class ApiService {
   }
 
   // Codebase analysis
-  async searchCodebase(query: string): Promise<any> {
-    const response = await fetch(`${this.baseUrl}/api/v1/codebase/search?query=${encodeURIComponent(query)}`)
-    if (!response.ok) throw new Error(`Search failed: ${response.statusText}`)
-    return await response.json()
-  }
 
   async reviewCode(filePath: string, code: string, language: string): Promise<any> {
     const response = await fetch(`${this.baseUrl}/api/v1/codebase/review`, {
