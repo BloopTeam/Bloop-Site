@@ -50,8 +50,8 @@ export function SecurityDashboard() {
       ])
       setEvents(eventsData)
       setVulnerabilities(vulnsData)
-    } catch (error) {
-      console.error('Failed to load security data:', error)
+    } catch {
+      // Security data unavailable - will show empty state
     } finally {
       setLoading(false)
     }

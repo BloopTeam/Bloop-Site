@@ -1,4 +1,4 @@
-import { Terminal, GitBranch, Bell, Check, AlertCircle, Activity, Zap, Shield, Plug, Users } from 'lucide-react'
+import { Terminal, GitBranch, Bell, Check, AlertCircle, Activity, Zap, Shield, Plug, Users, Layout, Cpu } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { apiService } from '../services/api'
 import { openClawService } from '../services/openclaw'
@@ -7,9 +7,10 @@ import { moltbookService } from '../services/moltbook'
 interface StatusBarProps {
   readonly terminalVisible?: boolean
   readonly onToggleTerminal?: () => void
+  readonly onPanelChange?: (panel: 'collaboration' | 'agents' | 'project') => void
 }
 
-export default function StatusBar({ terminalVisible, onToggleTerminal }: StatusBarProps) {
+export default function StatusBar({ terminalVisible, onToggleTerminal, onPanelChange }: StatusBarProps) {
   const [metrics, setMetrics] = useState<{
     queue_status: { queue_size: number; queue_capacity: number; concurrent_tasks: number; max_concurrent: number; circuit_breaker_open: boolean }
     health_status: { unhealthy_agents: number; unhealthy_agent_ids: string[] }
@@ -53,11 +54,13 @@ export default function StatusBar({ terminalVisible, onToggleTerminal }: StatusB
       setMoltbookRegistered(moltbookService.isRegistered())
     }
 
+    // Only fetch metrics once on mount, don't poll (backend may not be running)
     fetchMetrics()
     checkOpenClaw()
     checkMoltbook()
 
-    const metricsInterval = setInterval(fetchMetrics, 5000)
+    // Poll less frequently since backend may not be available
+    const metricsInterval = setInterval(fetchMetrics, 30000)
     const openClawInterval = setInterval(checkOpenClaw, 10000)
     
     // Listen for OpenClaw connection events
@@ -412,6 +415,75 @@ export default function StatusBar({ terminalVisible, onToggleTerminal }: StatusB
         >
           <Users size={12} />
           <span style={{ fontSize: '9px' }}>MB</span>
+        </button>
+
+        {/* Collaboration */}
+        <button 
+          onClick={() => onPanelChange?.('collaboration')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '2px 8px',
+            background: 'transparent',
+            border: 'none',
+            color: '#ffffff',
+            cursor: 'pointer',
+            fontSize: '11px',
+            borderRadius: '3px',
+            transition: 'background 0.1s'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+          title="Collaboration"
+        >
+          <Users size={12} />
+        </button>
+
+        {/* Agent Insights */}
+        <button 
+          onClick={() => onPanelChange?.('agents')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '2px 8px',
+            background: 'transparent',
+            border: 'none',
+            color: '#ffffff',
+            cursor: 'pointer',
+            fontSize: '11px',
+            borderRadius: '3px',
+            transition: 'background 0.1s'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+          title="Agent Insights"
+        >
+          <Cpu size={12} />
+        </button>
+
+        {/* Project Insights */}
+        <button 
+          onClick={() => onPanelChange?.('project')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '2px 8px',
+            background: 'transparent',
+            border: 'none',
+            color: '#ffffff',
+            cursor: 'pointer',
+            fontSize: '11px',
+            borderRadius: '3px',
+            transition: 'background 0.1s'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+          title="Project Insights"
+        >
+          <Layout size={12} />
         </button>
 
         {/* Notifications */}

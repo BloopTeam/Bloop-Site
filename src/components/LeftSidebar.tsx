@@ -52,8 +52,8 @@ const EXTENSIONS: Extension[] = [
 
 export default function LeftSidebar({ width = 280, onShowToast }: LeftSidebarProps) {
   const [activeView, setActiveView] = useState<SidebarView>('explorer')
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['src', 'components']))
-  const [selectedFile, setSelectedFile] = useState<string | null>('App.tsx')
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
+  const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
     visible: false,
     x: 0,
@@ -65,13 +65,10 @@ export default function LeftSidebar({ width = 280, onShowToast }: LeftSidebarPro
   const [isSearching, setIsSearching] = useState(false)
   const [hoveredFile, setHoveredFile] = useState<string | null>(null)
   const [draggedItem, setDraggedItem] = useState<{ name: string; path: string[] } | null>(null)
-  const [breadcrumbs, setBreadcrumbs] = useState<string[]>(['test'])
+  const [breadcrumbs, setBreadcrumbs] = useState<string[]>([])
   
-  const [gitChanges] = useState<GitChange[]>([
-    { file: 'App.tsx', status: 'modified' },
-    { file: 'styles.css', status: 'modified' },
-    { file: 'utils.ts', status: 'added' },
-  ])
+  // Start with no git changes - user's actual changes will show here
+  const [gitChanges] = useState<GitChange[]>([])
 
   const [extensions, setExtensions] = useState(EXTENSIONS)
 
@@ -124,29 +121,8 @@ export default function LeftSidebar({ width = 280, onShowToast }: LeftSidebarPro
     return iconMap[ext || ''] || { icon: '📄', color: '#858585' }
   }
 
-  const fileTree = [
-    { 
-      name: 'src', 
-      type: 'folder',
-      children: [
-        {
-          name: 'components',
-          type: 'folder',
-          children: [
-            { name: 'App.tsx', type: 'file' },
-            { name: 'Header.tsx', type: 'file' },
-            { name: 'Sidebar.tsx', type: 'file' },
-          ]
-        },
-        { name: 'index.tsx', type: 'file' },
-        { name: 'styles.css', type: 'file' },
-      ]
-    },
-    { name: 'public', type: 'folder', children: [] },
-    { name: 'package.json', type: 'file' },
-    { name: 'tsconfig.json', type: 'file' },
-    { name: 'README.md', type: 'file' },
-  ]
+  // Start with empty file tree - populated when user opens a folder
+  const fileTree: { name: string; type: string; children?: any[] }[] = []
 
   const getFileColor = (name: string) => {
     if (name.endsWith('.tsx') || name.endsWith('.ts')) return '#3178c6'
@@ -650,13 +626,29 @@ export default function LeftSidebar({ width = 280, onShowToast }: LeftSidebarPro
             <div style={{ height: '1px', background: 'linear-gradient(90deg, #1a1a1a 0%, #0a0a0a 100%)', margin: '0 16px' }} />
 
             <div style={{ flex: 1, overflow: 'auto', padding: '12px 0' }}>
-              {renderTree(fileTree, 0, breadcrumbs)}
+              {fileTree.length > 0 ? (
+                renderTree(fileTree, 0, breadcrumbs)
+              ) : (
+                <div style={{ 
+                  padding: '24px 16px', 
+                  textAlign: 'center',
+                  color: '#444',
+                  fontSize: '12px'
+                }}>
+                  <div style={{ marginBottom: '8px' }}>No folder opened</div>
+                  <div style={{ fontSize: '11px', color: '#333' }}>
+                    Use <span style={{ color: '#FF00FF' }}>File → Open Folder</span>
+                  </div>
+                </div>
+              )}
             </div>
 
-            <div style={{ padding: '12px 16px', borderTop: '1px solid #151515', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#22c55e' }} />
-              <span style={{ fontSize: '11px', color: '#444' }}>5 files</span>
-            </div>
+            {fileTree.length > 0 && (
+              <div style={{ padding: '12px 16px', borderTop: '1px solid #151515', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#22c55e' }} />
+                <span style={{ fontSize: '11px', color: '#444' }}>{fileTree.length} items</span>
+              </div>
+            )}
           </>
         )
     }

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
 import { X, ChevronRight, MoreHorizontal, ChevronDown, GitBranch } from 'lucide-react'
 import { ToastMessage } from './Toast'
 
@@ -12,57 +12,247 @@ interface Tab {
   path: string[]
   content: string
   modified?: boolean
+  fileHandle?: FileSystemFileHandle // For saving back to disk
 }
 
-export default function EditorArea({ onShowToast }: EditorAreaProps) {
-  const [tabs, setTabs] = useState<Tab[]>([
-    { 
-      id: '1', 
-      name: 'App.tsx', 
-      path: ['src', 'components'],
-      modified: false,
-      content: `import { useState } from 'react'
+// Ref interface for external control
+export interface EditorAreaRef {
+  createNewFile: () => void
+  openFile: () => void
+  saveFile: () => void
+  getCurrentFile: () => Tab | undefined
+  addFile: (name: string, content: string, language: string) => void
+  setProjectFolder: (handle: FileSystemDirectoryHandle) => void
+  getProjectFolder: () => FileSystemDirectoryHandle | null
+}
 
-export default function App() {
-  const [count, setCount] = useState(0)
-
-  return (
-    <div>
-      <h1>Welcome to Bloop</h1>
-      <button onClick={() => setCount(count + 1)}>
-        Count: {count}
-      </button>
-    </div>
-  )
-}` 
-    },
-    { 
-      id: '2', 
-      name: 'seo_analyzer.py',
-      path: ['src', 'utils'],
-      modified: true, 
-      content: `class SEOAnalyzer:
-    def __init__(self, title, content):
-        self.title = title
-        self.content = content
-
-    def score_title(self):
-        length = len(self.title)
-        if 50 <= length <= 60:
-            return 10
-        return 5` 
-    },
-  ])
+function EditorAreaComponent({ onShowToast }: EditorAreaProps, ref: React.ForwardedRef<EditorAreaRef>) {
+  // Start with empty tabs - user creates/opens their own files
+  const [tabs, setTabs] = useState<Tab[]>([])
   
-  const [activeTab, setActiveTab] = useState('1')
+  const [activeTab, setActiveTab] = useState('')
   const [draggedTab, setDraggedTab] = useState<string | null>(null)
   const [dragOverTab, setDragOverTab] = useState<string | null>(null)
   const [selectedLines, setSelectedLines] = useState<Set<number>>(new Set())
   const [foldedLines, setFoldedLines] = useState<Set<number>>(new Set())
   const [showMinimap, setShowMinimap] = useState(true)
   const [multiCursors, setMultiCursors] = useState<number[]>([])
+  const [fileCounter, setFileCounter] = useState(1)
   const tabsRef = useRef<HTMLDivElement>(null)
-  const editorRef = useRef<HTMLDivElement>(null)
+  const editorContentRef = useRef<HTMLDivElement>(null)
+  
+  // Project folder for auto-saving
+  const [projectFolderHandle, setProjectFolderHandle] = useState<FileSystemDirectoryHandle | null>(null)
+
+  // Expose methods to parent component
+  useImperativeHandle(ref, () => ({
+    createNewFile: () => {
+      // Create a new untitled file immediately
+      const newId = fileCounter.toString()
+      const newFileName = `untitled-${fileCounter}.ts`
+      
+      const newTab: Tab = {
+        id: newId,
+        name: newFileName,
+        path: [],
+        content: `// ${newFileName}\n// Start coding here...\n\n`,
+        modified: true
+      }
+      setTabs(prev => [...prev, newTab])
+      setActiveTab(newId)
+      setFileCounter(prev => prev + 1)
+      onShowToast?.('success', `Created ${newFileName}`)
+    },
+    openFile: async () => {
+      try {
+        // Check if File System Access API is supported
+        if ('showOpenFilePicker' in globalThis) {
+          const [handle] = await (globalThis as any).showOpenFilePicker({
+            multiple: false,
+            excludeAcceptAllOption: false, // Allow "All Files" option
+            types: [
+              { description: 'Code Files', accept: { 
+                'text/plain': ['.ts', '.tsx', '.js', '.jsx', '.py', '.html', '.css', '.json', '.md', '.txt', '.rs', '.go', '.java', '.c', '.cpp', '.h']
+              }},
+            ],
+          })
+          
+          const file = await handle.getFile()
+          const content = await file.text()
+          const newId = fileCounter.toString()
+          
+          const newTab: Tab = {
+            id: newId,
+            name: file.name,
+            path: [],
+            content,
+            modified: false,
+            fileHandle: handle
+          }
+          setTabs(prev => [...prev, newTab])
+          setActiveTab(newId)
+          setFileCounter(prev => prev + 1)
+          onShowToast?.('success', `Opened ${file.name}`)
+        } else {
+          // Fallback: use traditional file input
+          const input = document.createElement('input')
+          input.type = 'file'
+          input.accept = '.ts,.tsx,.js,.jsx,.py,.html,.css,.json,.md,.txt'
+          input.onchange = async (e) => {
+            const file = (e.target as HTMLInputElement).files?.[0]
+            if (file) {
+              const content = await file.text()
+              const newId = fileCounter.toString()
+              const newTab: Tab = {
+                id: newId,
+                name: file.name,
+                path: [],
+                content,
+                modified: false
+              }
+              setTabs(prev => [...prev, newTab])
+              setActiveTab(newId)
+              setFileCounter(prev => prev + 1)
+              onShowToast?.('success', `Opened ${file.name}`)
+            }
+          }
+          input.click()
+        }
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          onShowToast?.('error', 'Failed to open file')
+        }
+      }
+    },
+    saveFile: async () => {
+      const currentTab = tabs.find(t => t.id === activeTab)
+      if (!currentTab) return
+      
+      try {
+        if (currentTab.fileHandle) {
+          // Save to existing file handle
+          const writable = await currentTab.fileHandle.createWritable()
+          await writable.write(currentTab.content)
+          await writable.close()
+          setTabs(prev => prev.map(t => 
+            t.id === activeTab ? { ...t, modified: false } : t
+          ))
+          onShowToast?.('success', `Saved ${currentTab.name}`)
+        } else if ('showSaveFilePicker' in globalThis) {
+          // No handle yet, prompt for save location
+          const handle = await (globalThis as any).showSaveFilePicker({
+            suggestedName: currentTab.name,
+            types: [
+              { description: 'TypeScript', accept: { 'text/typescript': ['.ts', '.tsx'] } },
+              { description: 'JavaScript', accept: { 'text/javascript': ['.js', '.jsx'] } },
+              { description: 'All Files', accept: { '*/*': ['.*'] } },
+            ],
+          })
+          
+          const writable = await handle.createWritable()
+          await writable.write(currentTab.content)
+          await writable.close()
+          
+          setTabs(prev => prev.map(t => 
+            t.id === activeTab ? { ...t, modified: false, fileHandle: handle, name: handle.name } : t
+          ))
+          onShowToast?.('success', `Saved ${handle.name}`)
+        } else {
+          // Fallback: download file
+          const blob = new Blob([currentTab.content], { type: 'text/plain' })
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = currentTab.name
+          a.click()
+          URL.revokeObjectURL(url)
+          setTabs(prev => prev.map(t => 
+            t.id === activeTab ? { ...t, modified: false } : t
+          ))
+          onShowToast?.('success', `Downloaded ${currentTab.name}`)
+        }
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          onShowToast?.('error', 'Failed to save file')
+        }
+      }
+    },
+    getCurrentFile: () => tabs.find(t => t.id === activeTab),
+    addFile: async (name: string, content: string, _language: string) => {
+      // Check if file already exists
+      const existingTab = tabs.find(t => t.name === name)
+      if (existingTab) {
+        // Update existing file
+        setTabs(prev => prev.map(t => 
+          t.name === name ? { ...t, content, modified: true } : t
+        ))
+        setActiveTab(existingTab.id)
+        
+        // Auto-save if project folder is set
+        if (projectFolderHandle && existingTab.fileHandle) {
+          try {
+            const writable = await existingTab.fileHandle.createWritable()
+            await writable.write(content)
+            await writable.close()
+            setTabs(prev => prev.map(t => 
+              t.name === name ? { ...t, modified: false } : t
+            ))
+          } catch {
+            // Silently fail auto-save
+          }
+        }
+        return
+      }
+      
+      // Create new file
+      const newId = Date.now().toString()
+      let fileHandle: FileSystemFileHandle | undefined
+      
+      // If project folder is set, create the file in the folder
+      if (projectFolderHandle) {
+        try {
+          // Handle nested paths (e.g., "components/Header.tsx")
+          const pathParts = name.split('/')
+          let currentDir = projectFolderHandle
+          
+          // Create subdirectories if needed
+          for (let i = 0; i < pathParts.length - 1; i++) {
+            currentDir = await currentDir.getDirectoryHandle(pathParts[i], { create: true })
+          }
+          
+          // Create the file
+          const fileName = pathParts[pathParts.length - 1]
+          fileHandle = await currentDir.getFileHandle(fileName, { create: true })
+          
+          // Write content
+          const writable = await fileHandle.createWritable()
+          await writable.write(content)
+          await writable.close()
+          
+          onShowToast?.('success', `Saved ${name} to project`)
+        } catch (err) {
+          // Fall back to unsaved tab
+          onShowToast?.('info', `Created ${name} (save manually)`)
+        }
+      }
+      
+      const newTab: Tab = {
+        id: newId,
+        name: name,
+        path: name.includes('/') ? name.split('/').slice(0, -1) : [],
+        content: content,
+        modified: !fileHandle, // Not modified if we saved it
+        fileHandle
+      }
+      setTabs(prev => [...prev, newTab])
+      setActiveTab(newId)
+    },
+    setProjectFolder: (handle: FileSystemDirectoryHandle) => {
+      setProjectFolderHandle(handle)
+      onShowToast?.('success', `Project folder set: ${handle.name}`)
+    },
+    getProjectFolder: () => projectFolderHandle
+  }))
 
   const closeTab = (tabId: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -473,7 +663,7 @@ export default function App() {
 
               {/* Code Content */}
               <div 
-                ref={editorRef}
+                ref={editorContentRef}
                 style={{
                   flex: 1,
                   padding: '24px 32px',
@@ -604,14 +794,24 @@ export default function App() {
         <div style={{
           flex: 1,
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          color: '#666',
-          fontSize: '14px'
+          color: '#444',
+          fontSize: '13px',
+          gap: '8px'
         }}>
-          No file open
+          <div style={{ color: '#555' }}>No file open</div>
+          <div style={{ fontSize: '11px', color: '#333' }}>
+            Use <span style={{ color: '#FF00FF' }}>File → New File</span> or <span style={{ color: '#FF00FF' }}>File → Open File</span>
+          </div>
         </div>
       )}
     </div>
   )
 }
+
+const EditorArea = forwardRef(EditorAreaComponent)
+EditorArea.displayName = 'EditorArea'
+
+export default EditorArea

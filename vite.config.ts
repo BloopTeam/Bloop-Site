@@ -14,6 +14,13 @@ export default defineConfig({
       'Referrer-Policy': 'strict-origin-when-cross-origin',
       'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
     },
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
   build: {
     rollupOptions: {

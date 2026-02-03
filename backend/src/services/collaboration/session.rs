@@ -24,6 +24,8 @@ pub struct Session {
     pub updated_at: DateTime<Utc>,
     pub expires_at: Option<DateTime<Utc>>,
     pub is_public: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub share_token: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -80,6 +82,9 @@ impl SessionManager {
         owner_id: Uuid,
         project_path: String,
     ) -> anyhow::Result<Session> {
+        // Generate share token
+        let share_token = self.generate_share_token();
+
         let session = Session {
             id: Uuid::new_v4(),
             name,
@@ -90,7 +95,30 @@ impl SessionManager {
             updated_at: Utc::now(),
             expires_at: None,
             is_public: false,
+            share_token: Some(share_token.clone()),
         };
+
+        // Store in database if available
+        if let Some(db) = &self.database {
+            sqlx::query!(
+                r#"
+                INSERT INTO collaboration_sessions (id, name, owner_id, project_path, settings, is_public, share_token, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                "#,
+                session.id,
+                session.name,
+                session.owner_id,
+                session.project_path,
+                session.settings,
+                session.is_public,
+                share_token,
+                session.created_at,
+                session.updated_at
+            )
+            .execute(db.pool())
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to create session in database: {}", e))?;
+        }
 
         // Store in memory
         {
@@ -112,7 +140,96 @@ impl SessionManager {
         Ok(session)
     }
 
+    fn generate_share_token(&self) -> String {
+        use rand::Rng;
+        const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        let mut rng = rand::thread_rng();
+        (0..32)
+            .map(|_| {
+                let idx = rng.gen_range(0..CHARSET.len());
+                CHARSET[idx] as char
+            })
+            .collect()
+    }
+
+    pub async fn get_session_by_token(&self, token: &str) -> Option<Session> {
+        // Try database first
+        if let Some(db) = &self.database {
+            if let Ok(Some(row)) = sqlx::query!(
+                r#"
+                SELECT id, name, owner_id, project_path, settings, created_at, updated_at, expires_at, is_public, share_token
+                FROM collaboration_sessions
+                WHERE share_token = $1
+                "#,
+                token
+            )
+            .fetch_optional(db.pool())
+            .await
+            {
+                if let Some(row) = row {
+                    let session = Session {
+                        id: row.id,
+                        name: row.name,
+                        owner_id: row.owner_id,
+                        project_path: row.project_path,
+                        settings: row.settings,
+                        created_at: row.created_at,
+                        updated_at: row.updated_at,
+                        expires_at: row.expires_at,
+                        is_public: row.is_public,
+                        share_token: row.share_token,
+                    };
+                    return Some(session);
+                }
+            }
+        }
+
+        // Fallback to memory
+        let sessions = self.sessions.read().await;
+        sessions.values().find(|s| {
+            // In-memory sessions don't have share_token, so we'd need to add it
+            false
+        }).cloned()
+    }
+
     pub async fn get_session(&self, session_id: Uuid) -> Option<Session> {
+        // Try database first
+        if let Some(db) = &self.database {
+            if let Ok(Some(row)) = sqlx::query!(
+                r#"
+                SELECT id, name, owner_id, project_path, settings, created_at, updated_at, expires_at, is_public, share_token
+                FROM collaboration_sessions
+                WHERE id = $1
+                "#,
+                session_id
+            )
+            .fetch_optional(db.pool())
+            .await
+            {
+                if let Some(row) = row {
+                    let session = Session {
+                        id: row.id,
+                        name: row.name,
+                        owner_id: row.owner_id,
+                        project_path: row.project_path,
+                        settings: row.settings,
+                        created_at: row.created_at,
+                        updated_at: row.updated_at,
+                        expires_at: row.expires_at,
+                        is_public: row.is_public,
+                        share_token: row.share_token,
+                    };
+                    // Cache in memory
+                    {
+                        let mut sessions = self.sessions.write().await;
+                        sessions.insert(session_id, session.clone());
+                    }
+                    return Some(session);
+                }
+            }
+        }
+
+        // Fallback to memory
         let sessions = self.sessions.read().await;
         sessions.get(&session_id).cloned()
     }
@@ -124,6 +241,18 @@ impl SessionManager {
         agent_id: Option<Uuid>,
         role: ParticipantRole,
     ) -> anyhow::Result<Participant> {
+        // Verify session exists
+        if self.get_session(session_id).await.is_none() {
+            return Err(anyhow::anyhow!("Session not found"));
+        }
+
+        let role_str = match role {
+            ParticipantRole::Owner => "owner",
+            ParticipantRole::Editor => "editor",
+            ParticipantRole::Viewer => "viewer",
+            ParticipantRole::Agent => "agent",
+        };
+
         let participant = Participant {
             session_id,
             user_id,
@@ -135,6 +264,27 @@ impl SessionManager {
             active_file: None,
             status: ParticipantStatus::Online,
         };
+
+        // Store in database if available
+        if let Some(db) = &self.database {
+            sqlx::query!(
+                r#"
+                INSERT INTO collaboration_participants (session_id, user_id, agent_id, role, joined_at, last_active, status)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                ON CONFLICT DO NOTHING
+                "#,
+                session_id,
+                user_id,
+                agent_id,
+                role_str,
+                participant.joined_at,
+                participant.last_active,
+                "online"
+            )
+            .execute(db.pool())
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to join session in database: {}", e))?;
+        }
 
         // Add to participants
         {

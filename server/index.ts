@@ -20,8 +20,17 @@ const PORT = process.env.PORT || 3001
 // Middleware
 app.use(compression())
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
-  credentials: true
+  origin: (origin, callback) => {
+    // Allow requests from any localhost port (for development)
+    if (!origin || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+      callback(null, true)
+    } else {
+      callback(new Error('Not allowed by CORS'))
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }))
 app.use(express.json())
 
@@ -34,7 +43,8 @@ app.get('/', (req, res) => {
       health: '/health',
       chat: '/api/v1/chat',
       agents: '/api/v1/agents',
-      context: '/api/v1/context'
+      context: '/api/v1/context',
+      models: '/api/v1/models'
     },
     docs: 'See README.md for API documentation'
   })
@@ -49,8 +59,7 @@ app.use('/api/v1/models', modelsRouter)
 app.use('/api/v1/agents', agentRouter)
 app.use('/api/v1/context', contextRouter)
 
-// Start server
 app.listen(PORT, () => {
-  console.log(`Bloop Backend running on http://localhost:${PORT}`)
-  console.log(`Health check: http://localhost:${PORT}/health`)
+  console.log(`🚀 Bloop Backend Server running on http://localhost:${PORT}`)
+  console.log(`📡 Health check: http://localhost:${PORT}/health`)
 })

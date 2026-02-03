@@ -62,8 +62,8 @@ export function CodeIntelligencePanel({ onNavigateToFile }: CodeIntelligencePane
       const results = await apiService.searchCodebase(searchQuery)
       setSearchResults(results)
       setActiveTab('search')
-    } catch (error) {
-      console.error('Search failed:', error)
+    } catch {
+      // Search unavailable
     } finally {
       setLoading(false)
     }
@@ -76,8 +76,8 @@ export function CodeIntelligencePanel({ onNavigateToFile }: CodeIntelligencePane
     try {
       const refs = await apiService.findSymbolUsages(symbol.name)
       setReferences(refs)
-    } catch (error) {
-      console.error('Failed to find usages:', error)
+    } catch {
+      // References unavailable
     }
   }
 
@@ -86,8 +86,8 @@ export function CodeIntelligencePanel({ onNavigateToFile }: CodeIntelligencePane
       const deps = await apiService.getFileDependencies(filePath)
       setDependencies(deps)
       setActiveTab('dependencies')
-    } catch (error) {
-      console.error('Failed to get dependencies:', error)
+    } catch {
+      // Dependencies unavailable
     }
   }
 

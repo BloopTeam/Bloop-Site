@@ -21,6 +21,15 @@ import type {
 
 const DEFAULT_GATEWAY_URL = 'ws://127.0.0.1:18789'
 
+// Set to true to enable OpenClaw error logging
+const DEBUG_OPENCLAW = false
+
+const logOpenClawError = (context: string, error: unknown) => {
+  if (DEBUG_OPENCLAW) {
+    console.error(`[OpenClaw] ${context}:`, error)
+  }
+}
+
 class OpenClawService {
   private ws: WebSocket | null = null
   private readonly config: OpenClawConfig
@@ -82,7 +91,7 @@ class OpenClawService {
         }
 
         this.ws.onerror = (error) => {
-          console.error('[OpenClaw] WebSocket error:', error)
+          logOpenClawError(' WebSocket error:', error)
           this.emit('error', { error })
           resolve(false)
         }
@@ -91,7 +100,7 @@ class OpenClawService {
           this.handleMessage(event.data)
         }
       } catch (error) {
-        console.error('[OpenClaw] Failed to connect:', error)
+        logOpenClawError(' Failed to connect:', error)
         resolve(false)
       }
     })
@@ -121,7 +130,7 @@ class OpenClawService {
     try {
       // Validate message size (max 1MB)
       if (data.length > 1024 * 1024) {
-        console.error('[OpenClaw] Message too large:', data.length)
+        logOpenClawError(' Message too large:', data.length)
         return
       }
 
@@ -130,7 +139,7 @@ class OpenClawService {
       
       // Validate message structure
       if (!message.type) {
-        console.error('[OpenClaw] Invalid message: missing type')
+        logOpenClawError(' Invalid message: missing type')
         return
       }
 
@@ -150,7 +159,7 @@ class OpenClawService {
       // Emit events for message types
       this.emit(message.type, message.payload)
     } catch (error) {
-      console.error('[OpenClaw] Failed to parse message:', error)
+      logOpenClawError(' Failed to parse message:', error)
       // Don't emit invalid messages
     }
   }
@@ -182,7 +191,7 @@ class OpenClawService {
     try {
       this.ws?.send(JSON.stringify(message))
     } catch (error) {
-      console.error('[OpenClaw] Failed to send message:', error)
+      logOpenClawError(' Failed to send message:', error)
       throw error
     }
     
@@ -262,7 +271,7 @@ class OpenClawService {
     try {
       return await this.request<OpenClawSession[]>('sessions.list')
     } catch (error) {
-      console.error('[OpenClaw] Failed to list sessions:', error)
+      logOpenClawError(' Failed to list sessions:', error)
       return []
     }
   }
@@ -273,7 +282,7 @@ class OpenClawService {
     try {
       return await this.request<OpenClawMessage[]>('sessions.history', { sessionId })
     } catch (error) {
-      console.error('[OpenClaw] Failed to get session history:', error)
+      logOpenClawError(' Failed to get session history:', error)
       return []
     }
   }
@@ -291,7 +300,7 @@ class OpenClawService {
         ...options
       })
     } catch (error) {
-      console.error('[OpenClaw] Failed to send to session:', error)
+      logOpenClawError(' Failed to send to session:', error)
       return null
     }
   }
@@ -312,7 +321,7 @@ class OpenClawService {
         sessionId: options?.sessionId
       })
     } catch (error) {
-      console.error('[OpenClaw] Failed to send message:', error)
+      logOpenClawError(' Failed to send message:', error)
       return null
     }
   }
@@ -324,7 +333,7 @@ class OpenClawService {
     try {
       return await this.request<OpenClawSkill[]>('skills.list')
     } catch (error) {
-      console.error('[OpenClaw] Failed to list skills:', error)
+      logOpenClawError(' Failed to list skills:', error)
       return []
     }
   }
@@ -341,7 +350,7 @@ class OpenClawService {
     try {
       return await this.request<SkillExecutionResult>('skills.execute', request)
     } catch (error) {
-      console.error('[OpenClaw] Failed to execute skill:', error)
+      logOpenClawError(' Failed to execute skill:', error)
       return { success: false, error: String(error) }
     }
   }
@@ -353,7 +362,7 @@ class OpenClawService {
     try {
       return await this.request<OpenClawNode[]>('nodes.list')
     } catch (error) {
-      console.error('[OpenClaw] Failed to list nodes:', error)
+      logOpenClawError(' Failed to list nodes:', error)
       return []
     }
   }
@@ -373,7 +382,7 @@ class OpenClawService {
     try {
       return await this.request<BrowserSnapshot>('browser.navigate', { url })
     } catch (error) {
-      console.error('[OpenClaw] Browser navigate failed:', error)
+      logOpenClawError(' Browser navigate failed:', error)
       return null
     }
   }
@@ -384,7 +393,7 @@ class OpenClawService {
     try {
       return await this.request<BrowserSnapshot>('browser.action', action)
     } catch (error) {
-      console.error('[OpenClaw] Browser action failed:', error)
+      logOpenClawError(' Browser action failed:', error)
       return null
     }
   }
@@ -396,7 +405,7 @@ class OpenClawService {
       const result = await this.request<{ screenshot: string }>('browser.screenshot')
       return result.screenshot
     } catch (error) {
-      console.error('[OpenClaw] Browser screenshot failed:', error)
+      logOpenClawError(' Browser screenshot failed:', error)
       return null
     }
   }
@@ -466,7 +475,7 @@ class OpenClawService {
       const result = await this.request<{ canvasId: string }>('canvas.create')
       return result.canvasId
     } catch (error) {
-      console.error('[OpenClaw] Failed to create canvas:', error)
+      logOpenClawError(' Failed to create canvas:', error)
       return null
     }
   }
@@ -478,7 +487,7 @@ class OpenClawService {
       await this.request('canvas.update', { canvasId, elements })
       return true
     } catch (error) {
-      console.error('[OpenClaw] Failed to update canvas:', error)
+      logOpenClawError(' Failed to update canvas:', error)
       return false
     }
   }
@@ -537,7 +546,7 @@ class OpenClawService {
     try {
       return await this.request<SkillExecutionResult[]>('skills.batch', { skills })
     } catch (error) {
-      console.error('[OpenClaw] Batch execution failed:', error)
+      logOpenClawError(' Batch execution failed:', error)
       return skills.map(() => ({ success: false, error: String(error) }))
     }
   }
@@ -555,7 +564,7 @@ class OpenClawService {
         task
       })
     } catch (error) {
-      console.error('[OpenClaw] Collaboration failed:', error)
+      logOpenClawError(' Collaboration failed:', error)
       return null
     }
   }
@@ -573,7 +582,7 @@ class OpenClawService {
     try {
       return await this.request('skills.info', { skillName })
     } catch (error) {
-      console.error('[OpenClaw] Failed to get skill info:', error)
+      logOpenClawError(' Failed to get skill info:', error)
       return null
     }
   }
@@ -586,7 +595,7 @@ class OpenClawService {
       await this.request('skills.install', { skillMd, name })
       return true
     } catch (error) {
-      console.error('[OpenClaw] Failed to install skill:', error)
+      logOpenClawError(' Failed to install skill:', error)
       return false
     }
   }

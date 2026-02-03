@@ -40,7 +40,7 @@ impl PresenceTracker {
         session_id: Uuid,
         user_id: Option<Uuid>,
         agent_id: Option<Uuid>,
-        status: ParticipantStatus,
+        status: ParticipantStatus, // From session module
         cursor_position: Option<serde_json::Value>,
         active_file: Option<String>,
     ) {

@@ -5,7 +5,7 @@
  * Compatible with Phase 1, 2, 3
  */
 use axum::{
-    extract::{Extension, Path, WebSocketUpgrade},
+    extract::{Extension, Path, Query, WebSocketUpgrade},
     http::StatusCode,
     response::{Json, Response},
     routing::get,
@@ -15,7 +15,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::services::collaboration::{SessionManager, CollaborationWebSocket};
-use crate::security::AuditLogger;
+use crate::security::{AuditLogger, AdvancedValidator};
 
 #[derive(Debug, Serialize)]
 pub struct SessionResponse {
@@ -87,14 +87,55 @@ pub struct ParticipantResponse {
     pub participant: crate::services::collaboration::session::Participant,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct WebSocketQuery {
+    participant_id: Option<Uuid>,
+    user_id: Option<Uuid>,
+    agent_id: Option<Uuid>,
+}
+
 pub async fn collaboration_websocket_handler(
     ws: WebSocketUpgrade,
     Path(session_id): Path<Uuid>,
+    Query(query): Query<WebSocketQuery>,
     Extension(websocket_server): Extension<Arc<CollaborationWebSocket>>,
+    Extension(session_manager): Extension<Arc<SessionManager>>,
 ) -> Response {
+    // Generate participant_id if not provided
+    let participant_id = query.participant_id.unwrap_or_else(Uuid::new_v4());
+
     ws.on_upgrade(move |socket| async move {
-        if let Err(e) = websocket_server.handle_connection(session_id, socket).await {
+        // Verify session exists
+        if session_manager.get_session(session_id).await.is_none() {
+            tracing::error!("Session {} not found", session_id);
+            return;
+        }
+
+        if let Err(e) = websocket_server.handle_connection(session_id, participant_id, socket).await {
             tracing::error!("WebSocket connection error: {}", e);
         }
     })
+}
+
+pub async fn get_session_by_token(
+    Extension(session_manager): Extension<Arc<SessionManager>>,
+    Path(token): Path<String>,
+) -> Result<Json<SessionResponse>, StatusCode> {
+    match session_manager.get_session_by_token(&token).await {
+        Some(session) => Ok(Json(SessionResponse { session })),
+        None => Err(StatusCode::NOT_FOUND),
+    }
+}
+
+pub async fn list_participants(
+    Extension(session_manager): Extension<Arc<SessionManager>>,
+    Path(session_id): Path<Uuid>,
+) -> Result<Json<ParticipantsResponse>, StatusCode> {
+    let participants = session_manager.get_participants(session_id).await;
+    Ok(Json(ParticipantsResponse { participants }))
+}
+
+#[derive(Debug, Serialize)]
+pub struct ParticipantsResponse {
+    pub participants: Vec<crate::services::collaboration::session::Participant>,
 }

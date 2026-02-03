@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import MenuBar from './components/MenuBar'
 import LeftSidebar from './components/LeftSidebar'
-import EditorArea from './components/EditorArea'
+import EditorArea, { EditorAreaRef } from './components/EditorArea'
 import AssistantPanel from './components/AssistantPanel'
 import StatusBar from './components/StatusBar'
 import CommandPalette from './components/CommandPalette'
@@ -11,10 +11,21 @@ import Toast, { ToastMessage } from './components/Toast'
 import TerminalPanel from './components/TerminalPanel'
 import OpenClawPanel from './components/OpenClawPanel'
 import MoltbookPanel from './components/MoltbookPanel'
+import WelcomeScreen from './components/WelcomeScreen'
+import CollaborationPanel from './components/CollaborationPanel'
+import AgentInsightsPanel from './components/AgentInsightsPanel'
+import ProjectInsightsPanel from './components/ProjectInsightsPanel'
 import { openClawService } from './services/openclaw'
 
 // Right panel modes
-type RightPanelMode = 'assistant' | 'openclaw' | 'moltbook'
+type RightPanelMode = 'assistant' | 'openclaw' | 'moltbook' | 'collaboration' | 'agents' | 'project'
+
+// Recent project type
+interface RecentProject {
+  name: string
+  path: string
+  lastOpened: Date
+}
 
 export default function App() {
   const [showCommandPalette, setShowCommandPalette] = useState(false)
@@ -26,6 +37,31 @@ export default function App() {
   const [doNotDisturb, setDoNotDisturb] = useState(false)
   const [soundEnabled, setSoundEnabled] = useState(true)
   const [showNotificationHistory, setShowNotificationHistory] = useState(false)
+  
+  // Welcome screen state - show welcome by default, hide when project is opened
+  const [showWelcome, setShowWelcome] = useState(() => {
+    const saved = localStorage.getItem('bloop-has-project')
+    return saved !== 'true'
+  })
+  
+  // Recent projects from localStorage
+  const [recentProjects, setRecentProjects] = useState<RecentProject[]>(() => {
+    const saved = localStorage.getItem('bloop-recent-projects')
+    if (saved) {
+      try {
+        return JSON.parse(saved).map((p: any) => ({
+          ...p,
+          lastOpened: new Date(p.lastOpened)
+        }))
+      } catch {
+        return []
+      }
+    }
+    return []
+  })
+  
+  // Editor ref for file operations
+  const editorRef = useRef<EditorAreaRef>(null)
   
   // Load panel widths from localStorage or use defaults
   const [sidebarWidth, setSidebarWidth] = useState(() => {
@@ -121,9 +157,82 @@ export default function App() {
       }
     }
 
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    globalThis.addEventListener('keydown', handleKeyDown)
+    return () => globalThis.removeEventListener('keydown', handleKeyDown)
   }, [addToast])
+
+  // Save recent projects to localStorage
+  useEffect(() => {
+    localStorage.setItem('bloop-recent-projects', JSON.stringify(recentProjects))
+  }, [recentProjects])
+
+  // Add a project to recent projects
+  const addRecentProject = useCallback((name: string, path: string) => {
+    setRecentProjects(prev => {
+      const filtered = prev.filter(p => p.path !== path)
+      const newProject = { name, path, lastOpened: new Date() }
+      return [newProject, ...filtered].slice(0, 10) // Keep max 10 recent
+    })
+    localStorage.setItem('bloop-has-project', 'true')
+  }, [])
+
+  // Handle opening a folder
+  const handleOpenFolder = async () => {
+    try {
+      if ('showDirectoryPicker' in globalThis) {
+        const dirHandle = await (globalThis as any).showDirectoryPicker()
+        const name = dirHandle.name
+        addRecentProject(name, name) // Path is same as name for now
+        setShowWelcome(false)
+        
+        // Set the project folder in EditorArea for auto-saving
+        editorRef.current?.setProjectFolder(dirHandle)
+        
+        addToast('success', `Opened folder: ${name} - Files will auto-save here`)
+      } else {
+        // Fallback for browsers without directory picker
+        addToast('info', 'Folder picker not supported in this browser. Try opening individual files instead.')
+      }
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        addToast('error', 'Failed to open folder')
+      }
+    }
+  }
+
+  // Handle opening a file from welcome screen
+  const handleOpenFileFromWelcome = () => {
+    editorRef.current?.openFile()
+    setShowWelcome(false)
+    localStorage.setItem('bloop-has-project', 'true')
+  }
+
+  // Handle creating a new file from welcome screen
+  const handleNewFileFromWelcome = () => {
+    editorRef.current?.createNewFile()
+    setShowWelcome(false)
+    localStorage.setItem('bloop-has-project', 'true')
+  }
+
+  // Handle cloning a repo
+  const handleCloneRepo = (url: string) => {
+    // In a real app, this would clone the repo
+    // For now, just show a message and extract repo name
+    const repoName = url.split('/').pop()?.replace('.git', '') || 'repository'
+    addToast('info', `Cloning ${repoName}... (Git operations require backend)`)
+    addRecentProject(repoName, url)
+    setShowWelcome(false)
+  }
+
+  // Handle opening a recent project
+  const handleOpenRecent = (path: string) => {
+    const project = recentProjects.find(p => p.path === path)
+    if (project) {
+      addToast('info', `Opening ${project.name}...`)
+      addRecentProject(project.name, project.path)
+      setShowWelcome(false)
+    }
+  }
 
   // Command palette actions
   const commandActions = {
@@ -147,12 +256,26 @@ export default function App() {
     }}>
       <MenuBar 
         onToggleTerminal={() => setTerminalVisible(prev => !prev)}
+        onToggleSidebar={() => setSidebarCollapsed(prev => !prev)}
+        onToggleAssistant={() => setAssistantCollapsed(prev => !prev)}
+        onShowCommandPalette={() => setShowCommandPalette(true)}
+        onNewFile={() => {
+          editorRef.current?.createNewFile()
+          setShowWelcome(false)
+          localStorage.setItem('bloop-has-project', 'true')
+        }}
+        onOpenFile={() => {
+          editorRef.current?.openFile()
+          setShowWelcome(false)
+          localStorage.setItem('bloop-has-project', 'true')
+        }}
+        onSaveFile={() => editorRef.current?.saveFile()}
         onShowToast={addToast}
       />
       
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden', flexDirection: 'column' }}>
         <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-          {!sidebarCollapsed && (
+          {!sidebarCollapsed && !showWelcome && (
             <>
               <LeftSidebar 
                 onCollapse={() => setSidebarCollapsed(true)} 
@@ -163,9 +286,23 @@ export default function App() {
             </>
           )}
           
-          <EditorArea onShowToast={addToast} />
+          {showWelcome && (
+            <WelcomeScreen
+              onOpenFile={handleOpenFileFromWelcome}
+              onOpenFolder={handleOpenFolder}
+              onNewFile={handleNewFileFromWelcome}
+              onCloneRepo={handleCloneRepo}
+              onOpenRecent={handleOpenRecent}
+              recentProjects={recentProjects}
+            />
+          )}
           
-          {!assistantCollapsed && (
+          {/* Always render EditorArea but hide when welcome screen is shown */}
+          <div style={{ display: showWelcome ? 'none' : 'flex', flex: 1, overflow: 'hidden' }}>
+            <EditorArea ref={editorRef} onShowToast={addToast} />
+          </div>
+          
+          {!assistantCollapsed && !showWelcome && (
             <>
               <ResizeHandle onResize={handleAssistantResize} direction="horizontal" />
               <div style={{ 
@@ -230,7 +367,18 @@ export default function App() {
                 {/* Panel Content */}
                 <div style={{ flex: 1, overflow: 'hidden' }}>
                   {rightPanelMode === 'assistant' && (
-                    <AssistantPanel onCollapse={() => setAssistantCollapsed(true)} width={assistantWidth} />
+                    <AssistantPanel 
+                      onCollapse={() => setAssistantCollapsed(true)} 
+                      width={assistantWidth}
+                      onCreateFile={(name, content, language) => {
+                        editorRef.current?.addFile(name, content, language)
+                        // Switch to editor view if on welcome screen
+                        if (showWelcome) {
+                          setShowWelcome(false)
+                          localStorage.setItem('bloop-has-project', 'true')
+                        }
+                      }}
+                    />
                   )}
                   {rightPanelMode === 'openclaw' && (
                     <OpenClawPanel onClose={() => setRightPanelMode('assistant')} />
@@ -243,6 +391,15 @@ export default function App() {
                         addToast('success', `Skill "${name}" installed successfully`)
                       }}
                     />
+                  )}
+                  {rightPanelMode === 'collaboration' && (
+                    <CollaborationPanel onClose={() => setRightPanelMode('assistant')} />
+                  )}
+                  {rightPanelMode === 'agents' && (
+                    <AgentInsightsPanel onClose={() => setRightPanelMode('assistant')} />
+                  )}
+                  {rightPanelMode === 'project' && (
+                    <ProjectInsightsPanel onClose={() => setRightPanelMode('assistant')} />
                   )}
                 </div>
               </div>
@@ -262,6 +419,10 @@ export default function App() {
       <StatusBar 
         terminalVisible={terminalVisible}
         onToggleTerminal={() => setTerminalVisible(prev => !prev)}
+        onPanelChange={(panel) => {
+          setRightPanelMode(panel)
+          setAssistantCollapsed(false)
+        }}
       />
       
       {showCommandPalette && (

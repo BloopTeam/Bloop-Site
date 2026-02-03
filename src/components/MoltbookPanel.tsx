@@ -67,9 +67,8 @@ export default function MoltbookPanel({ onClose, onInstallSkill }: MoltbookPanel
         const notifs = await moltbookService.getNotifications()
         setNotifications(notifs)
       }
-    } catch (error) {
-      console.error('[Moltbook] Failed to load data:', error)
-      // Load mock data for demo
+    } catch {
+      // Backend unavailable - load mock data for demo
       loadMockData()
     } finally {
       setLoading(false)
@@ -141,8 +140,8 @@ export default function MoltbookPanel({ onClose, onInstallSkill }: MoltbookPanel
     try {
       const { skillMd } = await moltbookService.downloadSkill(skill.id)
       onInstallSkill?.(skillMd, skill.name)
-    } catch (error) {
-      console.error('[Moltbook] Failed to install skill:', error)
+    } catch {
+      // Skill installation unavailable
     }
   }
 

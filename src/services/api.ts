@@ -2,7 +2,18 @@
  * API service for communicating with Bloop backend
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+// Use relative URL when proxying through Vite, or absolute when VITE_API_URL is set
+const API_BASE_URL = import.meta.env.VITE_API_URL || ''
+
+// Set to true to enable API error logging (useful for debugging)
+const DEBUG_API = false
+
+// Silent error handler - only logs in debug mode
+const logApiError = (context: string, error: unknown) => {
+  if (DEBUG_API) {
+    console.error(`[API] ${context}:`, error)
+  }
+}
 
 export interface ModelInfo {
   provider: string
@@ -73,7 +84,7 @@ class ApiService {
       }
       return await response.json()
     } catch (error) {
-      console.error('Error fetching models:', error)
+      logApiError('Error fetching models', error)
       // Return empty models list if backend is unavailable
       return {
         models: [],
@@ -121,7 +132,7 @@ class ApiService {
         finishReason: data.finishReason || data.finish_reason,
       }
     } catch (error) {
-      console.error('Error sending chat message:', error)
+      logApiError('Error sending chat message', error)
       throw error
     }
   }
@@ -134,7 +145,7 @@ class ApiService {
       }
       return await response.json()
     } catch (error) {
-      console.error('Health check failed:', error)
+      logApiError('Health check failed', error)
       throw error
     }
   }
@@ -249,9 +260,8 @@ class ApiService {
         throw new Error(`Failed to fetch metrics: ${response.statusText}`)
       }
       return await response.json()
-    } catch (error) {
-      console.error('Error fetching agent metrics:', error)
-      // Return default values if backend is unavailable
+    } catch {
+      // Backend not available - return default values silently
       return {
         total_agents_created: 0,
         total_tasks_executed: 0,
@@ -292,7 +302,7 @@ class ApiService {
       }
       return await response.json()
     } catch (error) {
-      console.error('Error fetching queue status:', error)
+      logApiError('Error fetching queue status', error)
       return {
         queue_size: 0,
         queue_capacity: 2000,
@@ -314,7 +324,7 @@ class ApiService {
       }
       return await response.json()
     } catch (error) {
-      console.error('Error fetching health status:', error)
+      logApiError('Error fetching health status', error)
       return {
         unhealthy_agents: 0,
         unhealthy_agent_ids: []
@@ -338,7 +348,7 @@ class ApiService {
       }
       return await response.json()
     } catch (error) {
-      console.error('Error fetching OpenClaw status:', error)
+      logApiError('Error fetching OpenClaw status', error)
       return {
         enabled: false,
         connected: false,
@@ -367,7 +377,7 @@ class ApiService {
       }
       return await response.json()
     } catch (error) {
-      console.error('Error fetching OpenClaw skills:', error)
+      logApiError('Error fetching OpenClaw skills', error)
       return { skills: [], total: 0 }
     }
   }
@@ -393,7 +403,7 @@ class ApiService {
       }
       return await response.json()
     } catch (error) {
-      console.error('Error executing OpenClaw skill:', error)
+      logApiError('Error executing OpenClaw skill', error)
       return { success: false, error: String(error) }
     }
   }
@@ -435,7 +445,7 @@ class ApiService {
       }
       return await response.json()
     } catch (error) {
-      console.error('Error fetching Moltbook status:', error)
+      logApiError('Error fetching Moltbook status', error)
       return { enabled: false, registered: false, karma: 0 }
     }
   }
@@ -457,7 +467,7 @@ class ApiService {
       }
       return await response.json()
     } catch (error) {
-      console.error('Error fetching Moltbook profile:', error)
+      logApiError('Error fetching Moltbook profile', error)
       return null
     }
   }
@@ -528,7 +538,7 @@ class ApiService {
       }
       return await response.json()
     } catch (error) {
-      console.error('Error fetching Moltbook feed:', error)
+      logApiError('Error fetching Moltbook feed', error)
       return { posts: [], has_more: false, next_offset: 0 }
     }
   }
@@ -543,7 +553,7 @@ class ApiService {
       const data = await response.json()
       return data.results || []
     } catch (error) {
-      console.error('Error searching codebase:', error)
+      logApiError('Error searching codebase', error)
       return []
     }
   }
@@ -557,7 +567,7 @@ class ApiService {
       const data = await response.json()
       return data.usages || []
     } catch (error) {
-      console.error('Error finding usages:', error)
+      logApiError('Error finding usages', error)
       return []
     }
   }
@@ -571,7 +581,7 @@ class ApiService {
       const data = await response.json()
       return data.dependencies || []
     } catch (error) {
-      console.error('Error getting dependencies:', error)
+      logApiError('Error getting dependencies', error)
       return []
     }
   }
@@ -585,7 +595,7 @@ class ApiService {
       const data = await response.json()
       return data.patterns || []
     } catch (error) {
-      console.error('Error detecting patterns:', error)
+      logApiError('Error detecting patterns', error)
       return []
     }
   }
@@ -601,7 +611,7 @@ class ApiService {
         throw new Error(`Failed to index file: ${response.statusText}`)
       }
     } catch (error) {
-      console.error('Error indexing file:', error)
+      logApiError('Error indexing file', error)
     }
   }
 
@@ -615,7 +625,7 @@ class ApiService {
       const data = await response.json()
       return data.events || []
     } catch (error) {
-      console.error('Error fetching security events:', error)
+      logApiError('Error fetching security events', error)
       return []
     }
   }
@@ -629,7 +639,7 @@ class ApiService {
       const data = await response.json()
       return data.vulnerabilities || []
     } catch (error) {
-      console.error('Error fetching vulnerabilities:', error)
+      logApiError('Error fetching vulnerabilities', error)
       return []
     }
   }
@@ -647,7 +657,7 @@ class ApiService {
       const data = await response.json()
       return data.vulnerabilities || []
     } catch (error) {
-      console.error('Error scanning code:', error)
+      logApiError('Error scanning code', error)
       return []
     }
   }

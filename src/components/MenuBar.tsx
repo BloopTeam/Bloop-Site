@@ -5,6 +5,12 @@ import { ToastMessage } from './Toast'
 
 interface MenuBarProps {
   onToggleTerminal?: () => void
+  onToggleSidebar?: () => void
+  onToggleAssistant?: () => void
+  onShowCommandPalette?: () => void
+  onNewFile?: () => void
+  onOpenFile?: () => void
+  onSaveFile?: () => void
   onShowToast?: (type: ToastMessage['type'], message: string) => void
 }
 
@@ -13,136 +19,148 @@ interface MenuItem {
   shortcut?: string
   divider?: boolean
   disabled?: boolean
+  action?: string
 }
 
 const menuData: Record<string, MenuItem[]> = {
   File: [
-    { label: 'New File', shortcut: 'Ctrl+N' },
-    { label: 'New Window', shortcut: 'Ctrl+Shift+N' },
+    { label: 'New File', shortcut: 'Ctrl+N', action: 'newFile' },
+    { label: 'New Window', shortcut: 'Ctrl+Shift+N', action: 'newWindow' },
     { label: '', divider: true },
-    { label: 'Open File...', shortcut: 'Ctrl+O' },
-    { label: 'Open Folder...', shortcut: 'Ctrl+K Ctrl+O' },
-    { label: 'Open Recent', shortcut: '→' },
+    { label: 'Open File...', shortcut: 'Ctrl+O', action: 'openFile' },
+    { label: 'Open Folder...', shortcut: 'Ctrl+K Ctrl+O', action: 'openFolder' },
+    { label: 'Open Recent', shortcut: '→', action: 'openRecent' },
     { label: '', divider: true },
-    { label: 'Save', shortcut: 'Ctrl+S' },
-    { label: 'Save As...', shortcut: 'Ctrl+Shift+S' },
-    { label: 'Save All', shortcut: 'Ctrl+K S' },
+    { label: 'Save', shortcut: 'Ctrl+S', action: 'save' },
+    { label: 'Save As...', shortcut: 'Ctrl+Shift+S', action: 'saveAs' },
+    { label: 'Save All', shortcut: 'Ctrl+K S', action: 'saveAll' },
     { label: '', divider: true },
-    { label: 'Auto Save' },
-    { label: 'Preferences', shortcut: '→' },
+    { label: 'Auto Save', action: 'toggleAutoSave' },
+    { label: 'Preferences', shortcut: '→', action: 'preferences' },
     { label: '', divider: true },
-    { label: 'Close Editor', shortcut: 'Ctrl+W' },
-    { label: 'Close Folder', shortcut: 'Ctrl+K F' },
-    { label: 'Close Window', shortcut: 'Alt+F4' },
+    { label: 'Close Editor', shortcut: 'Ctrl+W', action: 'closeEditor' },
+    { label: 'Close Folder', shortcut: 'Ctrl+K F', action: 'closeFolder' },
+    { label: 'Close Window', shortcut: 'Alt+F4', action: 'closeWindow' },
     { label: '', divider: true },
-    { label: 'Exit' },
+    { label: 'Exit', action: 'exit' },
   ],
   Edit: [
-    { label: 'Undo', shortcut: 'Ctrl+Z' },
-    { label: 'Redo', shortcut: 'Ctrl+Y' },
+    { label: 'Undo', shortcut: 'Ctrl+Z', action: 'undo' },
+    { label: 'Redo', shortcut: 'Ctrl+Y', action: 'redo' },
     { label: '', divider: true },
-    { label: 'Cut', shortcut: 'Ctrl+X' },
-    { label: 'Copy', shortcut: 'Ctrl+C' },
-    { label: 'Paste', shortcut: 'Ctrl+V' },
+    { label: 'Cut', shortcut: 'Ctrl+X', action: 'cut' },
+    { label: 'Copy', shortcut: 'Ctrl+C', action: 'copy' },
+    { label: 'Paste', shortcut: 'Ctrl+V', action: 'paste' },
     { label: '', divider: true },
-    { label: 'Find', shortcut: 'Ctrl+F' },
-    { label: 'Replace', shortcut: 'Ctrl+H' },
+    { label: 'Find', shortcut: 'Ctrl+F', action: 'find' },
+    { label: 'Replace', shortcut: 'Ctrl+H', action: 'replace' },
     { label: '', divider: true },
-    { label: 'Find in Files', shortcut: 'Ctrl+Shift+F' },
-    { label: 'Replace in Files', shortcut: 'Ctrl+Shift+H' },
+    { label: 'Find in Files', shortcut: 'Ctrl+Shift+F', action: 'findInFiles' },
+    { label: 'Replace in Files', shortcut: 'Ctrl+Shift+H', action: 'replaceInFiles' },
     { label: '', divider: true },
-    { label: 'Toggle Line Comment', shortcut: 'Ctrl+/' },
-    { label: 'Toggle Block Comment', shortcut: 'Ctrl+Shift+/' },
-    { label: 'Emmet: Expand Abbreviation', shortcut: 'Tab' },
+    { label: 'Toggle Line Comment', shortcut: 'Ctrl+/', action: 'toggleComment' },
+    { label: 'Toggle Block Comment', shortcut: 'Ctrl+Shift+/', action: 'toggleBlockComment' },
+    { label: 'Emmet: Expand Abbreviation', shortcut: 'Tab', action: 'emmetExpand' },
   ],
   View: [
-    { label: 'Command Palette...', shortcut: 'Ctrl+Shift+P' },
-    { label: 'Open View...', shortcut: 'Ctrl+Q' },
+    { label: 'Command Palette...', shortcut: 'Ctrl+Shift+P', action: 'commandPalette' },
+    { label: 'Open View...', shortcut: 'Ctrl+Q', action: 'openView' },
     { label: '', divider: true },
-    { label: 'Appearance', shortcut: '→' },
-    { label: 'Editor Layout', shortcut: '→' },
+    { label: 'Appearance', shortcut: '→', action: 'appearance' },
+    { label: 'Editor Layout', shortcut: '→', action: 'editorLayout' },
     { label: '', divider: true },
-    { label: 'Explorer', shortcut: 'Ctrl+Shift+E' },
-    { label: 'Search', shortcut: 'Ctrl+Shift+F' },
-    { label: 'Source Control', shortcut: 'Ctrl+Shift+G' },
-    { label: 'Run and Debug', shortcut: 'Ctrl+Shift+D' },
-    { label: 'Extensions', shortcut: 'Ctrl+Shift+X' },
+    { label: 'Explorer', shortcut: 'Ctrl+Shift+E', action: 'showExplorer' },
+    { label: 'Search', shortcut: 'Ctrl+Shift+F', action: 'showSearch' },
+    { label: 'Source Control', shortcut: 'Ctrl+Shift+G', action: 'showGit' },
+    { label: 'Run and Debug', shortcut: 'Ctrl+Shift+D', action: 'showDebug' },
+    { label: 'Extensions', shortcut: 'Ctrl+Shift+X', action: 'showExtensions' },
     { label: '', divider: true },
-    { label: 'Problems', shortcut: 'Ctrl+Shift+M' },
-    { label: 'Output', shortcut: 'Ctrl+Shift+U' },
-    { label: 'Debug Console', shortcut: 'Ctrl+Shift+Y' },
-    { label: 'Terminal', shortcut: 'Ctrl+`' },
+    { label: 'Problems', shortcut: 'Ctrl+Shift+M', action: 'showProblems' },
+    { label: 'Output', shortcut: 'Ctrl+Shift+U', action: 'showOutput' },
+    { label: 'Debug Console', shortcut: 'Ctrl+Shift+Y', action: 'showDebugConsole' },
+    { label: 'Terminal', shortcut: 'Ctrl+`', action: 'toggleTerminal' },
     { label: '', divider: true },
-    { label: 'Word Wrap', shortcut: 'Alt+Z' },
+    { label: 'Toggle Sidebar', shortcut: 'Ctrl+B', action: 'toggleSidebar' },
+    { label: 'Toggle Assistant', shortcut: 'Ctrl+Shift+A', action: 'toggleAssistant' },
+    { label: 'Word Wrap', shortcut: 'Alt+Z', action: 'toggleWordWrap' },
   ],
   Go: [
-    { label: 'Back', shortcut: 'Alt+←' },
-    { label: 'Forward', shortcut: 'Alt+→' },
-    { label: 'Last Edit Location', shortcut: 'Ctrl+K Ctrl+Q' },
+    { label: 'Back', shortcut: 'Alt+←', action: 'goBack' },
+    { label: 'Forward', shortcut: 'Alt+→', action: 'goForward' },
+    { label: 'Last Edit Location', shortcut: 'Ctrl+K Ctrl+Q', action: 'lastEditLocation' },
     { label: '', divider: true },
-    { label: 'Go to File...', shortcut: 'Ctrl+P' },
-    { label: 'Go to Symbol in Workspace...', shortcut: 'Ctrl+T' },
+    { label: 'Go to File...', shortcut: 'Ctrl+P', action: 'goToFile' },
+    { label: 'Go to Symbol in Workspace...', shortcut: 'Ctrl+T', action: 'goToSymbolWorkspace' },
     { label: '', divider: true },
-    { label: 'Go to Symbol in Editor...', shortcut: 'Ctrl+Shift+O' },
-    { label: 'Go to Definition', shortcut: 'F12' },
-    { label: 'Go to Declaration' },
-    { label: 'Go to Type Definition' },
-    { label: 'Go to Implementations', shortcut: 'Ctrl+F12' },
-    { label: 'Go to References', shortcut: 'Shift+F12' },
+    { label: 'Go to Symbol in Editor...', shortcut: 'Ctrl+Shift+O', action: 'goToSymbol' },
+    { label: 'Go to Definition', shortcut: 'F12', action: 'goToDefinition' },
+    { label: 'Go to Declaration', action: 'goToDeclaration' },
+    { label: 'Go to Type Definition', action: 'goToTypeDefinition' },
+    { label: 'Go to Implementations', shortcut: 'Ctrl+F12', action: 'goToImplementation' },
+    { label: 'Go to References', shortcut: 'Shift+F12', action: 'goToReferences' },
     { label: '', divider: true },
-    { label: 'Go to Line/Column...', shortcut: 'Ctrl+G' },
-    { label: 'Go to Bracket', shortcut: 'Ctrl+Shift+\\' },
+    { label: 'Go to Line/Column...', shortcut: 'Ctrl+G', action: 'goToLine' },
+    { label: 'Go to Bracket', shortcut: 'Ctrl+Shift+\\', action: 'goToBracket' },
   ],
   Run: [
-    { label: 'Start Debugging', shortcut: 'F5' },
-    { label: 'Run Without Debugging', shortcut: 'Ctrl+F5' },
-    { label: 'Stop Debugging', shortcut: 'Shift+F5' },
-    { label: 'Restart Debugging', shortcut: 'Ctrl+Shift+F5' },
+    { label: 'Start Debugging', shortcut: 'F5', action: 'startDebugging' },
+    { label: 'Run Without Debugging', shortcut: 'Ctrl+F5', action: 'runWithoutDebugging' },
+    { label: 'Stop Debugging', shortcut: 'Shift+F5', action: 'stopDebugging' },
+    { label: 'Restart Debugging', shortcut: 'Ctrl+Shift+F5', action: 'restartDebugging' },
     { label: '', divider: true },
-    { label: 'Open Configurations' },
-    { label: 'Add Configuration...' },
+    { label: 'Open Configurations', action: 'openConfigurations' },
+    { label: 'Add Configuration...', action: 'addConfiguration' },
     { label: '', divider: true },
-    { label: 'Step Over', shortcut: 'F10' },
-    { label: 'Step Into', shortcut: 'F11' },
-    { label: 'Step Out', shortcut: 'Shift+F11' },
-    { label: 'Continue', shortcut: 'F5' },
+    { label: 'Step Over', shortcut: 'F10', action: 'stepOver' },
+    { label: 'Step Into', shortcut: 'F11', action: 'stepInto' },
+    { label: 'Step Out', shortcut: 'Shift+F11', action: 'stepOut' },
+    { label: 'Continue', shortcut: 'F5', action: 'continue' },
     { label: '', divider: true },
-    { label: 'Toggle Breakpoint', shortcut: 'F9' },
-    { label: 'New Breakpoint', shortcut: '→' },
+    { label: 'Toggle Breakpoint', shortcut: 'F9', action: 'toggleBreakpoint' },
+    { label: 'New Breakpoint', shortcut: '→', action: 'newBreakpoint' },
   ],
   Terminal: [
-    { label: 'New Terminal', shortcut: 'Ctrl+Shift+`' },
-    { label: 'Split Terminal', shortcut: 'Ctrl+Shift+5' },
+    { label: 'New Terminal', shortcut: 'Ctrl+Shift+`', action: 'newTerminal' },
+    { label: 'Split Terminal', shortcut: 'Ctrl+Shift+5', action: 'splitTerminal' },
     { label: '', divider: true },
-    { label: 'Run Task...' },
-    { label: 'Run Build Task...', shortcut: 'Ctrl+Shift+B' },
-    { label: 'Run Active File' },
-    { label: 'Run Selected Text' },
+    { label: 'Run Task...', action: 'runTask' },
+    { label: 'Run Build Task...', shortcut: 'Ctrl+Shift+B', action: 'runBuildTask' },
+    { label: 'Run Active File', action: 'runActiveFile' },
+    { label: 'Run Selected Text', action: 'runSelectedText' },
     { label: '', divider: true },
-    { label: 'Configure Tasks...' },
-    { label: 'Configure Default Build Task...' },
+    { label: 'Configure Tasks...', action: 'configureTasks' },
+    { label: 'Configure Default Build Task...', action: 'configureDefaultBuildTask' },
   ],
   Help: [
-    { label: 'Welcome' },
-    { label: 'Show All Commands', shortcut: 'Ctrl+Shift+P' },
-    { label: 'Documentation' },
-    { label: 'Release Notes' },
+    { label: 'Welcome', action: 'showWelcome' },
+    { label: 'Show All Commands', shortcut: 'Ctrl+Shift+P', action: 'commandPalette' },
+    { label: 'Documentation', action: 'showDocs' },
+    { label: 'Release Notes', action: 'showReleaseNotes' },
     { label: '', divider: true },
-    { label: 'Keyboard Shortcuts Reference', shortcut: 'Ctrl+K Ctrl+R' },
-    { label: 'Video Tutorials' },
-    { label: 'Tips and Tricks' },
+    { label: 'Keyboard Shortcuts Reference', shortcut: 'Ctrl+K Ctrl+R', action: 'showShortcuts' },
+    { label: 'Video Tutorials', action: 'showTutorials' },
+    { label: 'Tips and Tricks', action: 'showTips' },
     { label: '', divider: true },
-    { label: 'Join Us on Twitter' },
-    { label: 'Join Us on Discord' },
-    { label: 'Report Issue' },
+    { label: 'Join Us on Twitter', action: 'openTwitter' },
+    { label: 'Join Us on Discord', action: 'openDiscord' },
+    { label: 'Report Issue', action: 'reportIssue' },
     { label: '', divider: true },
-    { label: 'Check for Updates...' },
+    { label: 'Check for Updates...', action: 'checkUpdates' },
     { label: '', divider: true },
-    { label: 'About' },
+    { label: 'About', action: 'showAbout' },
   ],
 }
 
-export default function MenuBar(): JSX.Element {
+export default function MenuBar({ 
+  onToggleTerminal,
+  onToggleSidebar,
+  onToggleAssistant,
+  onShowCommandPalette,
+  onNewFile,
+  onOpenFile,
+  onSaveFile,
+  onShowToast 
+}: MenuBarProps): JSX.Element {
   const menuItems = ['File', 'Edit', 'View', 'Go', 'Run', 'Terminal', 'Help']
   const [hoveredItem, setHoveredItem] = useState<string | null>(null)
   const [activeMenu, setActiveMenu] = useState<string | null>(null)
@@ -173,6 +191,232 @@ export default function MenuBar(): JSX.Element {
     setHoveredItem(item)
     if (activeMenu) {
       setActiveMenu(item)
+    }
+  }
+
+  const handleMenuAction = (action: string | undefined) => {
+    if (!action) return
+    
+    setActiveMenu(null)
+    
+    switch (action) {
+      // File actions
+      case 'newFile':
+        onNewFile?.()
+        onShowToast?.('success', 'New file created')
+        break
+      case 'newWindow':
+        onShowToast?.('info', 'Opening new window...')
+        break
+      case 'openFile':
+        onOpenFile?.()
+        onShowToast?.('info', 'Open file dialog')
+        break
+      case 'openFolder':
+        onShowToast?.('info', 'Open folder dialog')
+        break
+      case 'openRecent':
+        onShowToast?.('info', 'Recent files menu')
+        break
+      case 'save':
+        onSaveFile?.()
+        onShowToast?.('success', 'File saved')
+        break
+      case 'saveAs':
+        onShowToast?.('info', 'Save As dialog')
+        break
+      case 'saveAll':
+        onShowToast?.('success', 'All files saved')
+        break
+      case 'toggleAutoSave':
+        onShowToast?.('info', 'Auto-save toggled')
+        break
+      case 'preferences':
+        onShowToast?.('info', 'Opening preferences...')
+        break
+      case 'closeEditor':
+        onShowToast?.('info', 'Editor closed')
+        break
+      case 'closeFolder':
+        onShowToast?.('info', 'Folder closed')
+        break
+      case 'closeWindow':
+        onShowToast?.('info', 'Window closing...')
+        break
+      case 'exit':
+        onShowToast?.('info', 'Goodbye!')
+        break
+        
+      // Edit actions
+      case 'undo':
+        document.execCommand('undo')
+        onShowToast?.('info', 'Undo')
+        break
+      case 'redo':
+        document.execCommand('redo')
+        onShowToast?.('info', 'Redo')
+        break
+      case 'cut':
+        document.execCommand('cut')
+        onShowToast?.('success', 'Cut to clipboard')
+        break
+      case 'copy':
+        document.execCommand('copy')
+        onShowToast?.('success', 'Copied to clipboard')
+        break
+      case 'paste':
+        document.execCommand('paste')
+        onShowToast?.('success', 'Pasted from clipboard')
+        break
+      case 'find':
+        onShowToast?.('info', 'Find dialog opened')
+        break
+      case 'replace':
+        onShowToast?.('info', 'Replace dialog opened')
+        break
+      case 'findInFiles':
+        onShowToast?.('info', 'Find in files')
+        break
+      case 'replaceInFiles':
+        onShowToast?.('info', 'Replace in files')
+        break
+      case 'toggleComment':
+        onShowToast?.('info', 'Toggle comment')
+        break
+      case 'toggleBlockComment':
+        onShowToast?.('info', 'Toggle block comment')
+        break
+        
+      // View actions
+      case 'commandPalette':
+        onShowCommandPalette?.()
+        break
+      case 'toggleTerminal':
+        onToggleTerminal?.()
+        break
+      case 'toggleSidebar':
+        onToggleSidebar?.()
+        break
+      case 'toggleAssistant':
+        onToggleAssistant?.()
+        break
+      case 'showExplorer':
+        onShowToast?.('info', 'Explorer view')
+        break
+      case 'showSearch':
+        onShowToast?.('info', 'Search view')
+        break
+      case 'showGit':
+        onShowToast?.('info', 'Source control view')
+        break
+      case 'showDebug':
+        onShowToast?.('info', 'Debug view')
+        break
+      case 'showExtensions':
+        onShowToast?.('info', 'Extensions view')
+        break
+      case 'showProblems':
+        onShowToast?.('info', 'Problems panel')
+        break
+      case 'showOutput':
+        onShowToast?.('info', 'Output panel')
+        break
+      case 'showDebugConsole':
+        onShowToast?.('info', 'Debug console')
+        break
+      case 'toggleWordWrap':
+        onShowToast?.('info', 'Word wrap toggled')
+        break
+        
+      // Go actions
+      case 'goBack':
+        onShowToast?.('info', 'Go back')
+        break
+      case 'goForward':
+        onShowToast?.('info', 'Go forward')
+        break
+      case 'goToFile':
+        onShowCommandPalette?.()
+        break
+      case 'goToLine':
+        onShowToast?.('info', 'Go to line')
+        break
+      case 'goToDefinition':
+        onShowToast?.('info', 'Go to definition')
+        break
+      case 'goToReferences':
+        onShowToast?.('info', 'Find all references')
+        break
+        
+      // Run actions
+      case 'startDebugging':
+        onShowToast?.('info', 'Starting debugger...')
+        break
+      case 'runWithoutDebugging':
+        onShowToast?.('info', 'Running...')
+        break
+      case 'stopDebugging':
+        onShowToast?.('info', 'Debugging stopped')
+        break
+      case 'toggleBreakpoint':
+        onShowToast?.('info', 'Breakpoint toggled')
+        break
+        
+      // Terminal actions
+      case 'newTerminal':
+        onToggleTerminal?.()
+        onShowToast?.('success', 'New terminal opened')
+        break
+      case 'splitTerminal':
+        onShowToast?.('info', 'Terminal split')
+        break
+      case 'runTask':
+        onShowToast?.('info', 'Run task...')
+        break
+      case 'runBuildTask':
+        onShowToast?.('info', 'Running build task...')
+        break
+      case 'runActiveFile':
+        onShowToast?.('info', 'Running active file...')
+        break
+        
+      // Help actions
+      case 'showWelcome':
+        onShowToast?.('info', 'Welcome to Bloop!')
+        break
+      case 'showDocs':
+        globalThis.open('https://github.com/bloop-ai/bloop', '_blank')
+        break
+      case 'showReleaseNotes':
+        onShowToast?.('info', 'Release Notes')
+        break
+      case 'showShortcuts':
+        onShowToast?.('info', 'Keyboard shortcuts reference')
+        break
+      case 'showTutorials':
+        onShowToast?.('info', 'Video tutorials')
+        break
+      case 'showTips':
+        onShowToast?.('info', 'Tips and tricks')
+        break
+      case 'openTwitter':
+        globalThis.open('https://twitter.com/bloopai', '_blank')
+        break
+      case 'openDiscord':
+        globalThis.open('https://discord.gg/bloop', '_blank')
+        break
+      case 'reportIssue':
+        globalThis.open('https://github.com/bloop-ai/bloop/issues', '_blank')
+        break
+      case 'checkUpdates':
+        onShowToast?.('success', 'You are up to date!')
+        break
+      case 'showAbout':
+        onShowToast?.('info', 'Bloop v0.2.0 - AI-Powered Code Editor')
+        break
+        
+      default:
+        onShowToast?.('info', `Action: ${action}`)
     }
   }
 
@@ -283,7 +527,7 @@ export default function MenuBar(): JSX.Element {
                         onMouseLeave={() => setHoveredDropdownItem(null)}
                         onClick={() => {
                           if (!menuItem.disabled) {
-                            setActiveMenu(null)
+                            handleMenuAction(menuItem.action)
                           }
                         }}
                         style={{
@@ -380,6 +624,7 @@ export default function MenuBar(): JSX.Element {
         height: '100%'
       }}>
         <button
+          onClick={() => onShowToast?.('info', 'Notifications')}
           style={{
             background: 'transparent',
             border: 'none',
@@ -405,6 +650,7 @@ export default function MenuBar(): JSX.Element {
         </button>
         
         <button
+          onClick={() => onShowToast?.('info', 'Settings')}
           style={{
             background: 'transparent',
             border: 'none',

@@ -19,6 +19,15 @@ import { BLOOP_AGENT_PROFILE } from '../types/moltbook'
 
 const MOLTBOOK_API_URL = 'https://moltbook.com/api'
 
+// Set to true to enable Moltbook error logging
+const DEBUG_MOLTBOOK = false
+
+const logMoltbookError = (context: string, error: unknown) => {
+  if (DEBUG_MOLTBOOK) {
+    console.error(`[Moltbook] ${context}:`, error)
+  }
+}
+
 class MoltbookService {
   private readonly config: MoltbookConfig
   private agent: MoltbookAgent | null = null
@@ -109,7 +118,7 @@ class MoltbookService {
 
       return claimLink
     } catch (error) {
-      console.error('[Moltbook] Failed to register agent:', error)
+      logMoltbookError(' Failed to register agent:', error)
       // Return mock claim link for development
       return {
         url: `https://moltbook.com/claim/${Date.now()}`,
@@ -133,7 +142,7 @@ class MoltbookService {
 
       return this.agent
     } catch (error) {
-      console.error('[Moltbook] Failed to claim agent:', error)
+      logMoltbookError(' Failed to claim agent:', error)
       throw error
     }
   }
@@ -153,7 +162,7 @@ class MoltbookService {
 
       return agent
     } catch (error) {
-      console.error('[Moltbook] Failed to get agent profile:', error)
+      logMoltbookError(' Failed to get agent profile:', error)
       return this.agent
     }
   }
@@ -188,7 +197,7 @@ class MoltbookService {
         })
       })
     } catch (error) {
-      console.error('[Moltbook] Failed to create post:', error)
+      logMoltbookError(' Failed to create post:', error)
       throw error
     }
   }
@@ -197,7 +206,7 @@ class MoltbookService {
     try {
       return await this.fetch<MoltbookPost>(`/posts/${postId}`)
     } catch (error) {
-      console.error('[Moltbook] Failed to get post:', error)
+      logMoltbookError(' Failed to get post:', error)
       return null
     }
   }
@@ -217,7 +226,7 @@ class MoltbookService {
     try {
       return await this.fetch<FeedResponse>(`/feed?${params}`)
     } catch (error) {
-      console.error('[Moltbook] Failed to get feed:', error)
+      logMoltbookError(' Failed to get feed:', error)
       return { posts: [], hasMore: false, nextOffset: 0 }
     }
   }
@@ -231,7 +240,7 @@ class MoltbookService {
         body: JSON.stringify({ direction })
       })
     } catch (error) {
-      console.error('[Moltbook] Failed to vote:', error)
+      logMoltbookError(' Failed to vote:', error)
     }
   }
 
@@ -246,7 +255,7 @@ class MoltbookService {
         body: JSON.stringify({ content, parentId })
       })
     } catch (error) {
-      console.error('[Moltbook] Failed to comment:', error)
+      logMoltbookError(' Failed to comment:', error)
       throw error
     }
   }
@@ -255,7 +264,7 @@ class MoltbookService {
     try {
       return await this.fetch<MoltbookComment[]>(`/posts/${postId}/comments`)
     } catch (error) {
-      console.error('[Moltbook] Failed to get comments:', error)
+      logMoltbookError(' Failed to get comments:', error)
       return []
     }
   }
@@ -265,7 +274,7 @@ class MoltbookService {
     try {
       return await this.fetch<Submolt[]>('/submolts')
     } catch (error) {
-      console.error('[Moltbook] Failed to list submolts:', error)
+      logMoltbookError(' Failed to list submolts:', error)
       return []
     }
   }
@@ -274,7 +283,7 @@ class MoltbookService {
     try {
       return await this.fetch<Submolt>(`/submolts/${name}`)
     } catch (error) {
-      console.error('[Moltbook] Failed to get submolt:', error)
+      logMoltbookError(' Failed to get submolt:', error)
       return null
     }
   }
@@ -285,7 +294,7 @@ class MoltbookService {
     try {
       await this.fetch(`/submolts/${name}/join`, { method: 'POST' })
     } catch (error) {
-      console.error('[Moltbook] Failed to join submolt:', error)
+      logMoltbookError(' Failed to join submolt:', error)
     }
   }
 
@@ -312,7 +321,7 @@ class MoltbookService {
         body: JSON.stringify(skill)
       })
     } catch (error) {
-      console.error('[Moltbook] Failed to share skill:', error)
+      logMoltbookError(' Failed to share skill:', error)
       throw error
     }
   }
@@ -321,7 +330,7 @@ class MoltbookService {
     try {
       return await this.fetch<SharedSkill[]>(`/skills/trending?limit=${limit}`)
     } catch (error) {
-      console.error('[Moltbook] Failed to get trending skills:', error)
+      logMoltbookError(' Failed to get trending skills:', error)
       return []
     }
   }
@@ -330,7 +339,7 @@ class MoltbookService {
     try {
       return await this.fetch<SharedSkill[]>(`/skills/search?q=${encodeURIComponent(query)}`)
     } catch (error) {
-      console.error('[Moltbook] Failed to search skills:', error)
+      logMoltbookError(' Failed to search skills:', error)
       return []
     }
   }
@@ -339,7 +348,7 @@ class MoltbookService {
     try {
       return await this.fetch<{ skillMd: string; metadata: SharedSkill }>(`/skills/${skillId}/download`)
     } catch (error) {
-      console.error('[Moltbook] Failed to download skill:', error)
+      logMoltbookError(' Failed to download skill:', error)
       throw error
     }
   }
@@ -378,7 +387,7 @@ class MoltbookService {
     try {
       return await this.fetch<MoltbookAgent[]>(`/agents/discover?${params}`)
     } catch (error) {
-      console.error('[Moltbook] Failed to discover agents:', error)
+      logMoltbookError(' Failed to discover agents:', error)
       return []
     }
   }
@@ -391,7 +400,7 @@ class MoltbookService {
       await this.fetch(`/agents/${agentId}/follow`, { method: 'POST' })
       return true
     } catch (error) {
-      console.error('[Moltbook] Failed to follow agent:', error)
+      logMoltbookError(' Failed to follow agent:', error)
       return false
     }
   }
@@ -403,7 +412,7 @@ class MoltbookService {
       await this.fetch(`/agents/${agentId}/unfollow`, { method: 'POST' })
       return true
     } catch (error) {
-      console.error('[Moltbook] Failed to unfollow agent:', error)
+      logMoltbookError(' Failed to unfollow agent:', error)
       return false
     }
   }
@@ -414,7 +423,7 @@ class MoltbookService {
     try {
       return await this.fetch<MoltbookAgent[]>('/agents/me/following')
     } catch (error) {
-      console.error('[Moltbook] Failed to get following:', error)
+      logMoltbookError(' Failed to get following:', error)
       return []
     }
   }
@@ -425,7 +434,7 @@ class MoltbookService {
     try {
       return await this.fetch<MoltbookAgent[]>('/agents/me/followers')
     } catch (error) {
-      console.error('[Moltbook] Failed to get followers:', error)
+      logMoltbookError(' Failed to get followers:', error)
       return []
     }
   }
@@ -444,7 +453,7 @@ class MoltbookService {
         body: JSON.stringify({ toAgentId, message })
       })
     } catch (error) {
-      console.error('[Moltbook] Failed to send message:', error)
+      logMoltbookError(' Failed to send message:', error)
       return null
     }
   }
@@ -464,7 +473,7 @@ class MoltbookService {
     try {
       return await this.fetch(`/messages${params}`)
     } catch (error) {
-      console.error('[Moltbook] Failed to get messages:', error)
+      logMoltbookError(' Failed to get messages:', error)
       return []
     }
   }
@@ -483,7 +492,7 @@ class MoltbookService {
     try {
       return await this.fetch('/notifications')
     } catch (error) {
-      console.error('[Moltbook] Failed to get notifications:', error)
+      logMoltbookError(' Failed to get notifications:', error)
       return []
     }
   }
@@ -494,7 +503,7 @@ class MoltbookService {
     try {
       await this.fetch(`/notifications/${notificationId}/read`, { method: 'POST' })
     } catch (error) {
-      console.error('[Moltbook] Failed to mark notification read:', error)
+      logMoltbookError(' Failed to mark notification read:', error)
     }
   }
 
@@ -506,7 +515,7 @@ class MoltbookService {
       await this.fetch(`/posts/${postId}/bookmark`, { method: 'POST' })
       return true
     } catch (error) {
-      console.error('[Moltbook] Failed to bookmark:', error)
+      logMoltbookError(' Failed to bookmark:', error)
       return false
     }
   }
@@ -517,7 +526,7 @@ class MoltbookService {
     try {
       return await this.fetch<MoltbookPost[]>('/bookmarks')
     } catch (error) {
-      console.error('[Moltbook] Failed to get bookmarks:', error)
+      logMoltbookError(' Failed to get bookmarks:', error)
       return []
     }
   }
@@ -535,7 +544,7 @@ class MoltbookService {
     try {
       return await this.fetch('/activity')
     } catch (error) {
-      console.error('[Moltbook] Failed to get activity:', error)
+      logMoltbookError(' Failed to get activity:', error)
       return []
     }
   }
@@ -551,7 +560,7 @@ class MoltbookService {
       })
       return true
     } catch (error) {
-      console.error('[Moltbook] Failed to rate skill:', error)
+      logMoltbookError(' Failed to rate skill:', error)
       return false
     }
   }

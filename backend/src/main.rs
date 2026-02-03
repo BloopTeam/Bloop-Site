@@ -33,7 +33,7 @@ use services::ai::router::ModelRouter;
 use services::agent::AgentManager;
 use services::codebase::CodebaseIndexer;
 use services::company::CompanyOrchestrator;
-use services::collaboration::{SessionManager, CollaborationWebSocket};
+use services::collaboration::{SessionManager, CollaborationWebSocket, PresenceTracker, ConflictResolver};
 use std::sync::Arc;
 
 #[tokio::main]
@@ -111,10 +111,18 @@ async fn main() -> anyhow::Result<()> {
         database.clone(),
         Arc::clone(&audit_logger),
     );
+    let presence_tracker = PresenceTracker::new();
+    let conflict_resolver = ConflictResolver::new(
+        Arc::clone(&codebase_indexer),
+        database.clone(),
+    );
     let collaboration_websocket = CollaborationWebSocket::new(
         Arc::clone(&session_manager),
+        Arc::clone(&presence_tracker),
+        Arc::clone(&conflict_resolver),
         Arc::clone(&agent_manager),
         Arc::clone(&codebase_indexer),
+        Arc::clone(&validator),
     );
     info!("Collaboration services initialized");
 
@@ -212,6 +220,8 @@ async fn create_app(
         .route("/api/v1/collaboration/sessions", axum::routing::post(api::routes::collaboration::create_session))
         .route("/api/v1/collaboration/sessions/:id", get(api::routes::collaboration::get_session))
         .route("/api/v1/collaboration/sessions/:id/join", axum::routing::post(api::routes::collaboration::join_session))
+        .route("/api/v1/collaboration/sessions/:id/participants", get(api::routes::collaboration::list_participants))
+        .route("/api/v1/collaboration/sessions/token/:token", get(api::routes::collaboration::get_session_by_token))
         .route("/api/v1/collaboration/ws/:session_id", get(api::routes::collaboration::collaboration_websocket_handler))
         .layer(
             ServiceBuilder::new()
@@ -230,6 +240,9 @@ async fn create_app(
                 .layer(Extension(audit_logger))
                 .layer(Extension(vulnerability_scanner))
                 .layer(Extension(threat_detector))
+                .layer(Extension(session_manager))
+                .layer(Extension(collaboration_websocket))
+                .layer(Extension(validator))
                 .into_inner(),
         );
 
