@@ -2,7 +2,16 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
+import { userSessionService } from './services/userSession'
 import './index.css'
+
+// Initialize user session service BEFORE rendering app
+// This ensures it's available for all components
+try {
+  userSessionService.initializeSession()
+} catch (error) {
+  console.warn('Failed to initialize user session service:', error)
+}
 
 // Security: Disable React DevTools in production
 if (import.meta.env.PROD) {

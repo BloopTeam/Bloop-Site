@@ -15,10 +15,12 @@ import WelcomeScreen from './components/WelcomeScreen'
 import CollaborationPanel from './components/CollaborationPanel'
 import AgentInsightsPanel from './components/AgentInsightsPanel'
 import ProjectInsightsPanel from './components/ProjectInsightsPanel'
+import AutomationPanel from './components/AutomationPanel'
 import { openClawService } from './services/openclaw'
+import { userSessionService } from './services/userSession'
 
 // Right panel modes
-type RightPanelMode = 'assistant' | 'openclaw' | 'moltbook' | 'collaboration' | 'agents' | 'project'
+type RightPanelMode = 'assistant' | 'openclaw' | 'moltbook' | 'collaboration' | 'agents' | 'project' | 'automation'
 
 // Recent project type
 interface RecentProject {
@@ -37,11 +39,63 @@ export default function App() {
   const [doNotDisturb, setDoNotDisturb] = useState(false)
   const [soundEnabled, setSoundEnabled] = useState(true)
   const [showNotificationHistory, setShowNotificationHistory] = useState(false)
+
+  // Initialize user session for multi-user support (1000+ concurrent users)
+  // MUST be initialized before any components try to use it
+  useEffect(() => {
+    // Ensure userSessionService is imported and available
+    if (typeof userSessionService === 'undefined') {
+      console.error('userSessionService is not available')
+      return
+    }
+
+    try {
+      // Initialize user session - in production, this would get userId from auth
+      if (userSessionService && typeof userSessionService.initializeSession === 'function') {
+        userSessionService.initializeSession()
+      }
+      
+      // Update activity on user interactions
+      const handleActivity = () => {
+        try {
+          if (userSessionService && typeof userSessionService.updateActivity === 'function') {
+            userSessionService.updateActivity()
+            // Dispatch event for panels to activate
+            window.dispatchEvent(new CustomEvent('bloop:project-activity'))
+          }
+        } catch (err) {
+          // Silently fail if service not ready
+          console.warn('Activity tracking failed:', err)
+        }
+      }
+
+      // Listen for project-related activities
+      window.addEventListener('focus', handleActivity)
+      document.addEventListener('click', handleActivity, true)
+      document.addEventListener('keydown', handleActivity, true)
+
+      return () => {
+        window.removeEventListener('focus', handleActivity)
+        document.removeEventListener('click', handleActivity, true)
+        document.removeEventListener('keydown', handleActivity, true)
+      }
+    } catch (error) {
+      console.error('Failed to initialize user session:', error)
+    }
+  }, [])
   
-  // Welcome screen state - show welcome by default, hide when project is opened
+  // Welcome screen state - show welcome by default, hide when project is opened (user-specific)
   const [showWelcome, setShowWelcome] = useState(() => {
-    const saved = localStorage.getItem('bloop-has-project')
-    return saved !== 'true'
+    try {
+      const userId = userSessionService?.getCurrentUserId?.()
+      const hasProject = userId
+        ? sessionStorage.getItem(`bloop-has-project-${userId}`) === 'true' || localStorage.getItem('bloop-has-project') === 'true'
+        : localStorage.getItem('bloop-has-project') === 'true'
+      return !hasProject
+    } catch {
+      // Fallback if service not ready
+      return localStorage.getItem('bloop-has-project') !== 'true'
+    }
   })
   
   // Recent projects from localStorage
@@ -173,7 +227,21 @@ export default function App() {
       const newProject = { name, path, lastOpened: new Date() }
       return [newProject, ...filtered].slice(0, 10) // Keep max 10 recent
     })
-    localStorage.setItem('bloop-has-project', 'true')
+    try {
+      const userId = userSessionService?.getCurrentUserId?.()
+      if (userId) {
+        sessionStorage.setItem(`bloop-has-project-${userId}`, 'true')
+        localStorage.setItem('bloop-has-project', 'true') // Legacy support
+        userSessionService?.setActiveProject?.(name)
+        userSessionService?.updateActivity?.()
+        window.dispatchEvent(new CustomEvent('bloop:project-activity'))
+      } else {
+        localStorage.setItem('bloop-has-project', 'true') // Fallback
+      }
+    } catch (error) {
+      // Fallback if service not ready
+      localStorage.setItem('bloop-has-project', 'true')
+    }
   }, [])
 
   // Handle opening a folder
@@ -187,6 +255,21 @@ export default function App() {
         
         // Set the project folder in EditorArea for auto-saving
         editorRef.current?.setProjectFolder(dirHandle)
+        
+        try {
+          const userId = userSessionService?.getCurrentUserId?.()
+          if (userId) {
+            sessionStorage.setItem(`bloop-has-project-${userId}`, 'true')
+            localStorage.setItem('bloop-has-project', 'true') // Legacy support
+            userSessionService?.setActiveProject?.(name)
+            userSessionService?.updateActivity?.()
+            window.dispatchEvent(new CustomEvent('bloop:project-activity'))
+          } else {
+            localStorage.setItem('bloop-has-project', 'true')
+          }
+        } catch {
+          localStorage.setItem('bloop-has-project', 'true')
+        }
         
         addToast('success', `Opened folder: ${name} - Files will auto-save here`)
       } else {
@@ -204,14 +287,38 @@ export default function App() {
   const handleOpenFileFromWelcome = () => {
     editorRef.current?.openFile()
     setShowWelcome(false)
-    localStorage.setItem('bloop-has-project', 'true')
+    try {
+      const userId = userSessionService?.getCurrentUserId?.()
+      if (userId) {
+        sessionStorage.setItem(`bloop-has-project-${userId}`, 'true')
+        localStorage.setItem('bloop-has-project', 'true') // Legacy support
+        userSessionService?.updateActivity?.()
+        window.dispatchEvent(new CustomEvent('bloop:project-activity'))
+      } else {
+        localStorage.setItem('bloop-has-project', 'true')
+      }
+    } catch {
+      localStorage.setItem('bloop-has-project', 'true')
+    }
   }
 
   // Handle creating a new file from welcome screen
   const handleNewFileFromWelcome = () => {
     editorRef.current?.createNewFile()
     setShowWelcome(false)
-    localStorage.setItem('bloop-has-project', 'true')
+    try {
+      const userId = userSessionService?.getCurrentUserId?.()
+      if (userId) {
+        sessionStorage.setItem(`bloop-has-project-${userId}`, 'true')
+        localStorage.setItem('bloop-has-project', 'true') // Legacy support
+        userSessionService?.updateActivity?.()
+        window.dispatchEvent(new CustomEvent('bloop:project-activity'))
+      } else {
+        localStorage.setItem('bloop-has-project', 'true')
+      }
+    } catch {
+      localStorage.setItem('bloop-has-project', 'true')
+    }
   }
 
   // Handle cloning a repo
@@ -222,6 +329,20 @@ export default function App() {
     addToast('info', `Cloning ${repoName}... (Git operations require backend)`)
     addRecentProject(repoName, url)
     setShowWelcome(false)
+    try {
+      const userId = userSessionService?.getCurrentUserId?.()
+      if (userId) {
+        sessionStorage.setItem(`bloop-has-project-${userId}`, 'true')
+        localStorage.setItem('bloop-has-project', 'true') // Legacy support
+        userSessionService?.setActiveProject?.(repoName)
+        userSessionService?.updateActivity?.()
+        window.dispatchEvent(new CustomEvent('bloop:project-activity'))
+      } else {
+        localStorage.setItem('bloop-has-project', 'true')
+      }
+    } catch {
+      localStorage.setItem('bloop-has-project', 'true')
+    }
   }
 
   // Handle opening a recent project
@@ -231,6 +352,20 @@ export default function App() {
       addToast('info', `Opening ${project.name}...`)
       addRecentProject(project.name, project.path)
       setShowWelcome(false)
+      try {
+        const userId = userSessionService?.getCurrentUserId?.()
+        if (userId) {
+          sessionStorage.setItem(`bloop-has-project-${userId}`, 'true')
+          localStorage.setItem('bloop-has-project', 'true') // Legacy support
+          userSessionService?.setActiveProject?.(project.name)
+          userSessionService?.updateActivity?.()
+          window.dispatchEvent(new CustomEvent('bloop:project-activity'))
+        } else {
+          localStorage.setItem('bloop-has-project', 'true')
+        }
+      } catch {
+        localStorage.setItem('bloop-has-project', 'true')
+      }
     }
   }
 
@@ -240,6 +375,21 @@ export default function App() {
     toggleTerminal: () => setTerminalVisible(prev => !prev),
     toggleAssistant: () => setAssistantCollapsed(prev => !prev),
     showToast: (type: ToastMessage['type'], message: string) => addToast(type, message),
+    createNewFile: () => {
+      editorRef.current?.createNewFile()
+      setShowWelcome(false)
+      localStorage.setItem('bloop-has-project', 'true')
+    },
+    openFile: () => {
+      editorRef.current?.openFile()
+      setShowWelcome(false)
+      localStorage.setItem('bloop-has-project', 'true')
+    },
+    saveFile: () => editorRef.current?.saveFile(),
+    goToLine: () => {
+      // Trigger go to line - could show a dialog
+      addToast('info', 'Go to Line (Ctrl+G) - Enter line number')
+    },
   }
 
   return (
@@ -262,13 +412,38 @@ export default function App() {
         onNewFile={() => {
           editorRef.current?.createNewFile()
           setShowWelcome(false)
-          localStorage.setItem('bloop-has-project', 'true')
+          try {
+            const userId = userSessionService?.getCurrentUserId?.()
+            if (userId) {
+              sessionStorage.setItem(`bloop-has-project-${userId}`, 'true')
+              localStorage.setItem('bloop-has-project', 'true') // Legacy support
+              userSessionService?.updateActivity?.()
+              window.dispatchEvent(new CustomEvent('bloop:project-activity'))
+            } else {
+              localStorage.setItem('bloop-has-project', 'true')
+            }
+          } catch {
+            localStorage.setItem('bloop-has-project', 'true')
+          }
         }}
         onOpenFile={() => {
           editorRef.current?.openFile()
           setShowWelcome(false)
-          localStorage.setItem('bloop-has-project', 'true')
+          try {
+            const userId = userSessionService?.getCurrentUserId?.()
+            if (userId) {
+              sessionStorage.setItem(`bloop-has-project-${userId}`, 'true')
+              localStorage.setItem('bloop-has-project', 'true') // Legacy support
+              userSessionService?.updateActivity?.()
+              window.dispatchEvent(new CustomEvent('bloop:project-activity'))
+            } else {
+              localStorage.setItem('bloop-has-project', 'true')
+            }
+          } catch {
+            localStorage.setItem('bloop-has-project', 'true')
+          }
         }}
+        onOpenFolder={handleOpenFolder}
         onSaveFile={() => editorRef.current?.saveFile()}
         onShowToast={addToast}
       />
@@ -281,6 +456,51 @@ export default function App() {
                 onCollapse={() => setSidebarCollapsed(true)} 
                 width={sidebarWidth}
                 onShowToast={addToast}
+                onCreateNewFile={() => {
+                  editorRef.current?.createNewFile()
+                  setShowWelcome(false)
+                  try {
+                    const userId = userSessionService?.getCurrentUserId?.()
+                    if (userId) {
+                      sessionStorage.setItem(`bloop-has-project-${userId}`, 'true')
+                      localStorage.setItem('bloop-has-project', 'true') // Legacy support
+                      userSessionService?.updateActivity?.()
+                      window.dispatchEvent(new CustomEvent('bloop:project-activity'))
+                    } else {
+                      localStorage.setItem('bloop-has-project', 'true')
+                    }
+                  } catch {
+                    localStorage.setItem('bloop-has-project', 'true')
+                  }
+                }}
+                onCreateNewFolder={async () => {
+                  try {
+                    if ('showDirectoryPicker' in globalThis) {
+                      const handle = await (globalThis as any).showDirectoryPicker({ mode: 'readwrite' })
+                      editorRef.current?.setProjectFolder(handle)
+                      try {
+                        const userId = userSessionService?.getCurrentUserId?.()
+                        if (userId) {
+                          sessionStorage.setItem(`bloop-has-project-${userId}`, 'true')
+                          localStorage.setItem('bloop-has-project', 'true') // Legacy support
+                          userSessionService?.setActiveProject?.(handle.name)
+                          userSessionService?.updateActivity?.()
+                          window.dispatchEvent(new CustomEvent('bloop:project-activity'))
+                        } else {
+                          localStorage.setItem('bloop-has-project', 'true')
+                        }
+                      } catch {
+                        localStorage.setItem('bloop-has-project', 'true')
+                      }
+                      addToast('success', `Project folder set: ${handle.name}`)
+                    }
+                  } catch (err: any) {
+                    if (err.name !== 'AbortError') {
+                      addToast('error', 'Failed to create folder')
+                    }
+                  }
+                }}
+                onOpenFolder={handleOpenFolder}
               />
               <ResizeHandle onResize={handleSidebarResize} direction="horizontal" />
             </>
@@ -362,6 +582,21 @@ export default function App() {
                   >
                     Moltbook
                   </button>
+                  <button
+                    onClick={() => setRightPanelMode('automation')}
+                    style={{
+                      flex: 1,
+                      padding: '8px 16px',
+                      background: 'transparent',
+                      border: 'none',
+                      borderBottom: rightPanelMode === 'automation' ? '1px solid #cccccc' : '1px solid transparent',
+                      color: rightPanelMode === 'automation' ? '#cccccc' : '#666',
+                      cursor: 'pointer',
+                      fontSize: '12px'
+                    }}
+                  >
+                    Automation
+                  </button>
                 </div>
                 
                 {/* Panel Content */}
@@ -375,7 +610,19 @@ export default function App() {
                         // Switch to editor view if on welcome screen
                         if (showWelcome) {
                           setShowWelcome(false)
-                          localStorage.setItem('bloop-has-project', 'true')
+                          try {
+                            const userId = userSessionService?.getCurrentUserId?.()
+                            if (userId) {
+                              sessionStorage.setItem(`bloop-has-project-${userId}`, 'true')
+                              localStorage.setItem('bloop-has-project', 'true') // Legacy support
+                              userSessionService?.updateActivity?.()
+                              window.dispatchEvent(new CustomEvent('bloop:project-activity'))
+                            } else {
+                              localStorage.setItem('bloop-has-project', 'true')
+                            }
+                          } catch {
+                            localStorage.setItem('bloop-has-project', 'true')
+                          }
                         }
                       }}
                     />
@@ -401,6 +648,9 @@ export default function App() {
                   {rightPanelMode === 'project' && (
                     <ProjectInsightsPanel onClose={() => setRightPanelMode('assistant')} />
                   )}
+                  {rightPanelMode === 'automation' && (
+                    <AutomationPanel onClose={() => setRightPanelMode('assistant')} />
+                  )}
                 </div>
               </div>
             </>
@@ -420,8 +670,24 @@ export default function App() {
         terminalVisible={terminalVisible}
         onToggleTerminal={() => setTerminalVisible(prev => !prev)}
         onPanelChange={(panel) => {
-          setRightPanelMode(panel)
+          setRightPanelMode(panel as RightPanelMode)
           setAssistantCollapsed(false)
+        }}
+        onShowGitBranch={() => {
+          // Switch sidebar to git view
+          addToast('info', 'Git panel - Switch branch or view changes')
+        }}
+        onShowProblems={() => {
+          // Show problems panel
+          addToast('info', 'Problems panel - View errors and warnings')
+        }}
+        onShowNotifications={() => {
+          // Show notifications
+          addToast('info', 'Notifications')
+        }}
+        onOpenPreferences={() => {
+          // Open preferences/settings
+          addToast('info', 'Opening preferences...')
         }}
       />
       

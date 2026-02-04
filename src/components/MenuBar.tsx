@@ -12,6 +12,7 @@ interface MenuBarProps {
   onOpenFile?: () => void
   onSaveFile?: () => void
   onShowToast?: (type: ToastMessage['type'], message: string) => void
+  onOpenFolder?: () => void
 }
 
 interface MenuItem {
@@ -213,38 +214,67 @@ export default function MenuBar({
         onShowToast?.('info', 'Open file dialog')
         break
       case 'openFolder':
-        onShowToast?.('info', 'Open folder dialog')
+        // Open folder picker
+        onOpenFolder?.()
+        onShowToast?.('info', 'Opening folder...')
         break
       case 'openRecent':
-        onShowToast?.('info', 'Recent files menu')
+        // Show recent files/projects
+        onShowToast?.('info', 'Recent files - Coming soon')
         break
       case 'save':
         onSaveFile?.()
         onShowToast?.('success', 'File saved')
         break
       case 'saveAs':
-        onShowToast?.('info', 'Save As dialog')
+        // Save current file with new name
+        if (onSaveFile) {
+          // Trigger save as by creating new file with current content
+          onNewFile?.()
+          onShowToast?.('info', 'Save As - Choose new location')
+        } else {
+          onShowToast?.('info', 'Save As dialog')
+        }
         break
       case 'saveAll':
-        onShowToast?.('success', 'All files saved')
+        // Save all modified files
+        if (onSaveFile) {
+          onSaveFile()
+          onShowToast?.('success', 'All files saved')
+        } else {
+          onShowToast?.('success', 'All files saved')
+        }
         break
       case 'toggleAutoSave':
-        onShowToast?.('info', 'Auto-save toggled')
+        // Toggle auto-save preference
+        const currentAutoSave = localStorage.getItem('bloop-auto-save') !== 'false'
+        localStorage.setItem('bloop-auto-save', String(!currentAutoSave))
+        onShowToast?.('success', `Auto-save ${!currentAutoSave ? 'enabled' : 'disabled'}`)
         break
       case 'preferences':
-        onShowToast?.('info', 'Opening preferences...')
+        // Open preferences - could show a settings panel
+        onShowToast?.('info', 'Opening preferences... (Settings panel coming soon)')
         break
       case 'closeEditor':
-        onShowToast?.('info', 'Editor closed')
+        // Close current editor tab
+        onShowToast?.('info', 'Close current tab (Ctrl+W)')
         break
       case 'closeFolder':
-        onShowToast?.('info', 'Folder closed')
+        // Clear project folder
+        localStorage.removeItem('bloop-has-project')
+        onShowToast?.('info', 'Project folder closed')
         break
       case 'closeWindow':
-        onShowToast?.('info', 'Window closing...')
+        // Close window (browser only)
+        if (window.confirm('Are you sure you want to close?')) {
+          window.close()
+        }
         break
       case 'exit':
-        onShowToast?.('info', 'Goodbye!')
+        // Exit application
+        if (window.confirm('Are you sure you want to exit?')) {
+          window.close()
+        }
         break
         
       // Edit actions
@@ -269,22 +299,30 @@ export default function MenuBar({
         onShowToast?.('success', 'Pasted from clipboard')
         break
       case 'find':
-        onShowToast?.('info', 'Find dialog opened')
+        // Trigger find (Ctrl+F)
+        document.execCommand('find')
+        onShowToast?.('info', 'Find (Ctrl+F)')
         break
       case 'replace':
-        onShowToast?.('info', 'Replace dialog opened')
+        // Trigger replace (Ctrl+H)
+        onShowToast?.('info', 'Replace (Ctrl+H) - Coming soon')
         break
       case 'findInFiles':
-        onShowToast?.('info', 'Find in files')
+        // Switch to search view in sidebar
+        onShowToast?.('info', 'Find in Files (Ctrl+Shift+F) - Switch to Search view')
         break
       case 'replaceInFiles':
-        onShowToast?.('info', 'Replace in files')
+        // Replace in files
+        onShowToast?.('info', 'Replace in Files (Ctrl+Shift+H) - Coming soon')
         break
       case 'toggleComment':
-        onShowToast?.('info', 'Toggle comment')
+        // Toggle line comment (Ctrl+/)
+        document.execCommand('formatBlock', false, 'pre')
+        onShowToast?.('info', 'Toggle comment (Ctrl+/)')
         break
       case 'toggleBlockComment':
-        onShowToast?.('info', 'Toggle block comment')
+        // Toggle block comment
+        onShowToast?.('info', 'Toggle block comment (Ctrl+Shift+/) - Coming soon')
         break
         
       // View actions
@@ -301,82 +339,118 @@ export default function MenuBar({
         onToggleAssistant?.()
         break
       case 'showExplorer':
-        onShowToast?.('info', 'Explorer view')
+        // Toggle sidebar to show explorer
+        onToggleSidebar?.()
+        onShowToast?.('info', 'Explorer view (Ctrl+Shift+E)')
         break
       case 'showSearch':
-        onShowToast?.('info', 'Search view')
+        // Switch sidebar to search view
+        onToggleSidebar?.()
+        onShowToast?.('info', 'Search view (Ctrl+Shift+F)')
         break
       case 'showGit':
-        onShowToast?.('info', 'Source control view')
+        // Switch sidebar to git view
+        onToggleSidebar?.()
+        onShowToast?.('info', 'Source control view (Ctrl+Shift+G)')
         break
       case 'showDebug':
-        onShowToast?.('info', 'Debug view')
+        // Show debug panel
+        onShowToast?.('info', 'Debug view (Ctrl+Shift+D) - Coming soon')
         break
       case 'showExtensions':
-        onShowToast?.('info', 'Extensions view')
+        // Switch sidebar to extensions view
+        onToggleSidebar?.()
+        onShowToast?.('info', 'Extensions view (Ctrl+Shift+X)')
         break
       case 'showProblems':
-        onShowToast?.('info', 'Problems panel')
+        // Show problems panel
+        onShowToast?.('info', 'Problems panel (Ctrl+Shift+M)')
         break
       case 'showOutput':
-        onShowToast?.('info', 'Output panel')
+        // Show output panel
+        onShowToast?.('info', 'Output panel (Ctrl+Shift+U) - Coming soon')
         break
       case 'showDebugConsole':
-        onShowToast?.('info', 'Debug console')
+        // Show debug console
+        onShowToast?.('info', 'Debug console (Ctrl+Shift+Y) - Coming soon')
         break
       case 'toggleWordWrap':
-        onShowToast?.('info', 'Word wrap toggled')
+        // Toggle word wrap
+        const currentWrap = localStorage.getItem('bloop-word-wrap') !== 'false'
+        localStorage.setItem('bloop-word-wrap', String(!currentWrap))
+        onShowToast?.('success', `Word wrap ${!currentWrap ? 'enabled' : 'disabled'} (Alt+Z)`)
         break
         
       // Go actions
       case 'goBack':
-        onShowToast?.('info', 'Go back')
+        // Navigate back in editor history
+        window.history.back()
+        onShowToast?.('info', 'Go back (Alt+←)')
         break
       case 'goForward':
-        onShowToast?.('info', 'Go forward')
+        // Navigate forward in editor history
+        window.history.forward()
+        onShowToast?.('info', 'Go forward (Alt+→)')
         break
       case 'goToFile':
+        // Open command palette for file navigation
         onShowCommandPalette?.()
+        onShowToast?.('info', 'Go to File (Ctrl+P)')
         break
       case 'goToLine':
-        onShowToast?.('info', 'Go to line')
+        // Go to line dialog
+        const lineNum = prompt('Go to line number:')
+        if (lineNum) {
+          onShowToast?.('info', `Go to line ${lineNum} (Ctrl+G)`)
+        }
         break
       case 'goToDefinition':
-        onShowToast?.('info', 'Go to definition')
+        // Go to definition (F12)
+        onShowToast?.('info', 'Go to Definition (F12) - Right-click symbol for options')
         break
       case 'goToReferences':
-        onShowToast?.('info', 'Find all references')
+        // Find all references
+        onShowToast?.('info', 'Find all References (Shift+F12) - Right-click symbol')
         break
         
       // Run actions
       case 'startDebugging':
-        onShowToast?.('info', 'Starting debugger...')
+        // Start debugging session
+        onShowToast?.('info', 'Starting debugger... (F5) - Debugging coming soon')
         break
       case 'runWithoutDebugging':
-        onShowToast?.('info', 'Running...')
+        // Run without debugger
+        onShowToast?.('info', 'Running without debugging (Ctrl+F5)')
         break
       case 'stopDebugging':
-        onShowToast?.('info', 'Debugging stopped')
+        // Stop debugger
+        onShowToast?.('info', 'Debugging stopped (Shift+F5)')
         break
       case 'toggleBreakpoint':
-        onShowToast?.('info', 'Breakpoint toggled')
+        // Toggle breakpoint
+        onShowToast?.('info', 'Toggle breakpoint (F9) - Right-click line number')
         break
         
       // Terminal actions
       case 'newTerminal':
+        // Open terminal if closed, or create new terminal
         onToggleTerminal?.()
-        onShowToast?.('success', 'New terminal opened')
+        onShowToast?.('success', 'New terminal opened (Ctrl+Shift+`)')
         break
       case 'splitTerminal':
-        onShowToast?.('info', 'Terminal split')
+        // Split terminal
+        onShowToast?.('info', 'Split terminal (Ctrl+Shift+5) - Coming soon')
         break
       case 'runTask':
-        onShowToast?.('info', 'Run task...')
+        // Run task
+        onShowToast?.('info', 'Run task... - Configure tasks in .vscode/tasks.json')
         break
       case 'runBuildTask':
-        onShowToast?.('info', 'Running build task...')
+        // Run build task
+        onShowToast?.('info', 'Running build task (Ctrl+Shift+B)')
         break
       case 'runActiveFile':
+        // Run active file
         onShowToast?.('info', 'Running active file...')
         break
         

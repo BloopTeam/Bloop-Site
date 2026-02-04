@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
 import { X, ChevronRight, MoreHorizontal, ChevronDown, GitBranch } from 'lucide-react'
 import { ToastMessage } from './Toast'
+import FileSaveDialog from './FileSaveDialog'
 
 interface EditorAreaProps {
   onShowToast?: (type: ToastMessage['type'], message: string) => void
@@ -22,6 +23,7 @@ export interface EditorAreaRef {
   saveFile: () => void
   getCurrentFile: () => Tab | undefined
   addFile: (name: string, content: string, language: string) => void
+  addFileDirect: (name: string, content: string, language: string) => void
   setProjectFolder: (handle: FileSystemDirectoryHandle) => void
   getProjectFolder: () => FileSystemDirectoryHandle | null
 }
@@ -44,24 +46,17 @@ function EditorAreaComponent({ onShowToast }: EditorAreaProps, ref: React.Forwar
   // Project folder for auto-saving
   const [projectFolderHandle, setProjectFolderHandle] = useState<FileSystemDirectoryHandle | null>(null)
 
+  // File save dialog state
+  const [showSaveDialog, setShowSaveDialog] = useState(false)
+  const [pendingFileContent, setPendingFileContent] = useState('')
+
   // Expose methods to parent component
   useImperativeHandle(ref, () => ({
     createNewFile: () => {
-      // Create a new untitled file immediately
-      const newId = fileCounter.toString()
-      const newFileName = `untitled-${fileCounter}.ts`
-      
-      const newTab: Tab = {
-        id: newId,
-        name: newFileName,
-        path: [],
-        content: `// ${newFileName}\n// Start coding here...\n\n`,
-        modified: true
-      }
-      setTabs(prev => [...prev, newTab])
-      setActiveTab(newId)
-      setFileCounter(prev => prev + 1)
-      onShowToast?.('success', `Created ${newFileName}`)
+      // Open file save dialog - this creates a new project
+      const defaultContent = `// New Project File\n// This is your project base file\n// Start coding here...\n\n`
+      setPendingFileContent(defaultContent)
+      setShowSaveDialog(true)
     },
     openFile: async () => {
       try {
@@ -178,6 +173,22 @@ function EditorAreaComponent({ onShowToast }: EditorAreaProps, ref: React.Forwar
       }
     },
     getCurrentFile: () => tabs.find(t => t.id === activeTab),
+    addFileDirect: async (name: string, content: string, _language: string) => {
+      // Direct file addition without dialog (for programmatic creation)
+      const newId = fileCounter.toString()
+      const newTab: Tab = {
+        id: newId,
+        name: name,
+        path: [],
+        content: content,
+        modified: true
+      }
+      setTabs(prev => [...prev, newTab])
+      setActiveTab(newId)
+      setFileCounter(prev => prev + 1)
+      onShowToast?.('success', `Created ${name}`)
+    },
+    
     addFile: async (name: string, content: string, _language: string) => {
       // Check if file already exists
       const existingTab = tabs.find(t => t.name === name)
@@ -204,48 +215,9 @@ function EditorAreaComponent({ onShowToast }: EditorAreaProps, ref: React.Forwar
         return
       }
       
-      // Create new file
-      const newId = Date.now().toString()
-      let fileHandle: FileSystemFileHandle | undefined
-      
-      // If project folder is set, create the file in the folder
-      if (projectFolderHandle) {
-        try {
-          // Handle nested paths (e.g., "components/Header.tsx")
-          const pathParts = name.split('/')
-          let currentDir = projectFolderHandle
-          
-          // Create subdirectories if needed
-          for (let i = 0; i < pathParts.length - 1; i++) {
-            currentDir = await currentDir.getDirectoryHandle(pathParts[i], { create: true })
-          }
-          
-          // Create the file
-          const fileName = pathParts[pathParts.length - 1]
-          fileHandle = await currentDir.getFileHandle(fileName, { create: true })
-          
-          // Write content
-          const writable = await fileHandle.createWritable()
-          await writable.write(content)
-          await writable.close()
-          
-          onShowToast?.('success', `Saved ${name} to project`)
-        } catch (err) {
-          // Fall back to unsaved tab
-          onShowToast?.('info', `Created ${name} (save manually)`)
-        }
-      }
-      
-      const newTab: Tab = {
-        id: newId,
-        name: name,
-        path: name.includes('/') ? name.split('/').slice(0, -1) : [],
-        content: content,
-        modified: !fileHandle, // Not modified if we saved it
-        fileHandle
-      }
-      setTabs(prev => [...prev, newTab])
-      setActiveTab(newId)
+      // Create new file - use save dialog flow
+      setPendingFileContent(content)
+      setShowSaveDialog(true)
     },
     setProjectFolder: (handle: FileSystemDirectoryHandle) => {
       setProjectFolderHandle(handle)
@@ -418,6 +390,71 @@ function EditorAreaComponent({ onShowToast }: EditorAreaProps, ref: React.Forwar
     return highlighted
   }
 
+  const handleSaveFile = async (fileName: string, path: string[], content: string) => {
+    try {
+      // Use File System Access API to save file
+      if ('showSaveFilePicker' in globalThis) {
+        // For new projects, let user choose where to save (creates project root)
+        const handle = await (globalThis as any).showSaveFilePicker({
+          suggestedName: fileName,
+          // Don't restrict file types - user can save any filename
+          types: [
+            { description: 'All Files', accept: { '*/*': ['.*'] } },
+          ],
+        })
+        
+        const writable = await handle.createWritable()
+        await writable.write(content)
+        await writable.close()
+        
+        // Get the directory containing the file (this becomes the project root)
+        const fileDirectory = await handle.getParent()
+        
+        // Set this directory as the project folder (new project base)
+        setProjectFolderHandle(fileDirectory)
+        onShowToast?.('success', `Created new project: ${fileDirectory.name}`)
+        
+        // Add file to editor tabs
+        const newId = fileCounter.toString()
+        const newTab: Tab = {
+          id: newId,
+          name: handle.name,
+          path: [],
+          content,
+          modified: false,
+          fileHandle: handle
+        }
+        setTabs(prev => [...prev, newTab])
+        setActiveTab(newId)
+        setFileCounter(prev => prev + 1)
+        onShowToast?.('success', `Saved ${handle.name} - Project folder set`)
+      } else {
+        throw new Error('File System Access API not supported')
+      }
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        throw err
+      }
+    }
+  }
+
+  const getSuggestedFileName = (content: string): string => {
+    // Smart filename detection - but user can override with anything
+    if (content.includes('export default function') || content.includes('export const')) {
+      const match = content.match(/(?:export\s+(?:default\s+)?(?:function|const)\s+)(\w+)/)
+      if (match) {
+        return `${match[1]}` // No forced extension
+      }
+    }
+    if (content.includes('class ')) {
+      const match = content.match(/class\s+(\w+)/)
+      if (match) {
+        return `${match[1]}` // No forced extension
+      }
+    }
+    return `untitled-${fileCounter}` // No forced extension - user decides
+  }
+
   return (
     <div style={{
       flex: 1,
@@ -426,6 +463,19 @@ function EditorAreaComponent({ onShowToast }: EditorAreaProps, ref: React.Forwar
       background: '#0f0f0f',
       overflow: 'hidden'
     }}>
+      {/* File Save Dialog */}
+      <FileSaveDialog
+        isOpen={showSaveDialog}
+        onClose={() => {
+          setShowSaveDialog(false)
+          setPendingFileContent('')
+        }}
+        onSave={handleSaveFile}
+        suggestedName={getSuggestedFileName(pendingFileContent)}
+        initialContent={pendingFileContent}
+        currentFolder={projectFolderHandle}
+      />
+      
       {/* Tabs */}
       <div 
         ref={tabsRef}

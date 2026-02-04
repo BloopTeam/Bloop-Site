@@ -1,4 +1,4 @@
-import { Terminal, GitBranch, Bell, Check, AlertCircle, Activity, Zap, Shield, Plug, Users, Layout, Cpu } from 'lucide-react'
+import { Terminal, GitBranch, Bell, Check, AlertCircle, Activity, Zap, Shield, Plug, Users, Layout, Cpu, TestTube } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { apiService } from '../services/api'
 import { openClawService } from '../services/openclaw'
@@ -7,10 +7,22 @@ import { moltbookService } from '../services/moltbook'
 interface StatusBarProps {
   readonly terminalVisible?: boolean
   readonly onToggleTerminal?: () => void
-  readonly onPanelChange?: (panel: 'collaboration' | 'agents' | 'project') => void
+  readonly onPanelChange?: (panel: 'collaboration' | 'agents' | 'project' | 'automation') => void
+  readonly onShowGitBranch?: () => void
+  readonly onShowProblems?: () => void
+  readonly onShowNotifications?: () => void
+  readonly onOpenPreferences?: () => void
 }
 
-export default function StatusBar({ terminalVisible, onToggleTerminal, onPanelChange }: StatusBarProps) {
+export default function StatusBar({ 
+  terminalVisible, 
+  onToggleTerminal, 
+  onPanelChange,
+  onShowGitBranch,
+  onShowProblems,
+  onShowNotifications,
+  onOpenPreferences
+}: StatusBarProps) {
   const [metrics, setMetrics] = useState<{
     queue_status: { queue_size: number; queue_capacity: number; concurrent_tasks: number; max_concurrent: number; circuit_breaker_open: boolean }
     health_status: { unhealthy_agents: number; unhealthy_agent_ids: string[] }
@@ -89,6 +101,10 @@ export default function StatusBar({ terminalVisible, onToggleTerminal, onPanelCh
       <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
         {/* Branch indicator */}
         <button 
+          onClick={() => {
+            onShowGitBranch?.()
+            // Also switch to git view in sidebar if available
+          }}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -104,13 +120,18 @@ export default function StatusBar({ terminalVisible, onToggleTerminal, onPanelCh
           }}
           onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+          title="Click to switch Git branch or view Git panel"
         >
           <GitBranch size={12} />
           <span>main</span>
         </button>
 
-        {/* Sync indicator */}
+        {/* Sync indicator - Click to sync/pull/push */}
         <button 
+          onClick={() => {
+            // Trigger git sync/pull/push
+            onShowGitBranch?.()
+          }}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -126,12 +147,17 @@ export default function StatusBar({ terminalVisible, onToggleTerminal, onPanelCh
           }}
           onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+          title="Click to sync Git (pull/push)"
         >
           <Check size={12} />
         </button>
 
         {/* Problems */}
         <button 
+          onClick={() => {
+            onShowProblems?.()
+            // Switch to problems view or show problems panel
+          }}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -147,6 +173,7 @@ export default function StatusBar({ terminalVisible, onToggleTerminal, onPanelCh
           }}
           onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+          title="Click to view problems and errors"
         >
           <AlertCircle size={12} />
           <span>0</span>
@@ -263,8 +290,17 @@ export default function StatusBar({ terminalVisible, onToggleTerminal, onPanelCh
       </div>
       
       <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-        {/* Line/Column */}
+        {/* Line/Column - Click to go to line */}
         <button 
+          onClick={() => {
+            // Trigger go to line command (Ctrl+G)
+            const event = new KeyboardEvent('keydown', { 
+              key: 'g', 
+              ctrlKey: true, 
+              bubbles: true 
+            })
+            document.dispatchEvent(event)
+          }}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -279,12 +315,17 @@ export default function StatusBar({ terminalVisible, onToggleTerminal, onPanelCh
           }}
           onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+          title="Click to go to line (Ctrl+G)"
         >
           Ln 1, Col 1
         </button>
 
-        {/* Spaces */}
+        {/* Spaces - Click to change indentation */}
         <button 
+          onClick={() => {
+            onOpenPreferences?.()
+            // Could also cycle through 2, 4, 8 spaces
+          }}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -299,12 +340,17 @@ export default function StatusBar({ terminalVisible, onToggleTerminal, onPanelCh
           }}
           onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+          title="Click to change indentation settings"
         >
           Spaces: 2
         </button>
 
-        {/* Encoding */}
+        {/* Encoding - Click to change encoding */}
         <button 
+          onClick={() => {
+            onOpenPreferences?.()
+            // Show encoding selector
+          }}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -319,12 +365,17 @@ export default function StatusBar({ terminalVisible, onToggleTerminal, onPanelCh
           }}
           onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+          title="Click to change file encoding"
         >
           UTF-8
         </button>
 
-        {/* Language */}
+        {/* Language - Click to change language mode */}
         <button 
+          onClick={() => {
+            onOpenPreferences?.()
+            // Show language selector or detect from file
+          }}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -339,6 +390,7 @@ export default function StatusBar({ terminalVisible, onToggleTerminal, onPanelCh
           }}
           onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+          title="Click to change language mode"
         >
           TypeScript React
         </button>
@@ -486,8 +538,35 @@ export default function StatusBar({ terminalVisible, onToggleTerminal, onPanelCh
           <Layout size={12} />
         </button>
 
+        {/* Automation & Testing */}
+        <button 
+          onClick={() => onPanelChange?.('automation')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '2px 8px',
+            background: 'transparent',
+            border: 'none',
+            color: '#ffffff',
+            cursor: 'pointer',
+            fontSize: '11px',
+            borderRadius: '3px',
+            transition: 'background 0.1s'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+          title="Automation & Testing"
+        >
+          <TestTube size={12} />
+        </button>
+
         {/* Notifications */}
         <button 
+          onClick={() => {
+            onShowNotifications?.()
+            // Show notifications panel or dropdown
+          }}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -502,6 +581,7 @@ export default function StatusBar({ terminalVisible, onToggleTerminal, onPanelCh
           }}
           onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+          title="Click to view notifications"
         >
           <Bell size={12} />
         </button>

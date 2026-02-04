@@ -36,7 +36,10 @@ export default function CommandPalette({ onClose, actions }: CommandPaletteProps
       category: 'File', 
       icon: <File size={16} />,
       shortcut: 'Ctrl+N', 
-      action: () => actions?.showToast('info', 'New file created')
+      action: () => {
+        actions?.createNewFile?.()
+        actions?.showToast?.('info', 'Creating new file...')
+      }
     },
     { 
       id: '2', 
@@ -44,7 +47,10 @@ export default function CommandPalette({ onClose, actions }: CommandPaletteProps
       category: 'File', 
       icon: <FolderOpen size={16} />,
       shortcut: 'Ctrl+O', 
-      action: () => actions?.showToast('info', 'Open file dialog')
+      action: () => {
+        actions?.openFile?.()
+        actions?.showToast?.('info', 'Opening file...')
+      }
     },
     { 
       id: '3', 
@@ -52,7 +58,10 @@ export default function CommandPalette({ onClose, actions }: CommandPaletteProps
       category: 'File', 
       icon: <Save size={16} />,
       shortcut: 'Ctrl+S', 
-      action: () => actions?.showToast('success', 'File saved successfully')
+      action: () => {
+        actions?.saveFile?.()
+        actions?.showToast?.('success', 'File saved')
+      }
     },
     { 
       id: '4', 
@@ -108,7 +117,10 @@ export default function CommandPalette({ onClose, actions }: CommandPaletteProps
       category: 'Edit', 
       icon: <Copy size={16} />,
       shortcut: 'Ctrl+C', 
-      action: () => actions?.showToast('success', 'Copied to clipboard')
+      action: () => {
+        document.execCommand('copy')
+        actions?.showToast?.('success', 'Copied to clipboard')
+      }
     },
     { 
       id: '11', 
@@ -116,7 +128,10 @@ export default function CommandPalette({ onClose, actions }: CommandPaletteProps
       category: 'Edit', 
       icon: <Clipboard size={16} />,
       shortcut: 'Ctrl+V', 
-      action: () => actions?.showToast('info', 'Pasted from clipboard')
+      action: () => {
+        document.execCommand('paste')
+        actions?.showToast?.('info', 'Pasted from clipboard')
+      }
     },
     { 
       id: '12', 
@@ -124,7 +139,9 @@ export default function CommandPalette({ onClose, actions }: CommandPaletteProps
       category: 'Preferences', 
       icon: <Settings size={16} />,
       shortcut: 'Ctrl+,', 
-      action: () => actions?.showToast('info', 'Settings opened')
+      action: () => {
+        actions?.showToast?.('info', 'Settings opened (Ctrl+,)')
+      }
     },
   ]
 

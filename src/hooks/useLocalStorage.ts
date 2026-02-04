@@ -2,7 +2,9 @@ import { useState, useEffect, useCallback } from 'react'
 
 /**
  * Advanced local storage hook with automatic JSON serialization,
- * error handling, and cross-tab synchronization
+ * error handling, cross-tab synchronization, and user-specific scoping
+ * 
+ * For multi-user support, all keys are automatically scoped to the current user
  */
 export function useLocalStorage<T>(
   key: string,
@@ -11,21 +13,42 @@ export function useLocalStorage<T>(
     serialize?: (value: T) => string
     deserialize?: (value: string) => T
     syncAcrossTabs?: boolean
+    userSpecific?: boolean // If true, key is scoped to current user (default: true)
   } = {}
 ): [T, (value: T | ((prev: T) => T)) => void, () => void] {
   const {
     serialize = JSON.stringify,
     deserialize = JSON.parse,
-    syncAcrossTabs = true
+    syncAcrossTabs = true,
+    userSpecific = true // Default to user-specific for multi-user support
   } = options
+
+  // Get user-scoped key (lazy import to avoid circular dependencies)
+  const getStorageKey = useCallback(() => {
+    if (!userSpecific) return key
+    try {
+      // Dynamic import to avoid circular dependency issues
+      const { userSessionService } = require('../services/userSession')
+      if (userSessionService && typeof userSessionService.getUserStorageKey === 'function') {
+        return userSessionService.getUserStorageKey(key)
+      }
+    } catch (error) {
+      // Fallback if service not available yet
+      console.warn('userSessionService not available, using default key:', error)
+    }
+    return key
+  }, [key, userSpecific])
+
+  // Get storage key - compute once, use throughout
+  const storageKey = getStorageKey()
 
   // State to store our value
   const [storedValue, setStoredValue] = useState<T>(() => {
     try {
-      const item = window.localStorage.getItem(key)
+      const item = window.localStorage.getItem(storageKey)
       return item ? deserialize(item) : initialValue
     } catch (error) {
-      console.warn(`Error reading localStorage key "${key}":`, error)
+      console.warn(`Error reading localStorage key "${storageKey}":`, error)
       return initialValue
     }
   })
@@ -40,42 +63,42 @@ export function useLocalStorage<T>(
       setStoredValue(valueToStore)
       
       if (typeof window !== 'undefined') {
-        window.localStorage.setItem(key, serialize(valueToStore))
+        window.localStorage.setItem(storageKey, serialize(valueToStore))
         
         // Dispatch custom event for cross-tab communication
         window.dispatchEvent(
           new CustomEvent('local-storage-change', {
-            detail: { key, value: valueToStore }
+            detail: { key: storageKey, value: valueToStore }
           })
         )
       }
     } catch (error) {
-      console.warn(`Error setting localStorage key "${key}":`, error)
+      console.warn(`Error setting localStorage key "${storageKey}":`, error)
     }
-  }, [key, storedValue, serialize])
+  }, [storageKey, storedValue, serialize])
 
   // Remove item from localStorage
   const removeValue = useCallback(() => {
     try {
-      window.localStorage.removeItem(key)
+      window.localStorage.removeItem(storageKey)
       setStoredValue(initialValue)
     } catch (error) {
-      console.warn(`Error removing localStorage key "${key}":`, error)
+      console.warn(`Error removing localStorage key "${storageKey}":`, error)
     }
-  }, [key, initialValue])
+  }, [storageKey, initialValue])
 
   // Listen for changes in other tabs/windows
   useEffect(() => {
     if (!syncAcrossTabs) return
 
     const handleStorageChange = (e: StorageEvent | CustomEvent) => {
-      if ('key' in e && e.key === key && e.newValue) {
+      if ('key' in e && e.key === storageKey && e.newValue) {
         try {
           setStoredValue(deserialize(e.newValue))
         } catch (error) {
-          console.warn(`Error syncing localStorage key "${key}":`, error)
+          console.warn(`Error syncing localStorage key "${storageKey}":`, error)
         }
-      } else if ('detail' in e && e.detail.key === key) {
+      } else if ('detail' in e && e.detail.key === storageKey) {
         setStoredValue(e.detail.value)
       }
     }
@@ -87,7 +110,7 @@ export function useLocalStorage<T>(
       window.removeEventListener('storage', handleStorageChange as EventListener)
       window.removeEventListener('local-storage-change', handleStorageChange as EventListener)
     }
-  }, [key, deserialize, syncAcrossTabs])
+  }, [storageKey, deserialize, syncAcrossTabs])
 
   return [storedValue, setValue, removeValue]
 }

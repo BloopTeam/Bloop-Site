@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { 
   Search, GitBranch, Settings, Box, Bug, Play, Brain, Shield,
   ChevronRight, ChevronDown, FileCode, FileText, Folder,
   File, FolderPlus, Trash2, Copy, Edit3, Plus, RefreshCw,
-  Check, GitCommit, Download, Star, ChevronsDownUp, ChevronsUpDown, Eye
+  Check, GitCommit, Download, Star, ChevronsDownUp, ChevronsUpDown, Eye,
+  Code, Wand2, AlertCircle, Zap, Palette, Power
 } from 'lucide-react'
 import ContextMenu, { ContextMenuItem } from './ContextMenu'
 import { ToastMessage } from './Toast'
@@ -11,11 +12,17 @@ import Logo from './Logo'
 import GitView from './GitView'
 import { CodeIntelligencePanel } from './CodeIntelligencePanel'
 import { SecurityDashboard } from './SecurityDashboard'
+import { extensionsService, type Extension } from '../services/extensions'
+import { userSessionService } from '../services/userSession'
+import * as LucideIcons from 'lucide-react'
 
 interface LeftSidebarProps {
   onCollapse: () => void
   width?: number
   onShowToast?: (type: ToastMessage['type'], message: string) => void
+  onCreateNewFile?: () => void
+  onCreateNewFolder?: () => void
+  onOpenFolder?: () => void
 }
 
 type SidebarView = 'explorer' | 'search' | 'codeintel' | 'security' | 'git' | 'debug' | 'extensions'
@@ -32,25 +39,7 @@ interface GitChange {
   status: 'modified' | 'added' | 'deleted'
 }
 
-interface Extension {
-  id: string
-  name: string
-  author: string
-  description: string
-  installed: boolean
-  downloads: string
-  logo: string
-}
-
-const EXTENSIONS: Extension[] = [
-  { id: '1', name: 'Python', author: 'Microsoft', description: 'Python language support', installed: true, downloads: '89M', logo: '/python-logo.png' },
-  { id: '2', name: 'Prettier', author: 'Prettier', description: 'Code formatter', installed: true, downloads: '45M', logo: '/prettier-logo.png' },
-  { id: '3', name: 'ESLint', author: 'Microsoft', description: 'Linting for JavaScript', installed: false, downloads: '32M', logo: '/eslint-logo.png' },
-  { id: '4', name: 'GitLens', author: 'GitKraken', description: 'Git supercharged', installed: false, downloads: '28M', logo: '/gitlens-logo.png' },
-  { id: '5', name: 'Thunder Client', author: 'Thunder', description: 'REST API client', installed: false, downloads: '12M', logo: '/thunder-logo.png' },
-]
-
-export default function LeftSidebar({ width = 280, onShowToast }: LeftSidebarProps) {
+export default function LeftSidebar({ width = 280, onShowToast, onCreateNewFile, onCreateNewFolder, onOpenFolder }: LeftSidebarProps) {
   const [activeView, setActiveView] = useState<SidebarView>('explorer')
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
@@ -70,7 +59,76 @@ export default function LeftSidebar({ width = 280, onShowToast }: LeftSidebarPro
   // Start with no git changes - user's actual changes will show here
   const [gitChanges] = useState<GitChange[]>([])
 
-  const [extensions, setExtensions] = useState(EXTENSIONS)
+  // Initialize user session for multi-user support
+  useEffect(() => {
+    try {
+      // Only initialize if not already initialized
+      if (!userSessionService.getCurrentUserId()) {
+        userSessionService.initializeSession()
+      }
+    } catch (error) {
+      console.warn('Failed to initialize user session in LeftSidebar:', error)
+    }
+  }, [])
+
+  // Load extensions from service
+  const [extensions, setExtensions] = useState<Extension[]>(extensionsService.getAllExtensions())
+  const [extensionSearchQuery, setExtensionSearchQuery] = useState('')
+
+  // Filter extensions by search query
+  const filteredExtensions = extensions.filter(ext => 
+    ext.name.toLowerCase().includes(extensionSearchQuery.toLowerCase()) ||
+    ext.description.toLowerCase().includes(extensionSearchQuery.toLowerCase()) ||
+    ext.author.toLowerCase().includes(extensionSearchQuery.toLowerCase())
+  )
+
+  const handleInstallExtension = async (extensionId: string) => {
+    try {
+      await extensionsService.installExtension(extensionId)
+      setExtensions([...extensionsService.getAllExtensions()])
+      onShowToast?.('success', `Installed ${extensionsService.getExtension(extensionId)?.name}`)
+    } catch (error) {
+      onShowToast?.('error', 'Failed to install extension')
+    }
+  }
+
+  const handleUninstallExtension = async (extensionId: string) => {
+    try {
+      await extensionsService.uninstallExtension(extensionId)
+      setExtensions([...extensionsService.getAllExtensions()])
+      onShowToast?.('success', `Uninstalled ${extensionsService.getExtension(extensionId)?.name}`)
+    } catch (error) {
+      onShowToast?.('error', 'Failed to uninstall extension')
+    }
+  }
+
+  const handleToggleExtension = async (extensionId: string, enabled: boolean) => {
+    try {
+      await extensionsService.toggleExtension(extensionId, enabled)
+      setExtensions([...extensionsService.getAllExtensions()])
+      onShowToast?.('success', `${enabled ? 'Enabled' : 'Disabled'} ${extensionsService.getExtension(extensionId)?.name}`)
+    } catch (error) {
+      onShowToast?.('error', 'Failed to toggle extension')
+    }
+  }
+
+  const handleExecuteCommand = async (extensionId: string, commandId: string) => {
+    try {
+      await extensionsService.executeCommand(extensionId, commandId)
+      const ext = extensionsService.getExtension(extensionId)
+      const cmd = ext?.commands?.find(c => c.id === commandId)
+      if (cmd) {
+        onShowToast?.('success', `Executed: ${cmd.label}`)
+      }
+    } catch (error) {
+      onShowToast?.('error', 'Failed to execute command')
+    }
+  }
+
+  const getExtensionIcon = (iconName: string) => {
+    const IconComponent = (LucideIcons as any)[iconName] || Box
+    return <IconComponent size={16} />
+  }
 
   const toggleFolder = (folder: string) => {
     const newExpanded = new Set(expandedFolders)
@@ -100,6 +158,7 @@ export default function LeftSidebar({ width = 280, onShowToast }: LeftSidebarPro
 
   const collapseAll = () => {
     setExpandedFolders(new Set())
+    onShowToast?.('info', 'All folders collapsed')
   }
 
   const getFileIcon = (name: string) => {
@@ -155,14 +214,6 @@ export default function LeftSidebar({ width = 280, onShowToast }: LeftSidebarPro
       ])
       setIsSearching(false)
     }, 500)
-  }
-
-  const handleInstallExtension = (extId: string) => {
-    setExtensions(prev => prev.map(ext => 
-      ext.id === extId ? { ...ext, installed: true } : ext
-    ))
-    const ext = extensions.find(e => e.id === extId)
-    onShowToast?.('success', `Installed ${ext?.name}`)
   }
 
   const getContextMenuItems = (): ContextMenuItem[] => {
@@ -472,13 +523,15 @@ export default function LeftSidebar({ width = 280, onShowToast }: LeftSidebarPro
 
       case 'extensions':
         return (
-          <div style={{ padding: '12px' }}>
+          <div style={{ padding: '12px', height: '100%', display: 'flex', flexDirection: 'column' }}>
             <div style={{ fontSize: '11px', color: '#666', fontWeight: 600, textTransform: 'uppercase', marginBottom: '12px' }}>
               Extensions
             </div>
             
             <input
               type="text"
+              value={extensionSearchQuery}
+              onChange={(e) => setExtensionSearchQuery(e.target.value)}
               placeholder="Search extensions..."
               style={{
                 width: '100%',
@@ -492,65 +545,166 @@ export default function LeftSidebar({ width = 280, onShowToast }: LeftSidebarPro
                 marginBottom: '12px',
                 boxSizing: 'border-box'
               }}
+              onFocus={(e) => e.currentTarget.style.borderColor = '#FF00FF'}
+              onBlur={(e) => e.currentTarget.style.borderColor = '#2a2a2a'}
             />
 
-            {extensions.map((ext) => (
-              <div
-                key={ext.id}
-                style={{
-                  padding: '10px',
-                  borderRadius: '6px',
-                  marginBottom: '8px',
-                  background: '#141414'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                  <img 
-                    src={ext.logo} 
-                    alt={ext.name}
+            <div style={{ flex: 1, overflow: 'auto' }}>
+              {filteredExtensions.length === 0 ? (
+                <div style={{ padding: '24px', textAlign: 'center', color: '#666', fontSize: '12px' }}>
+                  No extensions found
+                </div>
+              ) : (
+                filteredExtensions.map((ext) => (
+                  <div
+                    key={ext.id}
                     style={{
-                      width: '36px',
-                      height: '36px',
-                      objectFit: 'contain',
-                      flexShrink: 0
+                      padding: '10px',
+                      borderRadius: '6px',
+                      marginBottom: '8px',
+                      background: '#141414',
+                      border: ext.enabled ? '1px solid rgba(255, 0, 255, 0.3)' : '1px solid transparent',
+                      transition: 'all 0.2s'
                     }}
-                  />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '12px', color: '#ccc', fontWeight: 500 }}>{ext.name}</div>
-                    <div style={{ fontSize: '10px', color: '#666' }}>{ext.author}</div>
-                    <div style={{ fontSize: '11px', color: '#888', marginTop: '4px' }}>{ext.description}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
-                      <span style={{ fontSize: '10px', color: '#666', display: 'flex', alignItems: 'center', gap: '2px' }}>
-                        <Download size={10} /> {ext.downloads}
-                      </span>
-                      <span style={{ fontSize: '10px', color: '#666', display: 'flex', alignItems: 'center', gap: '2px' }}>
-                        <Star size={10} /> 4.8
-                      </span>
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = '#1a1a1a'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = '#141414'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                      <div style={{
+                        width: '36px',
+                        height: '36px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: ext.enabled ? 'rgba(255, 0, 255, 0.1)' : '#1a1a1a',
+                        borderRadius: '6px',
+                        flexShrink: 0,
+                        color: ext.enabled ? '#FF00FF' : '#858585'
+                      }}>
+                        {getExtensionIcon(ext.icon)}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+                          <div style={{ fontSize: '12px', color: '#ccc', fontWeight: 500 }}>{ext.name}</div>
+                          <span style={{ fontSize: '9px', color: '#666', padding: '1px 4px', background: '#1a1a1a', borderRadius: '2px' }}>
+                            v{ext.version}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '10px', color: '#666' }}>{ext.author}</div>
+                        <div style={{ fontSize: '11px', color: '#888', marginTop: '4px', lineHeight: '1.4' }}>{ext.description}</div>
+                        <div style={{ fontSize: '9px', color: '#555', marginTop: '4px', textTransform: 'uppercase' }}>
+                          {ext.category}
+                        </div>
+                        
+                        {/* Extension Commands */}
+                        {ext.installed && ext.enabled && ext.commands && ext.commands.length > 0 && (
+                          <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #1a1a1a' }}>
+                            <div style={{ fontSize: '10px', color: '#666', marginBottom: '4px' }}>Commands:</div>
+                            {ext.commands.map((cmd) => (
+                              <button
+                                key={cmd.id}
+                                onClick={() => handleExecuteCommand(ext.id, cmd.id)}
+                                style={{
+                                  display: 'block',
+                                  width: '100%',
+                                  padding: '4px 6px',
+                                  marginBottom: '4px',
+                                  background: 'transparent',
+                                  border: '1px solid #2a2a2a',
+                                  borderRadius: '3px',
+                                  color: '#858585',
+                                  fontSize: '10px',
+                                  textAlign: 'left',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.borderColor = '#FF00FF'
+                                  e.currentTarget.style.color = '#FF00FF'
+                                  e.currentTarget.style.background = 'rgba(255, 0, 255, 0.05)'
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.borderColor = '#2a2a2a'
+                                  e.currentTarget.style.color = '#858585'
+                                  e.currentTarget.style.background = 'transparent'
+                                }}
+                              >
+                                {cmd.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-end' }}>
+                        {ext.installed ? (
+                          <>
+                            <button
+                              onClick={() => handleToggleExtension(ext.id, !ext.enabled)}
+                              style={{
+                                background: ext.enabled ? '#22c55e' : '#3e3e42',
+                                border: 'none',
+                                borderRadius: '4px',
+                                padding: '4px 8px',
+                                color: '#fff',
+                                fontSize: '9px',
+                                cursor: 'pointer',
+                                fontWeight: 500
+                              }}
+                              title={ext.enabled ? 'Disable extension' : 'Enable extension'}
+                            >
+                              {ext.enabled ? <Check size={10} /> : <Power size={10} />}
+                            </button>
+                            <button
+                              onClick={() => handleUninstallExtension(ext.id)}
+                              style={{
+                                background: 'transparent',
+                                border: '1px solid #3e3e42',
+                                borderRadius: '4px',
+                                padding: '4px 8px',
+                                color: '#858585',
+                                fontSize: '9px',
+                                cursor: 'pointer'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.borderColor = '#ef4444'
+                                e.currentTarget.style.color = '#ef4444'
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.borderColor = '#3e3e42'
+                                e.currentTarget.style.color = '#858585'
+                              }}
+                              title="Uninstall extension"
+                            >
+                              Uninstall
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => handleInstallExtension(ext.id)}
+                            style={{
+                              background: '#FF00FF',
+                              border: 'none',
+                              borderRadius: '4px',
+                              padding: '6px 10px',
+                              color: '#fff',
+                              fontSize: '10px',
+                              cursor: 'pointer',
+                              fontWeight: 500
+                            }}
+                          >
+                            Install
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  {ext.installed ? (
-                    <div style={{ fontSize: '10px', color: '#22c55e', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Check size={12} /> Installed
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => handleInstallExtension(ext.id)}
-                      style={{
-                        background: '#FF00FF',
-                        border: 'none',
-                        borderRadius: '4px',
-                        padding: '4px 8px',
-                        color: '#fff',
-                        fontSize: '10px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Install
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
+                ))
+              )}
+            </div>
           </div>
         )
 
@@ -577,16 +731,50 @@ export default function LeftSidebar({ width = 280, onShowToast }: LeftSidebarPro
                   <ChevronsUpDown size={14} />
                 </button>
                 <button
-                  onClick={() => onShowToast?.('info', 'New file')}
+                  onClick={() => {
+                    onCreateNewFile?.()
+                    onShowToast?.('info', 'Creating new file...')
+                  }}
                   style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer', padding: '4px' }}
                   title="New File"
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = '#FF00FF'
+                    e.currentTarget.style.background = 'rgba(255, 0, 255, 0.1)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = '#555'
+                    e.currentTarget.style.background = 'transparent'
+                  }}
                 >
                   <Plus size={14} />
                 </button>
                 <button
-                  onClick={() => onShowToast?.('info', 'New folder')}
+                  onClick={async () => {
+                    try {
+                      if ('showDirectoryPicker' in globalThis) {
+                        const handle = await (globalThis as any).showDirectoryPicker({ mode: 'readwrite' })
+                        onCreateNewFolder?.()
+                        onShowToast?.('success', `Folder created: ${handle.name}`)
+                      } else {
+                        onCreateNewFolder?.()
+                        onShowToast?.('info', 'New folder created')
+                      }
+                    } catch (err: any) {
+                      if (err.name !== 'AbortError') {
+                        onShowToast?.('error', 'Failed to create folder')
+                      }
+                    }
+                  }}
                   style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer', padding: '4px' }}
                   title="New Folder"
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = '#FF00FF'
+                    e.currentTarget.style.background = 'rgba(255, 0, 255, 0.1)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = '#555'
+                    e.currentTarget.style.background = 'transparent'
+                  }}
                 >
                   <FolderPlus size={14} />
                 </button>
