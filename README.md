@@ -23,7 +23,7 @@
 This is the **full-stack technical repository** for the Bloop platform. This repository contains:
 
 - **Frontend UI** - Rust/Leptos application (compiles to WASM, UI components from Bloop-UI)
-- **Backend Infrastructure** - **75%+ Rust backend** with Node.js/TypeScript fallback
+- **Backend Infrastructure** - Rust backend with Node.js/TypeScript fallback
 - **AI Services** - High-performance AI integrations and agent orchestration
 - **Site Architecture** - Complete full-stack implementation
 
@@ -31,7 +31,7 @@ This is the **full-stack technical repository** for the Bloop platform. This rep
 
 ### Architecture Overview
 
-**Backend: 75%+ Rust, 25% Node.js**
+**Backend: Rust + Node.js**
 - **Rust (`backend/`)** - Primary backend (AI services, agent orchestration, code analysis)
 - **Node.js (`server/`)** - Development fallback and API gateway
 - **Frontend (`src/`)** - React UI components
@@ -41,7 +41,7 @@ This is the **full-stack technical repository** for the Bloop platform. This rep
 ```
 Bloop-Site/
 ├── src/              # Frontend React app (UI components)
-├── backend/          # Rust backend (75%+ of backend code)
+├── backend/          # Rust backend
 │   └── src/         # Rust source code
 ├── server/           # Node.js backend (fallback/development)
 │   └── services/    # TypeScript services
@@ -120,7 +120,7 @@ cp .env.example .env
 
 ### Running the Application
 
-**Option 1: Rust Backend (Recommended - 75%+ of backend)**
+**Option 1: Rust Backend (Recommended)**
 ```bash
 # Install Rust first (see RUST_SETUP.md)
 cd backend
@@ -179,7 +179,7 @@ npm run build
 
 ## Architecture
 
-This repository follows a **hybrid backend architecture** (75%+ Rust, 25% Node.js):
+This repository follows a **hybrid backend architecture**:
 
 ```
 Bloop-Site/
@@ -188,7 +188,7 @@ Bloop-Site/
 │   ├── hooks/           # React hooks
 │   └── utils/           # Frontend utilities
 │
-├── backend/              # Rust Backend (75%+ of backend code)
+├── backend/              # Rust Backend
 │   └── src/
 │       ├── main.rs      # Axum web server
 │       ├── api/         # API routes
@@ -203,9 +203,9 @@ Bloop-Site/
 
 ### Code Distribution
 
-- **75%+ Rust** - AI services, agent orchestration, code analysis
-- **25% Node.js** - API gateway, development fallback
-- **100% TypeScript/React** - Frontend UI
+- **Rust** - AI services, agent orchestration, code analysis
+- **Node.js** - API gateway, development fallback
+- **TypeScript/React** - Frontend UI
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed architecture documentation.
 
@@ -222,7 +222,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed architecture documentation
 | Tailwind CSS | Styling and design system |
 | Lucide React | Iconography |
 
-### Backend (75%+ Rust, 25% Node.js)
+### Backend
 
 **Rust Backend (`backend/`)** - Primary implementation:
 - **Axum** - High-performance async web framework

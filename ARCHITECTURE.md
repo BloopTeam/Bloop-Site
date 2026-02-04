@@ -2,18 +2,18 @@
 
 ## Overview
 
-Bloop Site uses a **hybrid backend architecture** with **75%+ Rust** and **25% Node.js**, designed to exceed KIMI k2.5 and Claude in performance and capabilities.
+Bloop Site uses a **hybrid backend architecture** with **Rust** and **Node.js**, designed to exceed KIMI k2.5 and Claude in performance and capabilities.
 
 ## Architecture Philosophy
 
 **Rust First, Node.js Fallback**
-- **Rust (`backend/`)** - Primary backend for production (75%+ of backend code)
-- **Node.js (`server/`)** - Development fallback and API gateway (25%)
+- **Rust (`backend/`)** - Primary backend for production
+- **Node.js (`server/`)** - Development fallback and API gateway
 - **Frontend (`src/`)** - React/TypeScript UI components
 
 ## Backend Architecture
 
-### Rust Backend (Primary - 75%+)
+### Rust Backend (Primary)
 
 **Location:** `backend/`
 
@@ -45,7 +45,7 @@ backend/
 - AST parsing and code analysis
 - High-performance AI integrations
 
-### Node.js Backend (Fallback - 25%)
+### Node.js Backend (Fallback)
 
 **Location:** `server/`
 
@@ -84,7 +84,7 @@ src/
 
 ## Code Distribution
 
-### Backend Code: 75%+ Rust
+### Backend Code: Rust
 
 - **AI Services** - Rust (OpenAI, Anthropic, Google)
 - **Model Router** - Rust (intelligent selection)
@@ -92,13 +92,13 @@ src/
 - **Code Analysis** - Rust (AST parsing, dependency graphs)
 - **Context Management** - Rust (codebase understanding)
 
-### Backend Code: 25% Node.js
+### Backend Code: Node.js
 
 - **API Gateway** - Node.js (Express routing)
 - **Development Server** - Node.js (quick start)
 - **Fallback Services** - Node.js (when Rust unavailable)
 
-### Frontend Code: 100% TypeScript/React
+### Frontend Code: TypeScript/React
 
 - All UI components in TypeScript/React
 - No backend code in frontend
@@ -145,8 +145,8 @@ npm run dev:full
 
 ## Why This Architecture?
 
-1. **Rust (75%+)** - Maximum performance for AI workloads
-2. **Node.js (25%)** - Development convenience and fallback
+1. **Rust** - Maximum performance for AI workloads
+2. **Node.js** - Development convenience and fallback
 3. **Clear Separation** - Frontend, backend, and services are distinct
 4. **Scalability** - Rust handles heavy workloads, Node.js handles routing
 

@@ -29,10 +29,10 @@ This starts both frontend (5173) and backend (3001) automatically.
 
 **Terminal 1 - Backend:**
 ```bash
-# Option A: Rust backend (recommended - 75%+ of backend)
+# Option A: Rust backend (recommended)
 cd backend && cargo run
 
-# Option B: Node.js backend (fallback - 25%)
+# Option B: Node.js backend (fallback)
 npm run dev:api:node
 
 # Option C: Auto-detect (tries Rust, falls back to Node.js)

@@ -2,7 +2,7 @@
 
 ## 🚀 Get Running
 
-### Option 1: Rust Backend (Recommended - 75%+ of backend)
+### Option 1: Rust Backend (Recommended)
 
 **1. Install Rust** (if not already installed)
 ```bash
@@ -40,7 +40,7 @@ cargo run
 npm run dev
 ```
 
-### Option 2: Node.js Backend (Fallback - 25% of backend)
+### Option 2: Node.js Backend (Fallback)
 
 **1. Install Dependencies**
 ```bash
@@ -88,18 +88,18 @@ curl -X POST http://localhost:3001/api/v1/chat \
 ```
 Bloop-Site/
 ├── src/              # Frontend React app (100% TypeScript/React)
-├── backend/          # Rust backend (75%+ of backend code)
+├── backend/          # Rust backend
 │   └── src/         # Rust source code
-├── server/           # Node.js backend (25% - fallback)
+├── server/           # Node.js backend (fallback)
 │   ├── api/         # API routes
 │   └── services/    # TypeScript services
 └── .env             # Environment variables
 ```
 
 **Code Distribution:**
-- **75%+ Rust** - AI services, agents, code analysis
-- **25% Node.js** - API gateway, development fallback
-- **100% TypeScript/React** - Frontend UI
+- **Rust** - AI services, agents, code analysis
+- **Node.js** - API gateway, development fallback
+- **TypeScript/React** - Frontend UI
 
 ## 🐛 Troubleshooting
 

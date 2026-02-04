@@ -54,7 +54,7 @@ Bloop is a high-performance AI-powered development platform with real-time colla
 
 ## Technical Stack
 
-### Backend: 75%+ Rust
+### Backend: Rust
 - Axum web framework
 - Tree-sitter for parsing (20+ languages)
 - PostgreSQL with sqlx
@@ -77,8 +77,8 @@ Bloop is a high-performance AI-powered development platform with real-time colla
 ## Architecture
 
 **Rust-First, Node.js Fallback**
-- Rust (`backend/`) - Primary backend (75%+ of backend code)
-- Node.js (`server/`) - Development fallback and API gateway (25%)
+- Rust (`backend/`) - Primary backend
+- Node.js (`server/`) - Development fallback and API gateway
 - Frontend (`src/`) - React/TypeScript UI components
 
 ## Status: Production Ready
