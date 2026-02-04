@@ -16,11 +16,16 @@ import CollaborationPanel from './components/CollaborationPanel'
 import AgentInsightsPanel from './components/AgentInsightsPanel'
 import ProjectInsightsPanel from './components/ProjectInsightsPanel'
 import AutomationPanel from './components/AutomationPanel'
+import PluginManagementPanel from './components/PluginManagementPanel'
+import PluginMarketplacePanel from './components/PluginMarketplacePanel'
+import WorkflowTemplatesPanel from './components/WorkflowTemplatesPanel'
+import TeamOrganizationPanel from './components/TeamOrganizationPanel'
+import SharedAgentsPanel from './components/SharedAgentsPanel'
 import { openClawService } from './services/openclaw'
 import { userSessionService } from './services/userSession'
 
 // Right panel modes
-type RightPanelMode = 'assistant' | 'openclaw' | 'moltbook' | 'collaboration' | 'agents' | 'project' | 'automation'
+type RightPanelMode = 'assistant' | 'openclaw' | 'moltbook' | 'collaboration' | 'agents' | 'project' | 'automation' | 'plugins' | 'marketplace' | 'workflows' | 'teams' | 'shared-agents'
 
 // Recent project type
 interface RecentProject {
@@ -597,6 +602,81 @@ export default function App() {
                   >
                     Automation
                   </button>
+                  <button
+                    onClick={() => setRightPanelMode('plugins')}
+                    style={{
+                      flex: 1,
+                      padding: '8px 16px',
+                      background: 'transparent',
+                      border: 'none',
+                      borderBottom: rightPanelMode === 'plugins' ? '1px solid #cccccc' : '1px solid transparent',
+                      color: rightPanelMode === 'plugins' ? '#cccccc' : '#666',
+                      cursor: 'pointer',
+                      fontSize: '12px'
+                    }}
+                  >
+                    Plugins
+                  </button>
+                  <button
+                    onClick={() => setRightPanelMode('marketplace')}
+                    style={{
+                      flex: 1,
+                      padding: '8px 16px',
+                      background: 'transparent',
+                      border: 'none',
+                      borderBottom: rightPanelMode === 'marketplace' ? '1px solid #cccccc' : '1px solid transparent',
+                      color: rightPanelMode === 'marketplace' ? '#cccccc' : '#666',
+                      cursor: 'pointer',
+                      fontSize: '12px'
+                    }}
+                  >
+                    Marketplace
+                  </button>
+                  <button
+                    onClick={() => setRightPanelMode('workflows')}
+                    style={{
+                      flex: 1,
+                      padding: '8px 16px',
+                      background: 'transparent',
+                      border: 'none',
+                      borderBottom: rightPanelMode === 'workflows' ? '1px solid #cccccc' : '1px solid transparent',
+                      color: rightPanelMode === 'workflows' ? '#cccccc' : '#666',
+                      cursor: 'pointer',
+                      fontSize: '12px'
+                    }}
+                  >
+                    Workflows
+                  </button>
+                  <button
+                    onClick={() => setRightPanelMode('teams')}
+                    style={{
+                      flex: 1,
+                      padding: '8px 16px',
+                      background: 'transparent',
+                      border: 'none',
+                      borderBottom: rightPanelMode === 'teams' ? '1px solid #cccccc' : '1px solid transparent',
+                      color: rightPanelMode === 'teams' ? '#cccccc' : '#666',
+                      cursor: 'pointer',
+                      fontSize: '12px'
+                    }}
+                  >
+                    Teams
+                  </button>
+                  <button
+                    onClick={() => setRightPanelMode('shared-agents')}
+                    style={{
+                      flex: 1,
+                      padding: '8px 16px',
+                      background: 'transparent',
+                      border: 'none',
+                      borderBottom: rightPanelMode === 'shared-agents' ? '1px solid #cccccc' : '1px solid transparent',
+                      color: rightPanelMode === 'shared-agents' ? '#cccccc' : '#666',
+                      cursor: 'pointer',
+                      fontSize: '12px'
+                    }}
+                  >
+                    Agents
+                  </button>
                 </div>
                 
                 {/* Panel Content */}
@@ -650,6 +730,30 @@ export default function App() {
                   )}
                   {rightPanelMode === 'automation' && (
                     <AutomationPanel onClose={() => setRightPanelMode('assistant')} />
+                  )}
+                  {rightPanelMode === 'plugins' && (
+                    <PluginManagementPanel 
+                      onClose={() => setRightPanelMode('assistant')}
+                      onOpenMarketplace={() => setRightPanelMode('marketplace')}
+                    />
+                  )}
+                  {rightPanelMode === 'marketplace' && (
+                    <PluginMarketplacePanel 
+                      onClose={() => setRightPanelMode('assistant')}
+                      onPluginInstalled={() => {
+                        addToast('success', 'Plugin installed successfully')
+                        setRightPanelMode('plugins')
+                      }}
+                    />
+                  )}
+                  {rightPanelMode === 'workflows' && (
+                    <WorkflowTemplatesPanel onClose={() => setRightPanelMode('assistant')} />
+                  )}
+                  {rightPanelMode === 'teams' && (
+                    <TeamOrganizationPanel onClose={() => setRightPanelMode('assistant')} />
+                  )}
+                  {rightPanelMode === 'shared-agents' && (
+                    <SharedAgentsPanel onClose={() => setRightPanelMode('assistant')} />
                   )}
                 </div>
               </div>
