@@ -209,6 +209,7 @@ export interface AgentSearchResult {
 
 export interface AgentReview {
   id: string
+  agentId: string
   userId: string
   userName: string
   userAvatar?: string

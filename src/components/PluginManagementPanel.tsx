@@ -480,25 +480,38 @@ export default function PluginManagementPanel({ onClose, onOpenMarketplace }: Pl
                   Permissions
                 </h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {selectedPluginData.manifest.permissions.map((permission, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        padding: '8px 12px',
-                        background: '#1a1a1a',
-                        border: '1px solid #2a2a2a',
-                        borderRadius: '4px',
-                        fontSize: '10px'
-                      }}
-                    >
-                      <div style={{ fontWeight: 500, marginBottom: '4px', color: '#ddd' }}>
-                        {permission.name}
+                  {selectedPluginData.manifest.permissions.map((permission, idx) => {
+                    const permissionName = typeof permission === 'string' ? permission : permission
+                    const permissionDesc: Record<string, string> = {
+                      'file-system-read': 'Read files from the workspace',
+                      'file-system-write': 'Write files to the workspace',
+                      'network-request': 'Make network requests',
+                      'ai-api-access': 'Access AI APIs',
+                      'user-data-access': 'Access user data',
+                      'workspace-config-access': 'Access workspace configuration',
+                      'terminal-execution': 'Execute terminal commands',
+                      'debugger-access': 'Access the debugger'
+                    }
+                    return (
+                      <div
+                        key={idx}
+                        style={{
+                          padding: '8px 12px',
+                          background: '#1a1a1a',
+                          border: '1px solid #2a2a2a',
+                          borderRadius: '4px',
+                          fontSize: '10px'
+                        }}
+                      >
+                        <div style={{ fontWeight: 500, marginBottom: '4px', color: '#ddd' }}>
+                          {permissionName}
+                        </div>
+                        <div style={{ color: '#666' }}>
+                          {permissionDesc[permissionName] || 'Plugin permission'}
+                        </div>
                       </div>
-                      <div style={{ color: '#666' }}>
-                        {permission.description}
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             )}

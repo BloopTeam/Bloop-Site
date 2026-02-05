@@ -160,7 +160,8 @@ export default function MenuBar({
   onNewFile,
   onOpenFile,
   onSaveFile,
-  onShowToast 
+  onShowToast,
+  onOpenFolder
 }: MenuBarProps): JSX.Element {
   const menuItems = ['File', 'Edit', 'View', 'Go', 'Run', 'Terminal', 'Help']
   const [hoveredItem, setHoveredItem] = useState<string | null>(null)

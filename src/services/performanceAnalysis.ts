@@ -17,6 +17,7 @@ export interface PerformanceProfile {
   id: string
   name: string
   description: string
+  status: 'running' | 'completed' | 'stopped' | 'error'
   metrics: PerformanceMetric[]
   duration: number
   startedAt: Date
@@ -92,6 +93,7 @@ class PerformanceAnalysisService {
       id: `profile-${Date.now()}`,
       name,
       description,
+      status: 'running',
       metrics: [],
       duration: 0,
       startedAt: new Date(),

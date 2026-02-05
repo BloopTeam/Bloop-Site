@@ -5,7 +5,7 @@
 
 export interface ReasoningStep {
   id: string
-  type: 'analysis' | 'planning' | 'execution' | 'validation' | 'reflection'
+  type: 'analysis' | 'planning' | 'execution' | 'validation' | 'reflection' | 'optimization'
   title: string
   content: string
   confidence: number
@@ -37,7 +37,7 @@ export interface ProjectNode {
 export interface TechStackItem {
   name: string
   version: string
-  category: 'framework' | 'library' | 'tool' | 'runtime'
+  category: 'framework' | 'library' | 'tool' | 'runtime' | 'language'
 }
 
 export interface ReasoningResult {

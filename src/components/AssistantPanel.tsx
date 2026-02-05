@@ -994,7 +994,7 @@ export default function Component() {
         }
         
         setMessages(prev => prev.map(m => 
-          m.id === assistantMessageId 
+          m.id === messageId 
             ? { 
                 ...m, 
                 thinkingSteps: aiResult.reasoning!.thinkingSteps,
@@ -1460,7 +1460,10 @@ export default function Component() {
           // Reuse the same logic as handleSend but don't clear input
           if (backendConnected && availableModels.length > 0) {
             try {
-              const response = await apiService.sendMessage(userInput, model === 'auto' ? undefined : model)
+              const response = await apiService.sendChatMessage({
+                messages: [{ role: 'user', content: userInput }],
+                model: model === 'auto' ? undefined : model
+              })
               const assistantMessage: Message = {
                 id: (Date.now() + 1).toString(),
                 role: 'assistant',
@@ -1646,22 +1649,29 @@ export default function Component() {
   
   // Get current model info from available models, custom models, or defaults
   const customModelInfo = customModels.find(m => m.id === model)
-  const currentModelInfo = customModelInfo || availableModels.find(m => m.model === model) || 
-    DEFAULT_MODELS.find(m => m.id === model)
+  const backendModelInfo = availableModels.find(m => m.model === model)
+  const defaultModelInfo = DEFAULT_MODELS.find(m => m.id === model)
+  
   const currentModel = customModelInfo ? {
     id: customModelInfo.id,
     name: customModelInfo.name,
     description: customModelInfo.description,
     provider: customModelInfo.provider,
     isCustom: true
-  } : currentModelInfo ? {
-    id: currentModelInfo.model || currentModelInfo.id,
-    name: currentModelInfo.provider === 'auto' ? 'Auto' : 
-          (currentModelInfo.provider?.charAt(0).toUpperCase() + currentModelInfo.provider.slice(1)) || DEFAULT_MODELS.find(m => m.id === model)?.name || 'Auto',
-    description: currentModelInfo.available 
-      ? `${currentModelInfo.capabilities?.max_context_length?.toLocaleString() || 0} context, ${currentModelInfo.capabilities?.speed || 'medium'} speed`
-      : DEFAULT_MODELS.find(m => m.id === model)?.description || 'Not configured',
-    provider: currentModelInfo.provider || 'auto',
+  } : backendModelInfo ? {
+    id: backendModelInfo.model,
+    name: backendModelInfo.provider === 'auto' ? 'Auto' : 
+          (backendModelInfo.provider?.charAt(0).toUpperCase() + backendModelInfo.provider.slice(1)),
+    description: backendModelInfo.available 
+      ? `${backendModelInfo.capabilities?.max_context_length?.toLocaleString() || 0} context, ${backendModelInfo.capabilities?.speed || 'medium'} speed`
+      : 'Not configured',
+    provider: backendModelInfo.provider || 'auto',
+    isCustom: false
+  } : defaultModelInfo ? {
+    id: defaultModelInfo.id,
+    name: defaultModelInfo.name,
+    description: defaultModelInfo.description,
+    provider: defaultModelInfo.provider,
     isCustom: false
   } : { id: 'auto', name: 'Auto', description: 'Auto-select best model', provider: 'auto', isCustom: false }
   

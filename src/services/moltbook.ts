@@ -38,7 +38,7 @@ class MoltbookService {
       enabled: true,
       agentPublic: false,
       autoShare: false,
-      defaultSubmolts: BLOOP_AGENT_PROFILE.defaultSubmolts,
+      defaultSubmolts: [...BLOOP_AGENT_PROFILE.defaultSubmolts],
       skillSharingEnabled: true,
       ...config
     }

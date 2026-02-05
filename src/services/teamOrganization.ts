@@ -304,7 +304,8 @@ class TeamOrganizationService {
         plan: data.plan || 'free',
         status: 'active',
         currentPeriodStart: new Date(),
-        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+        cancelAtPeriodEnd: false
       },
       settings: {
         allowPublicPlugins: false,
@@ -343,6 +344,8 @@ class TeamOrganizationService {
     // Add owner as member
     await this.addMember(organization.id, {
       userId: data.ownerId,
+      email: `owner-${data.ownerId}@bloop.ai`,
+      name: 'Organization Owner',
       role: 'owner'
     })
     

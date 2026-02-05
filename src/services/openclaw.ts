@@ -139,7 +139,7 @@ class OpenClawService {
       
       // Validate message structure
       if (!message.type) {
-        logOpenClawError(' Invalid message: missing type')
+        logOpenClawError(' Invalid message: missing type', null)
         return
       }
 

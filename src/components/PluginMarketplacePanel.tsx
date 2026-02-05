@@ -74,7 +74,7 @@ export default function PluginMarketplacePanel({ onClose, onPluginInstalled }: P
   const loadReviews = async (pluginId: string) => {
     try {
       const reviewsData = await pluginMarketplaceService.getPluginReviews(pluginId)
-      setReviews(reviewsData)
+      setReviews(reviewsData.reviews || [])
     } catch (error) {
       console.error('Failed to load reviews:', error)
     }
@@ -293,7 +293,7 @@ export default function PluginMarketplacePanel({ onClose, onPluginInstalled }: P
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: '13px', fontWeight: 600, color: '#ddd', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        {plugin.displayName}
+                        {plugin.manifest.displayName}
                         {plugin.verified && (
                           <Shield size={12} style={{ color: '#22c55e' }} />
                         )}
@@ -305,7 +305,7 @@ export default function PluginMarketplacePanel({ onClose, onPluginInstalled }: P
                   </div>
 
                   <div style={{ fontSize: '11px', color: '#999', lineHeight: '1.5', marginBottom: '12px' }}>
-                    {plugin.shortDescription}
+                    {plugin.manifest.description}
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '10px', color: '#666' }}>
@@ -316,9 +316,9 @@ export default function PluginMarketplacePanel({ onClose, onPluginInstalled }: P
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <Download size={11} />
-                        {plugin.statistics.installs >= 1000 
-                          ? `${(plugin.statistics.installs / 1000).toFixed(1)}K` 
-                          : plugin.statistics.installs}
+                        {plugin.downloadCount >= 1000 
+                          ? `${(plugin.downloadCount / 1000).toFixed(1)}K` 
+                          : plugin.downloadCount}
                       </div>
                     </div>
 
@@ -359,7 +359,7 @@ export default function PluginMarketplacePanel({ onClose, onPluginInstalled }: P
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                 <div style={{ flex: 1 }}>
                   <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    {selectedPlugin.displayName}
+                    {selectedPlugin.manifest.displayName}
                     {selectedPlugin.verified && (
                       <Shield size={14} style={{ color: '#22c55e' }} />
                     )}
@@ -429,7 +429,7 @@ export default function PluginMarketplacePanel({ onClose, onPluginInstalled }: P
               </div>
 
               <div style={{ fontSize: '12px', color: '#ddd', lineHeight: '1.6', marginBottom: '24px' }}>
-                {selectedPlugin.description}
+                {selectedPlugin.manifest.description}
               </div>
             </div>
 
@@ -441,23 +441,23 @@ export default function PluginMarketplacePanel({ onClose, onPluginInstalled }: P
                   {selectedPlugin.statistics.rating.toFixed(1)}
                 </div>
                 <div style={{ fontSize: '9px', color: '#666' }}>
-                  {selectedPlugin.statistics.ratingCount} reviews
+                  {selectedPlugin.statistics.reviewCount} reviews
                 </div>
               </div>
               <div style={{ padding: '12px', background: '#1a1a1a', borderRadius: '6px', textAlign: 'center' }}>
                 <div style={{ fontSize: '10px', color: '#666', marginBottom: '4px' }}>Downloads</div>
                 <div style={{ fontSize: '16px', fontWeight: 600, color: '#ddd' }}>
-                  {selectedPlugin.statistics.installs >= 1000000 
-                    ? `${(selectedPlugin.statistics.installs / 1000000).toFixed(1)}M`
-                    : selectedPlugin.statistics.installs >= 1000 
-                    ? `${(selectedPlugin.statistics.installs / 1000).toFixed(1)}K` 
-                    : selectedPlugin.statistics.installs}
+                  {selectedPlugin.downloadCount >= 1000000 
+                    ? `${(selectedPlugin.downloadCount / 1000000).toFixed(1)}M`
+                    : selectedPlugin.downloadCount >= 1000 
+                    ? `${(selectedPlugin.downloadCount / 1000).toFixed(1)}K` 
+                    : selectedPlugin.downloadCount}
                 </div>
               </div>
               <div style={{ padding: '12px', background: '#1a1a1a', borderRadius: '6px', textAlign: 'center' }}>
                 <div style={{ fontSize: '10px', color: '#666', marginBottom: '4px' }}>Version</div>
                 <div style={{ fontSize: '16px', fontWeight: 600, color: '#ddd' }}>
-                  {selectedPlugin.version}
+                  {selectedPlugin.latestVersion}
                 </div>
               </div>
             </div>
@@ -494,9 +494,9 @@ export default function PluginMarketplacePanel({ onClose, onPluginInstalled }: P
                 Links
               </h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {selectedPlugin.homepage && (
+                {selectedPlugin.manifest.homepage && (
                   <a
-                    href={selectedPlugin.homepage}
+                    href={selectedPlugin.manifest.homepage}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
@@ -514,7 +514,7 @@ export default function PluginMarketplacePanel({ onClose, onPluginInstalled }: P
                 )}
                 {selectedPlugin.repository && (
                   <a
-                    href={selectedPlugin.repository}
+                    href={selectedPlugin.repository.url}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{

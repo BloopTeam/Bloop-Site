@@ -204,6 +204,7 @@ export class VirtualFileSystem {
     
     this.recordAction({
       type: 'move',
+      path: sourcePath,
       sourcePath,
       destinationPath
     })

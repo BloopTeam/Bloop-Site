@@ -143,6 +143,7 @@ export interface Plugin {
   installed: boolean
   enabled: boolean
   active: boolean
+  error?: string // Error message if plugin failed
   installedAt?: Date
   updatedAt?: Date
   installedBy?: string // User ID
@@ -224,12 +225,20 @@ export interface PluginAPI {
     sessionId: string
   }
   
-  // Utilities
-  Uri: typeof Uri
-  Range: typeof Range
-  Position: typeof Position
-  Disposable: typeof Disposable
-  Event: typeof Event
+  // Utilities - Factory functions
+  Uri: {
+    parse(value: string): Uri
+    file(path: string): Uri
+  }
+  Range: {
+    create(startLine: number, startChar: number, endLine: number, endChar: number): Range
+  }
+  Position: {
+    create(line: number, character: number): Position
+  }
+  Disposable: {
+    create(dispose: () => void): Disposable
+  }
 }
 
 // Type definitions for plugin API

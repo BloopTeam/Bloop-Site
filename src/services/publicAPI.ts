@@ -133,14 +133,13 @@ class PublicAPIService {
 
   constructor(config: APIConfig) {
     this.config = {
-      baseUrl: config.baseUrl,
+      ...config,
       version: config.version || 'v1',
       timeout: config.timeout || 30000,
       retries: config.retries || 3,
       retryDelay: config.retryDelay || 1000,
       enableCache: config.enableCache !== false,
-      cacheTTL: config.cacheTTL || 5 * 60 * 1000, // 5 minutes
-      ...config
+      cacheTTL: config.cacheTTL || 5 * 60 * 1000 // 5 minutes
     }
     
     this.setupInterceptors()
@@ -152,7 +151,7 @@ class PublicAPIService {
   private setupInterceptors(): void {
     // Request interceptor: Add auth headers
     this.addRequestInterceptor((request) => {
-      const headers = {
+      const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         ...request.headers
       }

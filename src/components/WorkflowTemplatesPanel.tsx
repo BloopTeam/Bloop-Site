@@ -41,21 +41,43 @@ export default function WorkflowTemplatesPanel({ onClose }: WorkflowTemplatesPan
     loadTemplates()
   }, [])
 
-  const loadTemplates = () => {
-    setTemplates(workflowTemplatesService.getAllTemplates())
+  const loadTemplates = async () => {
+    const templates = await workflowTemplatesService.getAllTemplates()
+    setTemplates(templates)
   }
 
   const handleCreateTemplate = async () => {
     try {
       await workflowTemplatesService.createTemplate({
-        ...formData,
-        tags: [],
-        featured: false,
-        usageCount: 0,
-        createdBy: {
+        name: formData.name,
+        description: formData.description,
+        version: '1.0.0',
+        author: {
           id: 'current-user',
           name: 'Current User'
-        }
+        },
+        category: formData.category,
+        tags: [],
+        visibility: 'private',
+        workflow: {
+          name: formData.name,
+          description: formData.description,
+          steps: formData.steps.map((step, idx) => ({
+            id: `step-${idx}`,
+            name: step.name,
+            type: step.action.type,
+            action: step.action,
+            description: step.description
+          })),
+          triggers: []
+        },
+        variables: [],
+        dependencies: [],
+        difficulty: 'beginner',
+        verified: false,
+        featured: false,
+        license: 'MIT',
+        metadata: {}
       })
       setViewMode('list')
       setFormData({ name: '', description: '', category: 'development', steps: [] })
@@ -86,8 +108,7 @@ export default function WorkflowTemplatesPanel({ onClose }: WorkflowTemplatesPan
       const execution = await workflowTemplatesService.executeTemplate(
         templateId,
         {},
-        'current-user',
-        'Current User'
+        { userId: 'current-user', userName: 'Current User', trigger: 'manual' }
       )
       setExecutions([execution, ...executions])
     } catch (error) {
@@ -102,15 +123,27 @@ export default function WorkflowTemplatesPanel({ onClose }: WorkflowTemplatesPan
       await workflowTemplatesService.createTemplate({
         name: `${template.name} (Copy)`,
         description: template.description,
-        category: template.category,
-        steps: template.definition.steps.map(({ id, ...step }) => step),
-        tags: template.tags,
-        featured: false,
-        usageCount: 0,
-        createdBy: {
+        version: '1.0.0',
+        author: {
           id: 'current-user',
           name: 'Current User'
-        }
+        },
+        category: template.category,
+        tags: template.tags,
+        visibility: 'private',
+        workflow: {
+          name: `${template.name} (Copy)`,
+          description: template.description,
+          steps: template.workflow.steps,
+          triggers: template.workflow.triggers
+        },
+        variables: template.variables,
+        dependencies: template.dependencies,
+        difficulty: template.difficulty,
+        verified: false,
+        featured: false,
+        license: template.license,
+        metadata: template.metadata
       })
       loadTemplates()
     } catch (error) {
@@ -125,9 +158,11 @@ export default function WorkflowTemplatesPanel({ onClose }: WorkflowTemplatesPan
         ...formData.steps,
         {
           name: 'New Step',
+          type: 'command' as const,
           description: '',
           action: {
-            type: 'command',
+            type: 'command' as const,
+            config: {},
             command: ''
           },
           continueOnError: false
@@ -285,7 +320,7 @@ export default function WorkflowTemplatesPanel({ onClose }: WorkflowTemplatesPan
                         {template.name}
                       </div>
                       <div style={{ fontSize: '10px', color: '#666', marginBottom: '8px' }}>
-                        {template.category} • {template.definition.steps.length} steps
+                        {template.category} • {template.workflow.steps.length} steps
                       </div>
                       <div style={{ fontSize: '11px', color: '#999', lineHeight: '1.5' }}>
                         {template.description}
@@ -695,7 +730,7 @@ export default function WorkflowTemplatesPanel({ onClose }: WorkflowTemplatesPan
                   {selectedTemplate.name}
                 </h3>
                 <div style={{ fontSize: '11px', color: '#888' }}>
-                  {selectedTemplate.category} • {selectedTemplate.definition.steps.length} steps
+                  {selectedTemplate.category} • {selectedTemplate.workflow.steps.length} steps
                 </div>
               </div>
               <button
@@ -721,7 +756,7 @@ export default function WorkflowTemplatesPanel({ onClose }: WorkflowTemplatesPan
                 Steps
               </h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
-                {selectedTemplate.definition.steps.map((step, index) => (
+                {selectedTemplate.workflow.steps.map((step, index) => (
                   <div
                     key={step.id}
                     style={{

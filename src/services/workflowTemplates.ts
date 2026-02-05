@@ -33,6 +33,7 @@ export interface WorkflowTemplate {
   thumbnail?: string
   visibility: 'public' | 'private' | 'organization'
   workflow: WorkflowDefinition
+  definition?: WorkflowDefinition // Alias for workflow for backwards compatibility
   variables: WorkflowVariable[]
   dependencies: string[] // IDs of other templates this depends on
   prerequisites?: string[] // Required tools, plugins, or services
@@ -71,6 +72,7 @@ export type WorkflowCategory =
   | 'performance'
   | 'migration'
   | 'onboarding'
+  | 'development'
   | 'custom'
 
 export interface WorkflowDefinition {
@@ -103,6 +105,7 @@ export interface WorkflowStep {
   onSuccess?: string[] // Next step IDs
   onFailure?: string[] // Next step IDs
   parallel?: boolean // Execute in parallel with other steps
+  continueOnError?: boolean
 }
 
 export type WorkflowStepType =
@@ -123,6 +126,7 @@ export type WorkflowStepType =
 export interface WorkflowAction {
   type: WorkflowStepType
   config: Record<string, any>
+  command?: string
 }
 
 export interface WorkflowTrigger {
@@ -540,6 +544,13 @@ class WorkflowTemplatesService {
    */
   async getTemplate(templateId: string): Promise<WorkflowTemplate | undefined> {
     return this.templates.get(templateId)
+  }
+
+  /**
+   * Get all templates
+   */
+  async getAllTemplates(): Promise<WorkflowTemplate[]> {
+    return Array.from(this.templates.values())
   }
 
   /**

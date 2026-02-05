@@ -13,6 +13,9 @@ interface CommandPaletteProps {
     toggleTerminal: () => void
     toggleAssistant: () => void
     showToast: (type: ToastMessage['type'], message: string) => void
+    createNewFile?: () => void
+    openFile?: () => void
+    saveFile?: () => void
   }
 }
 

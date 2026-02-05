@@ -70,12 +70,7 @@ export default function TeamOrganizationPanel({ onClose }: TeamOrganizationPanel
     try {
       const org = await teamOrganizationService.createOrganization({
         ...formData,
-        ownerId: currentUserId,
-        settings: {
-          allowPublicProjects: false,
-          requireTwoFactor: false,
-          allowedEmailDomains: []
-        }
+        ownerId: currentUserId
       })
       setOrganizations([...organizations, org])
       setViewMode('list')
@@ -90,13 +85,12 @@ export default function TeamOrganizationPanel({ onClose }: TeamOrganizationPanel
     if (!selectedOrg || !inviteEmail) return
 
     try {
-      await teamOrganizationService.addMember(
-        selectedOrg.id,
-        'invited-user-id', // In production, lookup or create user
-        inviteEmail.split('@')[0],
-        inviteEmail,
-        inviteRole
-      )
+      await teamOrganizationService.addMember(selectedOrg.id, {
+        userId: 'invited-user-id', // In production, lookup or create user
+        name: inviteEmail.split('@')[0],
+        email: inviteEmail,
+        role: inviteRole
+      })
       setInviteEmail('')
       loadOrgData(selectedOrg.id)
     } catch (error) {
@@ -110,7 +104,7 @@ export default function TeamOrganizationPanel({ onClose }: TeamOrganizationPanel
     if (!confirm('Are you sure you want to remove this member?')) return
 
     try {
-      await teamOrganizationService.removeMember(selectedOrg.id, memberId)
+      await teamOrganizationService.removeMember(selectedOrg.id, memberId, currentUserId)
       loadOrgData(selectedOrg.id)
     } catch (error) {
       console.error('Failed to remove member:', error)
@@ -121,7 +115,7 @@ export default function TeamOrganizationPanel({ onClose }: TeamOrganizationPanel
     if (!selectedOrg) return
 
     try {
-      await teamOrganizationService.updateMemberRole(selectedOrg.id, memberId, newRole)
+      await teamOrganizationService.updateMemberRole(selectedOrg.id, memberId, newRole, currentUserId)
       loadOrgData(selectedOrg.id)
     } catch (error) {
       console.error('Failed to update member role:', error)

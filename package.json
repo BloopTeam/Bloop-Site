@@ -31,6 +31,8 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:unified": "npx tsx server/dev-server.ts",
+    "dev:backend": "npx tsx server/index.ts",
     "dev:rust": "trunk serve",
     "build": "vite build",
     "build:rust": "trunk build --release",
