@@ -931,12 +931,12 @@ export default function LeftSidebar({ width = 280, onShowToast, onCreateNewFile,
   }
 
   return (
-    <div style={{ display: 'flex', height: '100%', background: '#0a0a0a' }}>
+    <div style={{ display: 'flex', height: '100%', background: '#1e1e1e' }}>
       {/* Icon Rail */}
       <div style={{
         width: '48px',
-        background: '#080808',
-        borderRight: '1px solid #151515',
+        background: '#181818',
+        borderRight: '1px solid #2a2a2a',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -1042,8 +1042,8 @@ export default function LeftSidebar({ width = 280, onShowToast, onCreateNewFile,
         width: `${width}px`,
         minWidth: '200px',
         maxWidth: '400px',
-        background: '#0a0a0a',
-        borderRight: '1px solid #151515',
+        background: '#1e1e1e',
+        borderRight: '1px solid #2a2a2a',
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
