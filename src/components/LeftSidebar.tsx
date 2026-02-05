@@ -23,9 +23,10 @@ interface LeftSidebarProps {
   onCreateNewFile?: () => void
   onCreateNewFolder?: () => void
   onOpenFolder?: () => void
+  onSwitchRightPanel?: (mode: string) => void
 }
 
-type SidebarView = 'explorer' | 'search' | 'codeintel' | 'security' | 'git' | 'debug' | 'extensions'
+type SidebarView = 'explorer' | 'search' | 'codeintel' | 'security' | 'git' | 'debug' | 'extensions' | 'platform'
 
 interface ContextMenuState {
   visible: boolean
@@ -39,7 +40,7 @@ interface GitChange {
   status: 'modified' | 'added' | 'deleted'
 }
 
-export default function LeftSidebar({ width = 280, onShowToast, onCreateNewFile, onCreateNewFolder, onOpenFolder }: LeftSidebarProps) {
+export default function LeftSidebar({ width = 280, onShowToast, onCreateNewFile, onCreateNewFolder, onOpenFolder, onSwitchRightPanel }: LeftSidebarProps) {
   const [activeView, setActiveView] = useState<SidebarView>('explorer')
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
@@ -361,6 +362,7 @@ export default function LeftSidebar({ width = 280, onShowToast, onCreateNewFile,
     { id: 'git' as SidebarView, icon: GitBranch, tooltip: 'Source Control', badge: gitChanges.length },
     { id: 'debug' as SidebarView, icon: Bug, tooltip: 'Run and Debug', badge: null },
     { id: 'extensions' as SidebarView, icon: Box, tooltip: 'Extensions', badge: null },
+    { id: 'platform' as SidebarView, icon: Zap, tooltip: 'Platform Tools', badge: null },
   ]
 
   const renderPanel = () => {
@@ -839,6 +841,92 @@ export default function LeftSidebar({ width = 280, onShowToast, onCreateNewFile,
             )}
           </>
         )
+      
+      case 'platform': {
+        const platformItems = [
+          { id: 'automation', label: 'Automation', icon: Play, desc: 'Testing, debugging, CI/CD' },
+          { id: 'plugins', label: 'Plugins', icon: Box, desc: 'Manage extensions & plugins' },
+          { id: 'workflows', label: 'Workflows', icon: RefreshCw, desc: 'Automation templates' },
+          { id: 'teams', label: 'Teams', icon: Shield, desc: 'Organization & members' },
+          { id: 'shared-agents', label: 'Shared Agents', icon: Brain, desc: 'AI agents & tools' },
+        ]
+        
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <div style={{ 
+              padding: '16px', 
+              borderBottom: '1px solid #1a1a1a',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px'
+            }}>
+              <Zap size={16} style={{ color: '#FF00FF' }} />
+              <span style={{ fontWeight: 600, fontSize: '13px', color: '#fff' }}>Platform Tools</span>
+            </div>
+            
+            <div style={{ flex: 1, overflow: 'auto', padding: '12px' }}>
+              <div style={{ 
+                fontSize: '11px', 
+                color: '#666', 
+                marginBottom: '16px',
+                padding: '0 4px'
+              }}>
+                Advanced automation and platform features
+              </div>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {platformItems.map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => onSwitchRightPanel?.(item.id)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      padding: '12px',
+                      background: '#141414',
+                      border: '1px solid #1a1a1a',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'all 0.15s'
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.borderColor = '#FF00FF'
+                      e.currentTarget.style.background = '#1a1a1a'
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.borderColor = '#1a1a1a'
+                      e.currentTarget.style.background = '#141414'
+                    }}
+                  >
+                    <div style={{
+                      width: '32px',
+                      height: '32px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: 'rgba(255,0,255,0.1)',
+                      borderRadius: '8px'
+                    }}>
+                      <item.icon size={16} style={{ color: '#FF00FF' }} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '13px', color: '#fff', fontWeight: 500, marginBottom: '2px' }}>
+                        {item.label}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#666' }}>
+                        {item.desc}
+                      </div>
+                    </div>
+                    <ChevronRight size={14} style={{ color: '#444' }} />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )
+      }
     }
   }
 

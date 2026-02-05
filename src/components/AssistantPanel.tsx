@@ -2188,7 +2188,7 @@ export default function Component() {
               padding: '40px'
             }}>
               <Logo size={32} variant="icon" />
-              <div style={{ fontSize: '14px', marginBottom: '8px', color: '#888' }}>
+              <div style={{ fontSize: '14px', marginBottom: '8px', marginTop: '16px', color: '#888' }}>
                 How can I help you?
               </div>
               <div style={{ fontSize: '12px', lineHeight: 1.6 }}>

@@ -506,6 +506,7 @@ export default function App() {
                   }
                 }}
                 onOpenFolder={handleOpenFolder}
+                onSwitchRightPanel={(mode) => setRightPanelMode(mode as RightPanelMode)}
               />
               <ResizeHandle onResize={handleSidebarResize} direction="horizontal" />
             </>
@@ -537,146 +538,42 @@ export default function App() {
                 background: '#1e1e1e',
                 borderLeft: '1px solid #3c3c3c'
               }}>
-                {/* Panel Tabs */}
+                {/* Panel Tabs - Scrollable */}
                 <div style={{
                   display: 'flex',
-                  borderBottom: '1px solid #1a1a1a'
+                  borderBottom: '1px solid #1a1a1a',
+                  overflowX: 'auto',
+                  overflowY: 'hidden',
+                  scrollbarWidth: 'none',
+                  msOverflowStyle: 'none',
+                  WebkitOverflowScrolling: 'touch'
                 }}>
-                  <button
-                    onClick={() => setRightPanelMode('assistant')}
-                    style={{
-                      flex: 1,
-                      padding: '8px 16px',
-                      background: 'transparent',
-                      border: 'none',
-                      borderBottom: rightPanelMode === 'assistant' ? '1px solid #cccccc' : '1px solid transparent',
-                      color: rightPanelMode === 'assistant' ? '#cccccc' : '#666',
-                      cursor: 'pointer',
-                      fontSize: '12px'
-                    }}
-                  >
-                    Assistant
-                  </button>
-                  <button
-                    onClick={() => setRightPanelMode('openclaw')}
-                    style={{
-                      flex: 1,
-                      padding: '8px 16px',
-                      background: 'transparent',
-                      border: 'none',
-                      borderBottom: rightPanelMode === 'openclaw' ? '1px solid #cccccc' : '1px solid transparent',
-                      color: rightPanelMode === 'openclaw' ? '#cccccc' : '#666',
-                      cursor: 'pointer',
-                      fontSize: '12px'
-                    }}
-                  >
-                    OpenClaw
-                  </button>
-                  <button
-                    onClick={() => setRightPanelMode('moltbook')}
-                    style={{
-                      flex: 1,
-                      padding: '8px 16px',
-                      background: 'transparent',
-                      border: 'none',
-                      borderBottom: rightPanelMode === 'moltbook' ? '1px solid #cccccc' : '1px solid transparent',
-                      color: rightPanelMode === 'moltbook' ? '#cccccc' : '#666',
-                      cursor: 'pointer',
-                      fontSize: '12px'
-                    }}
-                  >
-                    Moltbook
-                  </button>
-                  <button
-                    onClick={() => setRightPanelMode('automation')}
-                    style={{
-                      flex: 1,
-                      padding: '8px 16px',
-                      background: 'transparent',
-                      border: 'none',
-                      borderBottom: rightPanelMode === 'automation' ? '1px solid #cccccc' : '1px solid transparent',
-                      color: rightPanelMode === 'automation' ? '#cccccc' : '#666',
-                      cursor: 'pointer',
-                      fontSize: '12px'
-                    }}
-                  >
-                    Automation
-                  </button>
-                  <button
-                    onClick={() => setRightPanelMode('plugins')}
-                    style={{
-                      flex: 1,
-                      padding: '8px 16px',
-                      background: 'transparent',
-                      border: 'none',
-                      borderBottom: rightPanelMode === 'plugins' ? '1px solid #cccccc' : '1px solid transparent',
-                      color: rightPanelMode === 'plugins' ? '#cccccc' : '#666',
-                      cursor: 'pointer',
-                      fontSize: '12px'
-                    }}
-                  >
-                    Plugins
-                  </button>
-                  <button
-                    onClick={() => setRightPanelMode('marketplace')}
-                    style={{
-                      flex: 1,
-                      padding: '8px 16px',
-                      background: 'transparent',
-                      border: 'none',
-                      borderBottom: rightPanelMode === 'marketplace' ? '1px solid #cccccc' : '1px solid transparent',
-                      color: rightPanelMode === 'marketplace' ? '#cccccc' : '#666',
-                      cursor: 'pointer',
-                      fontSize: '12px'
-                    }}
-                  >
-                    Marketplace
-                  </button>
-                  <button
-                    onClick={() => setRightPanelMode('workflows')}
-                    style={{
-                      flex: 1,
-                      padding: '8px 16px',
-                      background: 'transparent',
-                      border: 'none',
-                      borderBottom: rightPanelMode === 'workflows' ? '1px solid #cccccc' : '1px solid transparent',
-                      color: rightPanelMode === 'workflows' ? '#cccccc' : '#666',
-                      cursor: 'pointer',
-                      fontSize: '12px'
-                    }}
-                  >
-                    Workflows
-                  </button>
-                  <button
-                    onClick={() => setRightPanelMode('teams')}
-                    style={{
-                      flex: 1,
-                      padding: '8px 16px',
-                      background: 'transparent',
-                      border: 'none',
-                      borderBottom: rightPanelMode === 'teams' ? '1px solid #cccccc' : '1px solid transparent',
-                      color: rightPanelMode === 'teams' ? '#cccccc' : '#666',
-                      cursor: 'pointer',
-                      fontSize: '12px'
-                    }}
-                  >
-                    Teams
-                  </button>
-                  <button
-                    onClick={() => setRightPanelMode('shared-agents')}
-                    style={{
-                      flex: 1,
-                      padding: '8px 16px',
-                      background: 'transparent',
-                      border: 'none',
-                      borderBottom: rightPanelMode === 'shared-agents' ? '1px solid #cccccc' : '1px solid transparent',
-                      color: rightPanelMode === 'shared-agents' ? '#cccccc' : '#666',
-                      cursor: 'pointer',
-                      fontSize: '12px'
-                    }}
-                  >
-                    Agents
-                  </button>
+                  {/* Primary Tabs */}
+                  {[
+                    { id: 'assistant' as RightPanelMode, label: 'Assistant' },
+                    { id: 'openclaw' as RightPanelMode, label: 'OpenClaw' },
+                    { id: 'moltbook' as RightPanelMode, label: 'Moltbook' },
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setRightPanelMode(tab.id)}
+                      style={{
+                        padding: '10px 14px',
+                        background: 'transparent',
+                        border: 'none',
+                        borderBottom: rightPanelMode === tab.id ? '2px solid #FF00FF' : '2px solid transparent',
+                        color: rightPanelMode === tab.id ? '#fff' : '#666',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        fontWeight: rightPanelMode === tab.id ? 500 : 400,
+                        whiteSpace: 'nowrap',
+                        transition: 'all 0.15s'
+                      }}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                  
                 </div>
                 
                 {/* Panel Content */}
