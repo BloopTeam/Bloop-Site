@@ -536,7 +536,7 @@ export default function App() {
                 display: 'flex', 
                 flexDirection: 'column',
                 background: '#1e1e1e',
-                borderLeft: '1px solid #2a2a2a'
+                borderLeft: '1px solid #3c3c3c'
               }}>
                 {/* Panel Tabs - Scrollable */}
                 <div style={{

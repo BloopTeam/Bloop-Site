@@ -460,7 +460,7 @@ function EditorAreaComponent({ onShowToast }: EditorAreaProps, ref: React.Forwar
       flex: 1,
       display: 'flex',
       flexDirection: 'column',
-      background: '#1e1e1e',
+      background: '#0f0f0f',
       overflow: 'hidden'
     }}>
       {/* File Save Dialog */}
@@ -508,7 +508,7 @@ function EditorAreaComponent({ onShowToast }: EditorAreaProps, ref: React.Forwar
                 alignItems: 'center',
                 gap: '8px',
                 padding: '0 16px',
-                backgroundColor: isActive ? '#1e1e1e' : (isDragOver ? '#252525' : 'transparent'),
+                backgroundColor: isActive ? '#0f0f0f' : (isDragOver ? '#1a1a1a' : 'transparent'),
                 borderBottom: isActive ? '2px solid #FF00FF' : '2px solid transparent',
                 borderLeft: isDragOver ? '2px solid #FF00FF' : '2px solid transparent',
                 cursor: 'grab',
@@ -600,7 +600,7 @@ function EditorAreaComponent({ onShowToast }: EditorAreaProps, ref: React.Forwar
           alignItems: 'center',
           gap: '4px',
           padding: '8px 16px',
-          background: '#181818',
+          background: '#0a0a0a',
           borderBottom: '1px solid #1a1a1a',
           fontSize: '12px',
           color: '#666'
@@ -637,13 +637,13 @@ function EditorAreaComponent({ onShowToast }: EditorAreaProps, ref: React.Forwar
               fontSize: '14px',
               lineHeight: '1.7',
               color: '#cccccc',
-              background: '#1e1e1e',
+              background: '#0f0f0f',
               position: 'relative'
             }}>
               {/* Git Diff Indicators */}
               <div style={{
                 width: '4px',
-                background: '#181818',
+                background: '#0a0a0a',
                 position: 'relative'
               }}>
                 {tab.content.split('\n').map((_, idx) => {
@@ -672,7 +672,7 @@ function EditorAreaComponent({ onShowToast }: EditorAreaProps, ref: React.Forwar
                 color: '#444',
                 userSelect: 'none',
                 borderRight: '1px solid #1a1a1a',
-                background: '#181818',
+                background: '#0a0a0a',
                 minWidth: '60px'
               }}>
                 {tab.content.split('\n').map((_, idx) => {
@@ -815,7 +815,7 @@ function EditorAreaComponent({ onShowToast }: EditorAreaProps, ref: React.Forwar
               {showMinimap && tab.content.split('\n').length > 20 && (
                 <div style={{
                   width: '80px',
-                  background: '#181818',
+                  background: '#0a0a0a',
                   borderLeft: '1px solid #1a1a1a',
                   padding: '8px 4px',
                   fontSize: '2px',
