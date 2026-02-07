@@ -5,7 +5,7 @@ WORKDIR /app
 
 # Copy dependency files first (cache layer)
 COPY package.json package-lock.json ./
-RUN npm ci --production=false
+RUN npm ci
 
 # Copy source and build
 COPY . .
@@ -16,9 +16,15 @@ FROM node:20-alpine AS runtime
 
 WORKDIR /app
 
+# Install native build tools for better-sqlite3
+RUN apk add --no-cache python3 make g++
+
 # Install production deps only
 COPY package.json package-lock.json ./
-RUN npm ci --production && npm cache clean --force
+RUN npm ci --omit=dev && npm cache clean --force
+
+# Remove build tools after native modules are compiled
+RUN apk del python3 make g++
 
 # Copy built frontend
 COPY --from=builder /app/dist ./dist
@@ -26,8 +32,8 @@ COPY --from=builder /app/dist ./dist
 # Copy server source (tsx runs TypeScript directly)
 COPY server/ ./server/
 
-# Create data directory for SQLite
-RUN mkdir -p data && chown -R node:node data
+# Create persistent data directories
+RUN mkdir -p data workspaces && chown -R node:node data workspaces
 
 # Security: run as non-root
 USER node
@@ -39,7 +45,7 @@ ENV PORT=8080
 EXPOSE 8080
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD wget -qO- http://localhost:8080/api/health || exit 1
 
 CMD ["npx", "tsx", "server/dev-server.ts"]
