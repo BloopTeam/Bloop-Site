@@ -98,8 +98,9 @@ export const authService = {
     database.createWorkspace(workspaceId, userId, 'My Project', workspaceSlug, workspacePath)
 
     // Issue tokens
-    const tokens = generateTokenPair(userId, email, username)
-    const sessionId = await createSession(userId, tokens.refreshToken, userAgent, ipAddress)
+    const sessionId = uuidv4()
+    const tokens = generateTokenPair(userId, email, username, sessionId)
+    await createSession(sessionId, userId, tokens.refreshToken, userAgent, ipAddress)
 
     // Audit log
     database.audit(userId, 'user.register', 'user', userId, ipAddress, `New user: ${username}`)
@@ -140,8 +141,9 @@ export const authService = {
     database.updateLastLogin(user.id)
 
     // Issue tokens
-    const tokens = generateTokenPair(user.id, user.email, user.username)
-    const sessionId = await createSession(user.id, tokens.refreshToken, userAgent, ipAddress)
+    const sessionId = uuidv4()
+    const tokens = generateTokenPair(user.id, user.email, user.username, sessionId)
+    await createSession(sessionId, user.id, tokens.refreshToken, userAgent, ipAddress)
 
     database.audit(user.id, 'auth.login', 'user', user.id, ipAddress)
 
@@ -181,11 +183,12 @@ export const authService = {
       throw new AuthError('User not found or inactive', 'USER_INACTIVE')
     }
 
-    const newTokens = generateTokenPair(user.id, user.email, user.username)
+    const newSessionId = uuidv4()
+    const newTokens = generateTokenPair(user.id, user.email, user.username, newSessionId)
 
     // Rotate: revoke old session, create new one
     database.revokeSession(session.id)
-    await createSession(user.id, newTokens.refreshToken, session.user_agent, ipAddress)
+    await createSession(newSessionId, user.id, newTokens.refreshToken, session.user_agent, ipAddress)
 
     return newTokens
   },
@@ -248,9 +251,7 @@ export interface JwtPayload {
   sessionId?: string
 }
 
-function generateTokenPair(userId: string, email: string, username: string): TokenPair {
-  const sessionId = uuidv4()
-
+function generateTokenPair(userId: string, email: string, username: string, sessionId: string): TokenPair {
   const accessToken = jwt.sign(
     { sub: userId, email, username },
     JWT_SECRET,
@@ -270,8 +271,7 @@ function generateTokenPair(userId: string, email: string, username: string): Tok
   }
 }
 
-async function createSession(userId: string, refreshToken: string, userAgent?: string, ipAddress?: string): Promise<string> {
-  const sessionId = uuidv4()
+async function createSession(sessionId: string, userId: string, refreshToken: string, userAgent?: string, ipAddress?: string): Promise<string> {
   const tokenHash = hashToken(refreshToken)
   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
   database.createSession(sessionId, userId, tokenHash, userAgent, ipAddress, expiresAt)
