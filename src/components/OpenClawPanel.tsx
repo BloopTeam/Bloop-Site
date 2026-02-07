@@ -1,15 +1,17 @@
 /**
  * OpenClaw Panel Component
- * Displays OpenClaw skills, sessions, and provides skill execution UI
+ * Displays OpenClaw skills, sessions, skill execution, and Bot Team management
  */
 import { useState, useEffect, useCallback } from 'react'
 import { 
   Zap, Play, RefreshCw, Search, Code, TestTube, FileText, 
   Wrench, Bug, Gauge, Shield, CheckCircle, 
   XCircle, Clock, Loader2, Copy, Terminal,
-  Users, MessageSquare, Plug
+  Users, MessageSquare, Plug, Plus, Pause, Trash2, 
+  Settings, Activity, Bot
 } from 'lucide-react'
 import { openClawService } from '../services/openclaw'
+import { botTeamService, BOT_SPECIALIZATIONS, type TeamBot, type BotSpecialization } from '../services/botTeam'
 import type { OpenClawSkill, SkillExecutionResult, OpenClawSession } from '../types/openclaw'
 
 interface OpenClawPanelProps {
@@ -47,7 +49,7 @@ export default function OpenClawPanel({
   currentLanguage, 
   currentFilePath 
 }: OpenClawPanelProps) {
-  const [activeTab, setActiveTab] = useState<'skills' | 'sessions' | 'execute'>('skills')
+  const [activeTab, setActiveTab] = useState<'skills' | 'sessions' | 'execute' | 'team'>('team')
   const [connected, setConnected] = useState(false)
   const [skills, setSkills] = useState<OpenClawSkill[]>([])
   const [sessions, setSessions] = useState<OpenClawSession[]>([])
@@ -63,6 +65,14 @@ export default function OpenClawPanel({
     result: SkillExecutionResult
     timestamp: Date
   }>>([])
+
+  // Bot Team state
+  const [bots, setBots] = useState<TeamBot[]>([])
+  const [teamEnabled, setTeamEnabled] = useState(false)
+  const [showCreateBot, setShowCreateBot] = useState(false)
+  const [selectedBot, setSelectedBot] = useState<TeamBot | null>(null)
+  const [botRunning, setBotRunning] = useState<Record<string, boolean>>({})
+  const teamStats = botTeamService.getTeamStats()
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -148,9 +158,104 @@ export default function OpenClawPanel({
     }
   }
 
+  // Load bot team data
+  useEffect(() => {
+    const refreshBots = () => {
+      setBots(botTeamService.getBots())
+      setTeamEnabled(botTeamService.getConfig().enabled)
+    }
+    refreshBots()
+
+    const unsub1 = botTeamService.on('bot-created', refreshBots)
+    const unsub2 = botTeamService.on('bot-updated', refreshBots)
+    const unsub3 = botTeamService.on('bot-deleted', refreshBots)
+    const unsub4 = botTeamService.on('bot-status-changed', refreshBots)
+    const unsub5 = botTeamService.on('task-completed', refreshBots)
+    const unsub6 = botTeamService.on('task-failed', refreshBots)
+    const unsub7 = botTeamService.on('config-updated', refreshBots)
+
+    return () => { unsub1(); unsub2(); unsub3(); unsub4(); unsub5(); unsub6(); unsub7() }
+  }, [])
+
+  const handleToggleTeam = () => {
+    const newEnabled = !teamEnabled
+    botTeamService.updateConfig({ enabled: newEnabled })
+    setTeamEnabled(newEnabled)
+    if (newEnabled) {
+      botTeamService.startAllBots()
+    } else {
+      botTeamService.pauseAllBots()
+    }
+    setBots(botTeamService.getBots())
+  }
+
+  const handleCreateBot = (spec: BotSpecialization) => {
+    botTeamService.createBot(spec)
+    setBots(botTeamService.getBots())
+    setShowCreateBot(false)
+  }
+
+  const handleCreateFullTeam = () => {
+    botTeamService.createDefaultTeam()
+    setBots(botTeamService.getBots())
+    setShowCreateBot(false)
+  }
+
+  const handleToggleBot = (botId: string) => {
+    const bot = botTeamService.getBot(botId)
+    if (!bot) return
+    if (bot.status === 'active' || bot.status === 'working') {
+      botTeamService.stopBot(botId)
+    } else {
+      botTeamService.startBot(botId)
+    }
+    setBots(botTeamService.getBots())
+  }
+
+  const handleRunBotNow = async (botId: string) => {
+    setBotRunning(prev => ({ ...prev, [botId]: true }))
+    try {
+      await botTeamService.runNow(botId)
+    } finally {
+      setBotRunning(prev => ({ ...prev, [botId]: false }))
+      setBots(botTeamService.getBots())
+    }
+  }
+
+  const handleDeleteBot = (botId: string) => {
+    botTeamService.deleteBot(botId)
+    setBots(botTeamService.getBots())
+    if (selectedBot?.id === botId) setSelectedBot(null)
+  }
+
   const handleCopyResult = () => {
     if (executionResult?.output) {
       navigator.clipboard.writeText(executionResult.output)
+    }
+  }
+
+  const formatDuration = (ms: number) => {
+    if (ms < 1000) return `${ms}ms`
+    if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`
+    return `${(ms / 60000).toFixed(1)}m`
+  }
+
+  const formatTimeAgo = (dateStr?: string) => {
+    if (!dateStr) return 'never'
+    const diff = Date.now() - new Date(dateStr).getTime()
+    if (diff < 60000) return 'just now'
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`
+    return `${Math.floor(diff / 86400000)}d ago`
+  }
+
+  const statusColor = (status: string) => {
+    switch (status) {
+      case 'active': return '#22c55e'
+      case 'working': return '#f59e0b'
+      case 'paused': return '#666'
+      case 'error': return '#ef4444'
+      default: return '#888'
     }
   }
 
@@ -274,6 +379,30 @@ export default function OpenClawPanel({
           }}
         >
           Execute
+        </button>
+        <button 
+          onClick={() => setActiveTab('team')} 
+          style={{
+            padding: '8px 16px',
+            background: 'transparent',
+            border: 'none',
+            borderBottom: activeTab === 'team' ? '1px solid #FF00FF' : '1px solid transparent',
+            color: activeTab === 'team' ? '#FF00FF' : '#666',
+            cursor: 'pointer',
+            fontSize: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px'
+          }}
+        >
+          <Bot size={12} />
+          Team
+          {bots.filter(b => b.status === 'active' || b.status === 'working').length > 0 && (
+            <span style={{
+              width: '6px', height: '6px', borderRadius: '50%',
+              background: '#22c55e', display: 'inline-block'
+            }} />
+          )}
         </button>
       </div>
 
@@ -520,6 +649,287 @@ export default function OpenClawPanel({
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'team' && (
+          <div style={{ padding: '12px' }}>
+            {/* Team Header */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              marginBottom: '12px'
+            }}>
+              <div style={{ fontSize: '12px', color: '#cccccc' }}>
+                24/7 Bot Team
+              </div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                {bots.length > 0 && (
+                  <button
+                    onClick={handleToggleTeam}
+                    style={{
+                      padding: '4px 10px', fontSize: '11px', cursor: 'pointer',
+                      background: teamEnabled ? 'rgba(34,197,94,0.15)' : 'transparent',
+                      border: `1px solid ${teamEnabled ? '#22c55e' : '#333'}`,
+                      borderRadius: '4px',
+                      color: teamEnabled ? '#22c55e' : '#888'
+                    }}
+                  >
+                    {teamEnabled ? 'Active' : 'Paused'}
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowCreateBot(!showCreateBot)}
+                  style={{
+                    padding: '4px 10px', fontSize: '11px', cursor: 'pointer',
+                    background: 'transparent', border: '1px solid #333',
+                    borderRadius: '4px', color: '#cccccc',
+                    display: 'flex', alignItems: 'center', gap: '4px'
+                  }}
+                >
+                  <Plus size={12} /> Add
+                </button>
+              </div>
+            </div>
+
+            {/* Team Stats Bar */}
+            {bots.length > 0 && (
+              <div style={{
+                display: 'flex', gap: '12px', padding: '8px 12px',
+                background: '#141414', borderRadius: '4px', marginBottom: '12px',
+                border: '1px solid #1a1a1a', fontSize: '11px'
+              }}>
+                <div><span style={{ color: '#666' }}>Bots: </span><span style={{ color: '#cccccc' }}>{bots.length}</span></div>
+                <div><span style={{ color: '#666' }}>Active: </span><span style={{ color: '#22c55e' }}>{bots.filter(b => b.status === 'active' || b.status === 'working').length}</span></div>
+                <div><span style={{ color: '#666' }}>Tasks: </span><span style={{ color: '#cccccc' }}>{bots.reduce((s, b) => s + b.stats.tasksCompleted, 0)}</span></div>
+                <div><span style={{ color: '#666' }}>Issues: </span><span style={{ color: '#f59e0b' }}>{bots.reduce((s, b) => s + b.stats.issuesFound, 0)}</span></div>
+              </div>
+            )}
+
+            {/* Create Bot Panel */}
+            {showCreateBot && (
+              <div style={{
+                padding: '12px', background: '#141414', borderRadius: '4px',
+                marginBottom: '12px', border: '1px solid #1a1a1a'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                  <span style={{ fontSize: '12px', color: '#cccccc' }}>Add Specialist Bot</span>
+                  <button
+                    onClick={handleCreateFullTeam}
+                    style={{
+                      padding: '4px 10px', fontSize: '11px', cursor: 'pointer',
+                      background: 'rgba(255,0,255,0.1)', border: '1px solid rgba(255,0,255,0.3)',
+                      borderRadius: '4px', color: '#FF00FF'
+                    }}
+                  >
+                    Create Full Team
+                  </button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  {(Object.entries(BOT_SPECIALIZATIONS) as [BotSpecialization, typeof BOT_SPECIALIZATIONS[BotSpecialization]][]).map(([key, spec]) => {
+                    const exists = bots.some(b => b.specialization === key)
+                    return (
+                      <div
+                        key={key}
+                        onClick={() => !exists && handleCreateBot(key)}
+                        style={{
+                          padding: '8px 10px', cursor: exists ? 'default' : 'pointer',
+                          display: 'flex', alignItems: 'center', gap: '10px',
+                          borderRadius: '4px', opacity: exists ? 0.4 : 1
+                        }}
+                        onMouseEnter={(e) => { if (!exists) e.currentTarget.style.background = '#1a1a1a' }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+                      >
+                        <span style={{ fontSize: '16px' }}>{spec.avatar}</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '12px', color: '#cccccc' }}>{spec.name}</div>
+                          <div style={{ fontSize: '10px', color: '#666' }}>{spec.description.substring(0, 60)}...</div>
+                        </div>
+                        <span style={{ fontSize: '10px', color: '#666' }}>
+                          {exists ? 'Added' : spec.defaultModel.split('-')[0]}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Bot List */}
+            {bots.length === 0 && !showCreateBot ? (
+              <div style={{
+                padding: '40px 20px', textAlign: 'center', color: '#666', fontSize: '12px'
+              }}>
+                <Bot size={32} style={{ marginBottom: '12px', opacity: 0.3 }} />
+                <div style={{ marginBottom: '8px' }}>No bots in your team yet</div>
+                <div style={{ fontSize: '11px', color: '#555', marginBottom: '16px' }}>
+                  Create a team of specialized AI bots that work on your project 24/7
+                </div>
+                <button
+                  onClick={() => setShowCreateBot(true)}
+                  style={{
+                    padding: '8px 16px', fontSize: '12px', cursor: 'pointer',
+                    background: 'rgba(255,0,255,0.1)', border: '1px solid rgba(255,0,255,0.3)',
+                    borderRadius: '4px', color: '#FF00FF'
+                  }}
+                >
+                  Build Your Team
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                {bots.map(bot => (
+                  <div key={bot.id}>
+                    {/* Bot Card */}
+                    <div
+                      style={{
+                        padding: '10px 12px', cursor: 'pointer',
+                        background: selectedBot?.id === bot.id ? '#1a1a1a' : 'transparent',
+                        borderRadius: '4px',
+                        display: 'flex', alignItems: 'center', gap: '10px'
+                      }}
+                      onClick={() => setSelectedBot(selectedBot?.id === bot.id ? null : bot)}
+                      onMouseEnter={(e) => { if (selectedBot?.id !== bot.id) e.currentTarget.style.background = '#141414' }}
+                      onMouseLeave={(e) => { if (selectedBot?.id !== bot.id) e.currentTarget.style.background = 'transparent' }}
+                    >
+                      <span style={{ fontSize: '18px' }}>{bot.avatar}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontSize: '12px', color: '#cccccc' }}>{bot.name}</span>
+                          <span style={{
+                            width: '6px', height: '6px', borderRadius: '50%',
+                            background: statusColor(bot.status), display: 'inline-block'
+                          }} />
+                        </div>
+                        <div style={{ fontSize: '10px', color: '#666' }}>
+                          {bot.stats.tasksCompleted} tasks | Last: {formatTimeAgo(bot.stats.lastRunAt)}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleRunBotNow(bot.id) }}
+                          disabled={botRunning[bot.id] || bot.status === 'working'}
+                          title="Run now"
+                          style={{
+                            padding: '4px', background: 'transparent', border: 'none',
+                            color: botRunning[bot.id] ? '#666' : '#cccccc', cursor: 'pointer'
+                          }}
+                        >
+                          {botRunning[bot.id] ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleToggleBot(bot.id) }}
+                          title={bot.status === 'active' ? 'Pause' : 'Resume'}
+                          style={{
+                            padding: '4px', background: 'transparent', border: 'none',
+                            color: bot.status === 'active' ? '#22c55e' : '#666', cursor: 'pointer'
+                          }}
+                        >
+                          {bot.status === 'active' || bot.status === 'working' ? <Pause size={14} /> : <Play size={14} />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Bot Detail (expanded) */}
+                    {selectedBot?.id === bot.id && (
+                      <div style={{
+                        padding: '10px 12px', marginLeft: '28px',
+                        borderLeft: '1px solid #1a1a1a', fontSize: '11px'
+                      }}>
+                        {/* Status & Model */}
+                        <div style={{ display: 'flex', gap: '16px', marginBottom: '10px', color: '#888' }}>
+                          <div><span style={{ color: '#555' }}>Model: </span>{bot.model}</div>
+                          <div><span style={{ color: '#555' }}>Every: </span>{bot.preferences.scheduleMinutes}m</div>
+                          <div><span style={{ color: '#555' }}>Status: </span>
+                            <span style={{ color: statusColor(bot.status) }}>{bot.status}</span>
+                          </div>
+                        </div>
+
+                        {/* Stats */}
+                        <div style={{
+                          display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px',
+                          padding: '8px', background: '#0a0a0a', borderRadius: '4px',
+                          marginBottom: '10px', border: '1px solid #1a1a1a'
+                        }}>
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ color: '#cccccc', fontSize: '14px' }}>{bot.stats.tasksCompleted}</div>
+                            <div style={{ color: '#555', fontSize: '10px' }}>Tasks</div>
+                          </div>
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ color: '#f59e0b', fontSize: '14px' }}>{bot.stats.issuesFound}</div>
+                            <div style={{ color: '#555', fontSize: '10px' }}>Issues</div>
+                          </div>
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ color: '#3b82f6', fontSize: '14px' }}>{bot.stats.suggestionsGiven}</div>
+                            <div style={{ color: '#555', fontSize: '10px' }}>Suggestions</div>
+                          </div>
+                        </div>
+
+                        {/* Capabilities */}
+                        <div style={{ marginBottom: '10px' }}>
+                          <div style={{ color: '#555', marginBottom: '4px' }}>Capabilities</div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                            {BOT_SPECIALIZATIONS[bot.specialization].capabilities.map(cap => (
+                              <span key={cap} style={{
+                                padding: '2px 8px', background: '#1a1a1a', borderRadius: '3px',
+                                fontSize: '10px', color: '#888'
+                              }}>{cap}</span>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Recent Work Log */}
+                        {bot.workLog.length > 0 && (
+                          <div style={{ marginBottom: '10px' }}>
+                            <div style={{ color: '#555', marginBottom: '4px' }}>Recent Activity</div>
+                            {bot.workLog.slice(-5).reverse().map(entry => (
+                              <div key={entry.id} style={{
+                                padding: '4px 0', borderBottom: '1px solid #0d0d0d',
+                                display: 'flex', justifyContent: 'space-between'
+                              }}>
+                                <span style={{ color: entry.action === 'error' ? '#ef4444' : '#888' }}>
+                                  {entry.summary.substring(0, 50)}{entry.summary.length > 50 ? '...' : ''}
+                                </span>
+                                <span style={{ color: '#555', fontSize: '10px', whiteSpace: 'nowrap', marginLeft: '8px' }}>
+                                  {formatTimeAgo(entry.timestamp)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Actions */}
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            onClick={() => handleRunBotNow(bot.id)}
+                            disabled={botRunning[bot.id]}
+                            style={{
+                              padding: '4px 10px', fontSize: '11px', cursor: 'pointer',
+                              background: 'transparent', border: '1px solid #333',
+                              borderRadius: '4px', color: '#cccccc',
+                              display: 'flex', alignItems: 'center', gap: '4px'
+                            }}
+                          >
+                            {botRunning[bot.id] ? <Loader2 size={10} className="animate-spin" /> : <Play size={10} />}
+                            Run Now
+                          </button>
+                          <button
+                            onClick={() => handleDeleteBot(bot.id)}
+                            style={{
+                              padding: '4px 10px', fontSize: '11px', cursor: 'pointer',
+                              background: 'transparent', border: '1px solid #333',
+                              borderRadius: '4px', color: '#ef4444',
+                              display: 'flex', alignItems: 'center', gap: '4px'
+                            }}
+                          >
+                            <Trash2 size={10} /> Remove
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
           </div>

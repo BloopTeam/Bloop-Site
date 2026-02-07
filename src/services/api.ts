@@ -1,6 +1,7 @@
 /**
  * API service for communicating with Bloop backend
  */
+import { authService } from './auth.js'
 
 // Use relative URL when proxying through Vite, or absolute when VITE_API_URL is set
 const API_BASE_URL = import.meta.env.VITE_API_URL || ''
@@ -76,9 +77,38 @@ class ApiService {
     this.baseUrl = API_BASE_URL
   }
 
+  /**
+   * Authenticated fetch — automatically attaches JWT and retries on 401.
+   */
+  private async authFetch(url: string, options: RequestInit = {}): Promise<Response> {
+    const headers = new Headers(options.headers)
+    if (!headers.has('Content-Type') && options.body) {
+      headers.set('Content-Type', 'application/json')
+    }
+
+    // Attach auth token
+    const authHeaders = authService.getAuthHeaders()
+    for (const [key, value] of Object.entries(authHeaders)) {
+      headers.set(key, value)
+    }
+
+    let res = await fetch(url, { ...options, headers })
+
+    // Auto-refresh on 401
+    if (res.status === 401) {
+      const newTokens = await authService.refresh()
+      if (newTokens) {
+        headers.set('Authorization', `Bearer ${newTokens.accessToken}`)
+        res = await fetch(url, { ...options, headers })
+      }
+    }
+
+    return res
+  }
+
   async fetchModels(): Promise<ModelsResponse> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/v1/models`)
+      const response = await this.authFetch(`${this.baseUrl}/api/v1/models`)
       if (!response.ok) {
         throw new Error(`Failed to fetch models: ${response.statusText}`)
       }
@@ -105,11 +135,8 @@ class ApiService {
         stream: request.stream
       }
 
-      const response = await fetch(`${this.baseUrl}/api/v1/chat`, {
+      const response = await this.authFetch(`${this.baseUrl}/api/v1/chat`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify(backendRequest),
       })
 
@@ -139,7 +166,7 @@ class ApiService {
 
   async checkHealth(): Promise<{ status: string }> {
     try {
-      const response = await fetch(`${this.baseUrl}/health`)
+      const response = await this.authFetch(`${this.baseUrl}/health`)
       if (!response.ok) {
         throw new Error(`Health check failed: ${response.statusText}`)
       }
@@ -152,13 +179,13 @@ class ApiService {
 
   // File operations
   async readFile(filePath: string): Promise<{ path: string; content: string; exists: boolean; size: number }> {
-    const response = await fetch(`${this.baseUrl}/api/v1/files/read/${encodeURIComponent(filePath)}`)
+    const response = await this.authFetch(`${this.baseUrl}/api/v1/files/read/${encodeURIComponent(filePath)}`)
     if (!response.ok) throw new Error(`Failed to read file: ${response.statusText}`)
     return await response.json()
   }
 
   async writeFile(path: string, content: string, createDirs = false): Promise<{ success: boolean; message: string; path: string }> {
-    const response = await fetch(`${this.baseUrl}/api/v1/files/write`, {
+    const response = await this.authFetch(`${this.baseUrl}/api/v1/files/write`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path, content, create_dirs: createDirs }),
@@ -168,7 +195,7 @@ class ApiService {
   }
 
   async deleteFile(filePath: string): Promise<{ success: boolean; message: string; path: string }> {
-    const response = await fetch(`${this.baseUrl}/api/v1/files/delete/${encodeURIComponent(filePath)}`, {
+    const response = await this.authFetch(`${this.baseUrl}/api/v1/files/delete/${encodeURIComponent(filePath)}`, {
       method: 'DELETE',
     })
     if (!response.ok) throw new Error(`Failed to delete file: ${response.statusText}`)
@@ -176,7 +203,7 @@ class ApiService {
   }
 
   async listDirectory(dirPath: string): Promise<{ path: string; directories: any[]; files: any[] }> {
-    const response = await fetch(`${this.baseUrl}/api/v1/files/list/${encodeURIComponent(dirPath)}`)
+    const response = await this.authFetch(`${this.baseUrl}/api/v1/files/list/${encodeURIComponent(dirPath)}`)
     if (!response.ok) throw new Error(`Failed to list directory: ${response.statusText}`)
     return await response.json()
   }
@@ -189,7 +216,7 @@ class ApiService {
     exit_code?: number
     execution_time_ms: number
   }> {
-    const response = await fetch(`${this.baseUrl}/api/v1/execute`, {
+    const response = await this.authFetch(`${this.baseUrl}/api/v1/execute`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ command, args, working_dir: workingDir, timeout_seconds: timeoutSeconds }),
@@ -201,7 +228,7 @@ class ApiService {
   // Codebase analysis
 
   async reviewCode(filePath: string, code: string, language: string): Promise<any> {
-    const response = await fetch(`${this.baseUrl}/api/v1/codebase/review`, {
+    const response = await this.authFetch(`${this.baseUrl}/api/v1/codebase/review`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ file_path: filePath, code, language }),
@@ -211,7 +238,7 @@ class ApiService {
   }
 
   async generateTests(code: string, language: string, functionName?: string): Promise<any> {
-    const response = await fetch(`${this.baseUrl}/api/v1/codebase/tests`, {
+    const response = await this.authFetch(`${this.baseUrl}/api/v1/codebase/tests`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code, language, function_name: functionName }),
@@ -221,7 +248,7 @@ class ApiService {
   }
 
   async generateDocs(code: string, language: string, filePath: string): Promise<any> {
-    const response = await fetch(`${this.baseUrl}/api/v1/codebase/docs`, {
+    const response = await this.authFetch(`${this.baseUrl}/api/v1/codebase/docs`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code, language, file_path: filePath }),
@@ -255,7 +282,7 @@ class ApiService {
     }
   }> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/v1/agents/metrics`)
+      const response = await this.authFetch(`${this.baseUrl}/api/v1/agents/metrics`)
       if (!response.ok) {
         throw new Error(`Failed to fetch metrics: ${response.statusText}`)
       }
@@ -296,7 +323,7 @@ class ApiService {
     circuit_breaker_open: boolean
   }> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/v1/agents/queue/status`)
+      const response = await this.authFetch(`${this.baseUrl}/api/v1/agents/queue/status`)
       if (!response.ok) {
         throw new Error(`Failed to fetch queue status: ${response.statusText}`)
       }
@@ -318,7 +345,7 @@ class ApiService {
     unhealthy_agent_ids: string[]
   }> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/v1/agents/health`)
+      const response = await this.authFetch(`${this.baseUrl}/api/v1/agents/health`)
       if (!response.ok) {
         throw new Error(`Failed to fetch health status: ${response.statusText}`)
       }
@@ -342,7 +369,7 @@ class ApiService {
     uptime: number
   }> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/v1/openclaw/status`)
+      const response = await this.authFetch(`${this.baseUrl}/api/v1/openclaw/status`)
       if (!response.ok) {
         throw new Error(`Failed to fetch OpenClaw status: ${response.statusText}`)
       }
@@ -371,7 +398,7 @@ class ApiService {
     total: number
   }> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/v1/openclaw/skills`)
+      const response = await this.authFetch(`${this.baseUrl}/api/v1/openclaw/skills`)
       if (!response.ok) {
         throw new Error(`Failed to fetch OpenClaw skills: ${response.statusText}`)
       }
@@ -393,7 +420,7 @@ class ApiService {
     duration?: number
   }> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/v1/openclaw/skills/${encodeURIComponent(skillName)}/execute`, {
+      const response = await this.authFetch(`${this.baseUrl}/api/v1/openclaw/skills/${encodeURIComponent(skillName)}/execute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ params, context })
@@ -419,7 +446,7 @@ class ApiService {
     timestamp: string
     model?: string
   }> {
-    const response = await fetch(`${this.baseUrl}/api/v1/openclaw/message`, {
+    const response = await this.authFetch(`${this.baseUrl}/api/v1/openclaw/message`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message, ...options })
@@ -439,7 +466,7 @@ class ApiService {
     karma: number
   }> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/v1/moltbook/status`)
+      const response = await this.authFetch(`${this.baseUrl}/api/v1/moltbook/status`)
       if (!response.ok) {
         throw new Error(`Failed to fetch Moltbook status: ${response.statusText}`)
       }
@@ -461,7 +488,7 @@ class ApiService {
     submolts: string[]
   } | null> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/v1/moltbook/profile`)
+      const response = await this.authFetch(`${this.baseUrl}/api/v1/moltbook/profile`)
       if (!response.ok) {
         throw new Error(`Failed to fetch Moltbook profile: ${response.statusText}`)
       }
@@ -483,7 +510,7 @@ class ApiService {
     expires_at: string
     agent_id: string
   }> {
-    const response = await fetch(`${this.baseUrl}/api/v1/moltbook/register`, {
+    const response = await this.authFetch(`${this.baseUrl}/api/v1/moltbook/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(options || {})
@@ -508,7 +535,7 @@ class ApiService {
     karma: number
     created_at: string
   }> {
-    const response = await fetch(`${this.baseUrl}/api/v1/moltbook/share`, {
+    const response = await this.authFetch(`${this.baseUrl}/api/v1/moltbook/share`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(options)
@@ -532,7 +559,7 @@ class ApiService {
     next_offset: number
   }> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/v1/moltbook/feed`)
+      const response = await this.authFetch(`${this.baseUrl}/api/v1/moltbook/feed`)
       if (!response.ok) {
         throw new Error(`Failed to fetch Moltbook feed: ${response.statusText}`)
       }
@@ -546,7 +573,7 @@ class ApiService {
   // Code Intelligence APIs
   async searchCodebase(query: string): Promise<any[]> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/v1/codebase/search?q=${encodeURIComponent(query)}`)
+      const response = await this.authFetch(`${this.baseUrl}/api/v1/codebase/search?q=${encodeURIComponent(query)}`)
       if (!response.ok) {
         throw new Error(`Failed to search codebase: ${response.statusText}`)
       }
@@ -560,7 +587,7 @@ class ApiService {
 
   async findSymbolUsages(symbolName: string): Promise<any[]> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/v1/codebase/references/${encodeURIComponent(symbolName)}`)
+      const response = await this.authFetch(`${this.baseUrl}/api/v1/codebase/references/${encodeURIComponent(symbolName)}`)
       if (!response.ok) {
         throw new Error(`Failed to find usages: ${response.statusText}`)
       }
@@ -574,7 +601,7 @@ class ApiService {
 
   async getFileDependencies(filePath: string): Promise<string[]> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/v1/codebase/dependencies/${encodeURIComponent(filePath)}`)
+      const response = await this.authFetch(`${this.baseUrl}/api/v1/codebase/dependencies/${encodeURIComponent(filePath)}`)
       if (!response.ok) {
         throw new Error(`Failed to get dependencies: ${response.statusText}`)
       }
@@ -588,7 +615,7 @@ class ApiService {
 
   async detectPatterns(filePath: string): Promise<any[]> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/v1/codebase/patterns/${encodeURIComponent(filePath)}`)
+      const response = await this.authFetch(`${this.baseUrl}/api/v1/codebase/patterns/${encodeURIComponent(filePath)}`)
       if (!response.ok) {
         throw new Error(`Failed to detect patterns: ${response.statusText}`)
       }
@@ -602,7 +629,7 @@ class ApiService {
 
   async indexFile(filePath: string, content: string, language: string): Promise<void> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/v1/codebase/index`, {
+      const response = await this.authFetch(`${this.baseUrl}/api/v1/codebase/index`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: filePath, content, language })
@@ -618,7 +645,7 @@ class ApiService {
   // Security APIs
   async getSecurityEvents(): Promise<any[]> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/v1/security/events`)
+      const response = await this.authFetch(`${this.baseUrl}/api/v1/security/events`)
       if (!response.ok) {
         throw new Error(`Failed to fetch security events: ${response.statusText}`)
       }
@@ -632,7 +659,7 @@ class ApiService {
 
   async getVulnerabilities(): Promise<any[]> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/v1/security/vulnerabilities`)
+      const response = await this.authFetch(`${this.baseUrl}/api/v1/security/vulnerabilities`)
       if (!response.ok) {
         throw new Error(`Failed to fetch vulnerabilities: ${response.statusText}`)
       }
@@ -646,7 +673,7 @@ class ApiService {
 
   async scanCodeForVulnerabilities(code: string, language: string): Promise<any[]> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/v1/security/scan`, {
+      const response = await this.authFetch(`${this.baseUrl}/api/v1/security/scan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code, language })

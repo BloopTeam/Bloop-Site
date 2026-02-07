@@ -57,3 +57,16 @@ pkg/
 *.tmp
 *.temp
 .cache
+
+# Database
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# User workspaces (per-user project files)
+workspaces/
+
+# Test scripts
+test_*.py

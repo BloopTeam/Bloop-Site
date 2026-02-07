@@ -21,8 +21,10 @@ import PluginMarketplacePanel from './components/PluginMarketplacePanel'
 import WorkflowTemplatesPanel from './components/WorkflowTemplatesPanel'
 import TeamOrganizationPanel from './components/TeamOrganizationPanel'
 import SharedAgentsPanel from './components/SharedAgentsPanel'
+import AuthScreen from './components/AuthScreen'
 import { openClawService } from './services/openclaw'
 import { userSessionService } from './services/userSession'
+import { authService, AuthUser } from './services/auth'
 
 // Right panel modes
 type RightPanelMode = 'assistant' | 'openclaw' | 'moltbook' | 'collaboration' | 'agents' | 'project' | 'automation' | 'plugins' | 'marketplace' | 'workflows' | 'teams' | 'shared-agents'
@@ -34,7 +36,40 @@ interface RecentProject {
   lastOpened: Date
 }
 
+// ─── Auth wrapper ────────────────────────────────────────────────────────────
 export default function App() {
+  const [authUser, setAuthUser] = useState<AuthUser | null>(authService.getUser())
+  const [authChecked, setAuthChecked] = useState(false)
+
+  useEffect(() => {
+    authService.init()
+    const user = authService.getUser()
+    if (user && authService.isAuthenticated()) {
+      setAuthUser(user)
+    }
+    setAuthChecked(true)
+
+    const unsubscribe = authService.onAuthChange((u) => setAuthUser(u))
+    return unsubscribe
+  }, [])
+
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+        <div className="animate-spin h-8 w-8 border-2 border-purple-500 border-t-transparent rounded-full" />
+      </div>
+    )
+  }
+
+  if (!authUser) {
+    return <AuthScreen onAuthenticated={(user) => setAuthUser(user)} />
+  }
+
+  return <AuthenticatedApp authUser={authUser} onLogout={() => { authService.logout(); setAuthUser(null) }} />
+}
+
+// ─── Authenticated App (all hooks safe here) ─────────────────────────────────
+function AuthenticatedApp({ authUser, onLogout }: { authUser: AuthUser; onLogout: () => void }) {
   const [showCommandPalette, setShowCommandPalette] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [assistantCollapsed, setAssistantCollapsed] = useState(false)
@@ -46,35 +81,25 @@ export default function App() {
   const [showNotificationHistory, setShowNotificationHistory] = useState(false)
 
   // Initialize user session for multi-user support (1000+ concurrent users)
-  // MUST be initialized before any components try to use it
   useEffect(() => {
-    // Ensure userSessionService is imported and available
-    if (typeof userSessionService === 'undefined') {
-      console.error('userSessionService is not available')
-      return
-    }
+    if (typeof userSessionService === 'undefined') return
 
     try {
-      // Initialize user session - in production, this would get userId from auth
       if (userSessionService && typeof userSessionService.initializeSession === 'function') {
         userSessionService.initializeSession()
       }
       
-      // Update activity on user interactions
       const handleActivity = () => {
         try {
           if (userSessionService && typeof userSessionService.updateActivity === 'function') {
             userSessionService.updateActivity()
-            // Dispatch event for panels to activate
             window.dispatchEvent(new CustomEvent('bloop:project-activity'))
           }
         } catch (err) {
-          // Silently fail if service not ready
           console.warn('Activity tracking failed:', err)
         }
       }
 
-      // Listen for project-related activities
       window.addEventListener('focus', handleActivity)
       document.addEventListener('click', handleActivity, true)
       document.addEventListener('keydown', handleActivity, true)
