@@ -6,6 +6,7 @@
 import { Router } from 'express'
 import { getOpenClawService } from '../../services/openclaw/index.js'
 import { ModelRouter } from '../../services/ai/router.js'
+import { anchorExecutionProof, getProofPublicKey, getProofBalance, ExecutionData } from '../../services/solana/proofOfExecution.js'
 import * as fs from 'fs'
 import * as path from 'path'
 
@@ -515,6 +516,35 @@ openclawRouter.post('/team/bots/:id/execute', async (req, res) => {
       ? firstLine.replace(/^[#*\->\s]+/, '').substring(0, 200)
       : `${specialization} analysis completed`
 
+    // ─── Anchor execution proof to Solana ─────────────────────────────────
+    const executionData: ExecutionData = {
+      botId,
+      userId,
+      specialization,
+      skill,
+      filesAnalyzed: projectFiles.fileCount,
+      fileList: projectFiles.fileList,
+      issuesFound,
+      executionTimeMs: Date.now() - Date.now(), // placeholder
+      provider,
+      summary,
+    }
+
+    // Fire-and-forget — don't block the response on Solana
+    const proofPromise = anchorExecutionProof(executionData).catch(err => {
+      console.warn('[Solana] Proof anchoring failed:', err instanceof Error ? err.message : err)
+      return null
+    })
+
+    // Try to get proof within 5 seconds, otherwise return without it
+    let proof = null
+    try {
+      proof = await Promise.race([
+        proofPromise,
+        new Promise(resolve => setTimeout(() => resolve(null), 5000)),
+      ])
+    } catch { /* timeout or error — continue without proof */ }
+
     res.json({
       botId,
       response: responseContent,
@@ -525,6 +555,8 @@ openclawRouter.post('/team/bots/:id/execute', async (req, res) => {
       suggestionsGiven,
       filesAffected,
       executedAt: new Date().toISOString(),
+      // Solana proof-of-execution (if available)
+      ...(proof ? { solanaProof: proof } : {}),
     })
   } catch (error) {
     console.error('Bot execution error:', error)
@@ -540,11 +572,18 @@ openclawRouter.get('/team/status', async (req, res) => {
   try {
     const openclawService = getOpenClawService()
     const gatewayStatus = await openclawService.getStatus().catch(() => ({ connected: false }))
+    const solanaInfo = await getProofBalance().catch(() => ({ sol: 0, address: '', network: 'devnet' }))
 
     res.json({
       gateway: gatewayStatus,
       availableSkills: Object.keys(skillPrompts),
       availableProviders: aiRouter.getAvailableProviders(),
+      solana: {
+        proofAddress: solanaInfo.address,
+        balance: solanaInfo.sol,
+        network: solanaInfo.network,
+        proofsEnabled: solanaInfo.sol > 0,
+      },
       timestamp: new Date().toISOString(),
     })
   } catch (error) {
