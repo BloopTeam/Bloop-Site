@@ -1663,7 +1663,7 @@ export default function Component() {
     name: backendModelInfo.provider === 'auto' ? 'Auto' : 
           (backendModelInfo.provider?.charAt(0).toUpperCase() + backendModelInfo.provider.slice(1)),
     description: backendModelInfo.available 
-      ? `${backendModelInfo.capabilities?.max_context_length?.toLocaleString() || 0} context, ${backendModelInfo.capabilities?.speed || 'medium'} speed`
+      ? `${backendModelInfo.capabilities?.maxContextLength?.toLocaleString() || 0} context, ${backendModelInfo.capabilities?.speed || 'medium'} speed`
       : 'Not configured',
     provider: backendModelInfo.provider || 'auto',
     isCustom: false
@@ -1688,15 +1688,14 @@ export default function Component() {
       return {
         id: backendModel.model,
         name: backendModel.provider.charAt(0).toUpperCase() + backendModel.provider.slice(1),
-        description: `${backendModel.capabilities.max_context_length.toLocaleString()} context${backendModel.capabilities.supports_vision ? ', vision' : ''}`,
+        description: `${backendModel.capabilities.maxContextLength.toLocaleString()} context${backendModel.capabilities.supportsVision ? ', vision' : ''}`,
         provider: backendModel.provider,
         available: true,
         isCustom: false,
         capabilities: aiModel?.capabilities
       }
     } else {
-      // All AI provider models are now available!
-      const isAIProviderModel = !!aiModel
+      // Model not confirmed by backend — only 'auto' is available without backend
       return {
         id: defaultModel.id,
         name: defaultModel.name,
@@ -1704,7 +1703,7 @@ export default function Component() {
           ? `${aiModel.capabilities.maxContext.toLocaleString()} context | Code: ${aiModel.capabilities.codeQuality}/10 | ${aiModel.capabilities.reasoningDepth} reasoning`
           : defaultModel.description,
         provider: defaultModel.provider,
-        available: isAIProviderModel || defaultModel.id === 'auto', // All AI models now available
+        available: defaultModel.id === 'auto',
         isCustom: false,
         capabilities: aiModel?.capabilities
       }

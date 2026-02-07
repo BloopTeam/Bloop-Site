@@ -20,11 +20,11 @@ export interface ModelInfo {
   model: string
   available: boolean
   capabilities: {
-    supports_vision: boolean
-    supports_function_calling: boolean
-    max_context_length: number
-    supports_streaming: boolean
-    cost_per_1k_tokens: {
+    supportsVision: boolean
+    supportsFunctionCalling: boolean
+    maxContextLength: number
+    supportsStreaming: boolean
+    costPer1kTokens: {
       input: number
       output: number
     }

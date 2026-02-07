@@ -88,44 +88,13 @@ export interface GeneratedCode {
   explanation: string
 }
 
-// All available models with enhanced capabilities
+// Active models — only providers with configured API keys
 const ADVANCED_MODELS: AIModel[] = [
   {
-    id: 'kimi-k2.5',
-    name: 'Kimi K2.5',
-    provider: 'Moonshot',
-    description: '1T parameter multimodal model with 256K context window',
-    capabilities: {
-      maxContext: 256000,
-      supportsVision: true,
-      supportsCode: true,
-      supportsReasoning: true,
-      supportsStreaming: true,
-      supportsFunctionCalling: true,
-      languages: ['en', 'zh', 'ja', 'ko', 'es', 'fr', 'de'],
-      specializations: ['multimodal', 'long-context', 'document-analysis', 'code-generation'],
-      reasoningDepth: 'expert',
-      codeQuality: 9,
-      creativity: 8,
-      speed: 7,
-      accuracy: 9
-    },
-    config: {
-      temperature: 0.7,
-      topP: 0.95,
-      maxTokens: 8192,
-      presencePenalty: 0,
-      frequencyPenalty: 0,
-      systemPrompt: 'You are Kimi, an advanced multimodal AI with deep reasoning capabilities and massive context understanding.'
-    },
-    status: 'available',
-    performance: { avgResponseTime: 2500, successRate: 98.5, totalRequests: 0, tokensUsed: 0 }
-  },
-  {
-    id: 'claude-3.5-sonnet',
-    name: 'Claude 3.5 Sonnet',
+    id: 'claude-opus-4-6',
+    name: 'Claude Opus 4.6',
     provider: 'Anthropic',
-    description: 'High quality, safety-focused with exceptional reasoning',
+    description: 'Top-tier reasoning and code with 200K context',
     capabilities: {
       maxContext: 200000,
       supportsVision: true,
@@ -153,10 +122,10 @@ const ADVANCED_MODELS: AIModel[] = [
     performance: { avgResponseTime: 1800, successRate: 99.2, totalRequests: 0, tokensUsed: 0 }
   },
   {
-    id: 'gpt-4-turbo',
-    name: 'GPT-4 Turbo',
+    id: 'gpt-4o',
+    name: 'GPT-4o',
     provider: 'OpenAI',
-    description: 'Versatile, well-tested with broad capabilities',
+    description: 'Fast multimodal model with 128K context',
     capabilities: {
       maxContext: 128000,
       supportsVision: true,
@@ -178,16 +147,16 @@ const ADVANCED_MODELS: AIModel[] = [
       maxTokens: 4096,
       presencePenalty: 0,
       frequencyPenalty: 0,
-      systemPrompt: 'You are GPT-4, a highly capable AI assistant. Provide clear, accurate, and helpful responses.'
+      systemPrompt: 'You are GPT-4o, a highly capable AI assistant. Provide clear, accurate, and helpful responses.'
     },
     status: 'available',
-    performance: { avgResponseTime: 2000, successRate: 98.8, totalRequests: 0, tokensUsed: 0 }
+    performance: { avgResponseTime: 1500, successRate: 98.8, totalRequests: 0, tokensUsed: 0 }
   },
   {
-    id: 'gemini-1.5-pro',
-    name: 'Gemini 1.5 Pro',
+    id: 'gemini-2.0-flash',
+    name: 'Gemini 2.0 Flash',
     provider: 'Google',
-    description: 'Massive 1M context window with multimodal understanding',
+    description: 'Ultra-fast with 1M context window',
     capabilities: {
       maxContext: 1000000,
       supportsVision: true,
@@ -196,11 +165,11 @@ const ADVANCED_MODELS: AIModel[] = [
       supportsStreaming: true,
       supportsFunctionCalling: true,
       languages: ['en', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'ru', 'zh', 'ja', 'ko', 'ar', 'hi', 'th', 'vi'],
-      specializations: ['long-context', 'multimodal', 'video-understanding', 'document-analysis', 'research'],
+      specializations: ['long-context', 'multimodal', 'document-analysis', 'research', 'fast-inference'],
       reasoningDepth: 'expert',
       codeQuality: 9,
       creativity: 8,
-      speed: 7,
+      speed: 10,
       accuracy: 9
     },
     config: {
@@ -212,47 +181,16 @@ const ADVANCED_MODELS: AIModel[] = [
       systemPrompt: 'You are Gemini, a multimodal AI with unprecedented context understanding. Analyze deeply and respond comprehensively.'
     },
     status: 'available',
-    performance: { avgResponseTime: 2200, successRate: 98.0, totalRequests: 0, tokensUsed: 0 }
+    performance: { avgResponseTime: 1000, successRate: 98.0, totalRequests: 0, tokensUsed: 0 }
   },
   {
-    id: 'deepseek-coder',
-    name: 'DeepSeek',
-    provider: 'DeepSeek',
-    description: 'Code-focused, ultra-fast with exceptional programming skills',
-    capabilities: {
-      maxContext: 128000,
-      supportsVision: false,
-      supportsCode: true,
-      supportsReasoning: true,
-      supportsStreaming: true,
-      supportsFunctionCalling: true,
-      languages: ['en', 'zh'],
-      specializations: ['code-generation', 'code-review', 'debugging', 'optimization', 'algorithm-design'],
-      reasoningDepth: 'expert',
-      codeQuality: 10,
-      creativity: 7,
-      speed: 10,
-      accuracy: 9
-    },
-    config: {
-      temperature: 0.5,
-      topP: 0.9,
-      maxTokens: 8192,
-      presencePenalty: 0,
-      frequencyPenalty: 0,
-      systemPrompt: 'You are DeepSeek Coder, a specialized AI for software development. Generate clean, efficient, production-ready code.'
-    },
-    status: 'available',
-    performance: { avgResponseTime: 800, successRate: 99.0, totalRequests: 0, tokensUsed: 0 }
-  },
-  {
-    id: 'mistral-large',
+    id: 'mistral-large-2512',
     name: 'Mistral Large',
-    provider: 'Mistral AI',
-    description: 'Perfect balance of creativity and code proficiency',
+    provider: 'Mistral',
+    description: 'Creative and precise with 128K context',
     capabilities: {
       maxContext: 128000,
-      supportsVision: false,
+      supportsVision: true,
       supportsCode: true,
       supportsReasoning: true,
       supportsStreaming: true,
@@ -275,99 +213,6 @@ const ADVANCED_MODELS: AIModel[] = [
     },
     status: 'available',
     performance: { avgResponseTime: 1200, successRate: 98.5, totalRequests: 0, tokensUsed: 0 }
-  },
-  {
-    id: 'grok-2',
-    name: 'Grok (xAI)',
-    provider: 'xAI',
-    description: 'Fast, creative with real-time knowledge',
-    capabilities: {
-      maxContext: 128000,
-      supportsVision: true,
-      supportsCode: true,
-      supportsReasoning: true,
-      supportsStreaming: true,
-      supportsFunctionCalling: true,
-      languages: ['en'],
-      specializations: ['real-time-knowledge', 'creative-writing', 'humor', 'analysis'],
-      reasoningDepth: 'advanced',
-      codeQuality: 8,
-      creativity: 10,
-      speed: 9,
-      accuracy: 8
-    },
-    config: {
-      temperature: 0.9,
-      topP: 0.95,
-      maxTokens: 4096,
-      presencePenalty: 0.1,
-      frequencyPenalty: 0.1,
-      systemPrompt: 'You are Grok, a witty and intelligent AI. Provide helpful, accurate, and engaging responses.'
-    },
-    status: 'available',
-    performance: { avgResponseTime: 1000, successRate: 97.5, totalRequests: 0, tokensUsed: 0 }
-  },
-  {
-    id: 'llama-3.1-405b',
-    name: 'Llama 3.1 405B',
-    provider: 'Meta',
-    description: 'Open-source powerhouse with exceptional capabilities',
-    capabilities: {
-      maxContext: 128000,
-      supportsVision: false,
-      supportsCode: true,
-      supportsReasoning: true,
-      supportsStreaming: true,
-      supportsFunctionCalling: true,
-      languages: ['en', 'es', 'fr', 'de', 'it', 'pt', 'hi', 'th'],
-      specializations: ['reasoning', 'code-generation', 'analysis', 'multilingual'],
-      reasoningDepth: 'expert',
-      codeQuality: 9,
-      creativity: 8,
-      speed: 7,
-      accuracy: 9
-    },
-    config: {
-      temperature: 0.7,
-      topP: 0.9,
-      maxTokens: 4096,
-      presencePenalty: 0,
-      frequencyPenalty: 0,
-      systemPrompt: 'You are Llama, an advanced open-source AI. Provide detailed, accurate, and thoughtful responses.'
-    },
-    status: 'available',
-    performance: { avgResponseTime: 2500, successRate: 98.0, totalRequests: 0, tokensUsed: 0 }
-  },
-  {
-    id: 'qwen-2.5-72b',
-    name: 'Qwen 2.5 72B',
-    provider: 'Alibaba',
-    description: 'Multilingual expert with strong reasoning',
-    capabilities: {
-      maxContext: 128000,
-      supportsVision: true,
-      supportsCode: true,
-      supportsReasoning: true,
-      supportsStreaming: true,
-      supportsFunctionCalling: true,
-      languages: ['en', 'zh', 'ja', 'ko', 'ar', 'th', 'vi'],
-      specializations: ['multilingual', 'code-generation', 'reasoning', 'math'],
-      reasoningDepth: 'advanced',
-      codeQuality: 9,
-      creativity: 8,
-      speed: 8,
-      accuracy: 9
-    },
-    config: {
-      temperature: 0.7,
-      topP: 0.9,
-      maxTokens: 4096,
-      presencePenalty: 0,
-      frequencyPenalty: 0,
-      systemPrompt: 'You are Qwen, a highly capable multilingual AI. Provide precise and comprehensive responses.'
-    },
-    status: 'available',
-    performance: { avgResponseTime: 1500, successRate: 98.5, totalRequests: 0, tokensUsed: 0 }
   }
 ]
 
@@ -406,7 +251,7 @@ const REASONING_PATTERNS = {
 
 class AIProviderService {
   private models: Map<string, AIModel> = new Map()
-  private activeModel: string = 'claude-3.5-sonnet'
+  private activeModel: string = 'claude-opus-4-6'
   private reasoningHistory: ReasoningChain[] = []
 
   constructor() {
@@ -414,14 +259,31 @@ class AIProviderService {
   }
 
   private loadModels() {
+    // Always load from the source-of-truth model list
+    // This ensures stale localStorage data with old model IDs is cleared
+    const activeIds = new Set(ADVANCED_MODELS.map(m => m.id))
+    ADVANCED_MODELS.forEach(m => this.models.set(m.id, m))
+
+    // Restore any user-customized settings (temperature, etc.) from storage
     const stored = localStorage.getItem('bloop-ai-models')
     if (stored) {
-      const models: AIModel[] = JSON.parse(stored)
-      models.forEach(m => this.models.set(m.id, m))
-    } else {
-      ADVANCED_MODELS.forEach(m => this.models.set(m.id, m))
-      this.saveModels()
+      try {
+        const models: AIModel[] = JSON.parse(stored)
+        models.forEach(m => {
+          if (activeIds.has(m.id)) {
+            // Merge user config into the active model
+            const active = this.models.get(m.id)
+            if (active) {
+              active.config = { ...active.config, ...m.config }
+              active.performance = m.performance
+            }
+          }
+        })
+      } catch {
+        // Corrupted storage — ignore
+      }
     }
+    this.saveModels()
   }
 
   private saveModels() {
@@ -1178,15 +1040,10 @@ After ${thinkingSteps.length} deep thinking steps (${totalDuration}ms), I've rea
 
   private getModelPersonality(model: AIModel): string {
     const personalities: Record<string, string> = {
-      'kimi-k2.5': '🔮 **Kimi Analysis Complete**\n*Leveraging 1T parameters and 256K context for deep understanding*',
-      'claude-3.5-sonnet': '🎭 **Claude\'s Thoughtful Response**\n*Balancing depth, accuracy, and helpfulness*',
-      'gpt-4-turbo': '⚡ **GPT-4 Turbo Response**\n*Versatile analysis with comprehensive coverage*',
-      'gemini-1.5-pro': '🌟 **Gemini Pro Insights**\n*Drawing from massive context understanding*',
-      'deepseek-coder': '💻 **DeepSeek Code Expert**\n*Optimized for software development excellence*',
-      'mistral-large': '🎨 **Mistral Creative Output**\n*Blending creativity with precision*',
-      'grok-2': '🚀 **Grok Analysis**\n*Fast, witty, and insightful*',
-      'llama-3.1-405b': '🦙 **Llama 405B Response**\n*Open-source power with expert reasoning*',
-      'qwen-2.5-72b': '🐲 **Qwen Multilingual Analysis**\n*Precision across languages and domains*'
+      'claude-opus-4-6': '🎭 **Claude Opus 4.6 Response**\n*Top-tier reasoning with depth and accuracy*',
+      'gpt-4o': '⚡ **GPT-4o Response**\n*Fast multimodal analysis with broad coverage*',
+      'gemini-2.0-flash': '🌟 **Gemini 2.0 Flash Insights**\n*Ultra-fast with massive context understanding*',
+      'mistral-large-2512': '🎨 **Mistral Large Response**\n*Blending creativity with precision*',
     }
     return personalities[model.id] || '🤖 **AI Response**'
   }
