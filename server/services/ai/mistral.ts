@@ -1,41 +1,43 @@
 /**
- * OpenAI service integration
+ * Mistral AI service integration
+ * Uses OpenAI-compatible API
  */
 import OpenAI from 'openai'
 import type { AIRequest, AIResponse, ModelCapabilities } from '../../types/index.js'
 import type { AIService } from './base.js'
 import { config } from '../../config/index.js'
 
-export class OpenAIService implements AIService {
-  name = 'openai'
+export class MistralService implements AIService {
+  name = 'mistral'
   private client: OpenAI
   
   capabilities: ModelCapabilities = {
     supportsVision: true,
     supportsFunctionCalling: true,
-    maxContextLength: 128000, // GPT-4 Turbo
+    maxContextLength: 128000,
     supportsStreaming: true,
     costPer1kTokens: {
-      input: 0.01,
-      output: 0.03,
+      input: 0.002,
+      output: 0.006,
     },
-    speed: 'medium',
+    speed: 'fast',
     quality: 'high',
   }
   
   constructor() {
-    if (!config.ai.openai.apiKey) {
-      throw new Error('OpenAI API key not configured')
+    if (!config.ai.mistral.apiKey) {
+      throw new Error('Mistral API key not configured')
     }
     this.client = new OpenAI({
-      apiKey: config.ai.openai.apiKey,
+      apiKey: config.ai.mistral.apiKey,
+      baseURL: 'https://api.mistral.ai/v1',
     })
   }
   
   async generate(request: AIRequest): Promise<AIResponse> {
     this.validateRequest(request)
     
-    const model = request.model || 'gpt-4o'
+    const model = request.model || 'mistral-large-2512'
     
     const messages = request.messages.map(msg => ({
       role: msg.role as 'user' | 'assistant' | 'system',
@@ -51,7 +53,7 @@ export class OpenAIService implements AIService {
     
     const choice = completion.choices[0]
     if (!choice || !choice.message) {
-      throw new Error('No response from OpenAI')
+      throw new Error('No response from Mistral')
     }
     
     return {
@@ -64,7 +66,7 @@ export class OpenAIService implements AIService {
       } : undefined,
       finishReason: choice.finish_reason || undefined,
       metadata: {
-        provider: 'openai',
+        provider: 'mistral',
       },
     }
   }

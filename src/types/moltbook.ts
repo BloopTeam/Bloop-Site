@@ -1,21 +1,37 @@
 /**
  * Moltbook Integration Types
- * Social network for AI agents
+ * Updated for Moltbook Developer Platform (Feb 2026)
+ * Docs: https://www.moltbook.com/developers
+ * 1.6M+ AI agents on the platform
  */
 
-// Agent identity
+// ─── Agent Identity (updated with real platform data) ───
+
 export interface MoltbookAgent {
   id: string
-  username: string
-  displayName: string
+  name: string
+  username?: string       // @handle
+  displayName?: string    // legacy compat
   description: string
   avatar?: string
+  avatar_url?: string     // from verify-identity API
   karma: number
-  createdAt: string
+  is_claimed: boolean
   verified: boolean
+  createdAt: string
+  created_at?: string     // API format
   capabilities: string[]
   submolts: string[]
   stats: AgentStats
+  follower_count?: number
+  owner?: AgentOwner
+}
+
+export interface AgentOwner {
+  x_handle?: string
+  x_name?: string
+  x_verified?: boolean
+  x_follower_count?: number
 }
 
 export interface AgentStats {
@@ -27,7 +43,34 @@ export interface AgentStats {
   following: number
 }
 
-// Registration flow
+// ─── Identity Verification (new Moltbook Developer API) ───
+
+export interface IdentityTokenResponse {
+  token: string
+  expires_at: string
+  agent_id: string
+}
+
+export interface IdentityVerificationRequest {
+  token: string
+}
+
+export interface IdentityVerificationResponse {
+  success: boolean
+  valid: boolean
+  agent: MoltbookAgent | null
+  error?: string
+}
+
+export interface MoltbookAppConfig {
+  appKey: string           // starts with "moltdev_"
+  appName: string
+  authEndpoint?: string
+  headerName: string       // default: "X-Moltbook-Identity"
+}
+
+// ─── Registration ───
+
 export interface ClaimLink {
   url: string
   code: string
@@ -42,7 +85,8 @@ export interface RegistrationRequest {
   twitterHandle?: string
 }
 
-// Social content
+// ─── Social Content ───
+
 export interface MoltbookPost {
   id: string
   author: MoltbookAgent
@@ -73,7 +117,8 @@ export interface MoltbookComment {
   replies?: MoltbookComment[]
 }
 
-// Submolts (communities)
+// ─── Submolts (communities) ───
+
 export interface Submolt {
   id: string
   name: string
@@ -87,7 +132,8 @@ export interface Submolt {
   banner?: string
 }
 
-// Skill sharing
+// ─── Skill Sharing ───
+
 export interface SharedSkill {
   id: string
   name: string
@@ -104,7 +150,8 @@ export interface SharedSkill {
   updatedAt: string
 }
 
-// Feed and discovery
+// ─── Feed & Discovery ───
+
 export interface FeedOptions {
   submolt?: string
   sort: 'new' | 'top' | 'hot' | 'discussed'
@@ -119,19 +166,23 @@ export interface FeedResponse {
   nextOffset: number
 }
 
-// Configuration
+// ─── Configuration ───
+
 export interface MoltbookConfig {
   enabled: boolean
+  apiBaseUrl: string
   agentPublic: boolean
   autoShare: boolean
   defaultSubmolts: string[]
   skillSharingEnabled: boolean
+  developerApp?: MoltbookAppConfig
 }
 
-// Bloop's agent profile
+// ─── Bloop's Agent Profile ───
+
 export const BLOOP_AGENT_PROFILE = {
   name: 'Bloop',
-  description: 'AI-powered development environment with advanced code intelligence, multi-agent orchestration, and comprehensive coding assistance.',
+  description: 'AI-powered development environment with advanced code intelligence, multi-agent orchestration, and comprehensive coding assistance. Built with Rust + React.',
   capabilities: [
     'code-generation',
     'code-review',
@@ -141,12 +192,15 @@ export const BLOOP_AGENT_PROFILE = {
     'debugging',
     'dependency-analysis',
     'performance-optimization',
-    'security-scanning'
+    'security-scanning',
+    'multi-model-routing',
+    'agent-orchestration',
   ],
   defaultSubmolts: [
     'developers',
     'coding',
     'ai-tools',
-    'open-source'
-  ]
+    'open-source',
+    'devtools',
+  ],
 } as const

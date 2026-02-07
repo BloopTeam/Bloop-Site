@@ -10,32 +10,29 @@ const router = new ModelRouter()
 
 modelsRouter.get('/', async (req, res) => {
   try {
-    // Get all available models from router
-    const providers = [
-      { key: 'openai' as const, name: 'OpenAI', model: 'gpt-4-turbo-preview' },
-      { key: 'anthropic' as const, name: 'Anthropic', model: 'claude-3-5-sonnet-20241022' },
-      { key: 'google' as const, name: 'Google', model: 'gemini-1.5-pro' },
+    const allProviders = [
+      { key: 'openai' as const, name: 'OpenAI', model: 'gpt-4o', category: 'general' },
+      { key: 'anthropic' as const, name: 'Anthropic', model: 'claude-opus-4-6', category: 'general' },
+      { key: 'google' as const, name: 'Google', model: 'gemini-2.0-flash', category: 'general' },
+      { key: 'mistral' as const, name: 'Mistral', model: 'mistral-large-2512', category: 'general' },
     ]
 
-    const models = providers.map(provider => {
+    const models = allProviders.map(provider => {
       const service = router.getService(provider.key)
-      const available = !!service
 
       if (service) {
-        const caps = service.capabilities()
+        const caps = service.capabilities
         return {
           provider: provider.name,
           model: provider.model,
+          category: provider.category,
           available: true,
           capabilities: {
-            supports_vision: caps.supports_vision,
-            supports_function_calling: caps.supports_function_calling,
-            max_context_length: caps.max_context_length,
-            supports_streaming: caps.supports_streaming,
-            cost_per_1k_tokens: {
-              input: caps.cost_per_1k_tokens.input,
-              output: caps.cost_per_1k_tokens.output,
-            },
+            supportsVision: caps.supportsVision,
+            supportsFunctionCalling: caps.supportsFunctionCalling,
+            maxContextLength: caps.maxContextLength,
+            supportsStreaming: caps.supportsStreaming,
+            costPer1kTokens: caps.costPer1kTokens,
             speed: caps.speed,
             quality: caps.quality,
           }
@@ -44,58 +41,39 @@ modelsRouter.get('/', async (req, res) => {
         return {
           provider: provider.name,
           model: provider.model,
+          category: provider.category,
           available: false,
-          capabilities: {
-            supports_vision: false,
-            supports_function_calling: false,
-            max_context_length: 0,
-            supports_streaming: false,
-            cost_per_1k_tokens: { input: 0, output: 0 },
-            speed: 'unknown',
-            quality: 'unknown',
-          }
+          capabilities: null,
+          hint: `Set ${provider.key.toUpperCase()}_API_KEY in .env to enable`,
         }
       }
     })
 
-    // Add placeholder models for providers not yet implemented in Node.js backend
-    const placeholderProviders = [
-      { name: 'Moonshot', model: 'kimi-k2.5' },
-      { name: 'DeepSeek', model: 'deepseek-chat' },
-      { name: 'Mistral', model: 'mistral-large-latest' },
-      { name: 'Cohere', model: 'command-r-plus' },
-      { name: 'Perplexity', model: 'llama-3.1-sonar-large-128k-online' },
-      { name: 'xAI', model: 'grok-beta' },
-      { name: 'Together', model: 'meta-llama/Meta-Llama-3-70B-Instruct-Turbo' },
-      { name: 'Anyscale', model: 'meta-llama/Meta-Llama-3.1-405B-Instruct' },
-      { name: 'Qwen', model: 'qwen-plus' },
-      { name: 'ZeroOne', model: 'yi-1.5-34b-chat' },
-      { name: 'Baidu', model: 'ernie-4.0-8k' },
+    // Providers that can be added later (keys not configured yet)
+    const inactiveProviders = [
+      { name: 'Perplexity', model: 'llama-3.1-sonar-large-128k-online', category: 'search', hint: 'Set PERPLEXITY_API_KEY — search-enhanced AI' },
+      { name: 'DeepSeek', model: 'deepseek-chat', category: 'code', hint: 'Set DEEPSEEK_API_KEY — code-specialized AI' },
+      { name: 'Moonshot (Kimi)', model: 'moonshot-v1-128k', category: 'general', hint: 'Set MOONSHOT_API_KEY — coming soon' },
     ]
 
-    placeholderProviders.forEach(provider => {
+    inactiveProviders.forEach(provider => {
       models.push({
         provider: provider.name,
         model: provider.model,
+        category: provider.category,
         available: false,
-        capabilities: {
-          supports_vision: false,
-          supports_function_calling: false,
-          max_context_length: 0,
-          supports_streaming: false,
-          cost_per_1k_tokens: { input: 0, output: 0 },
-          speed: 'unknown',
-          quality: 'unknown',
-        }
-      })
+        capabilities: null,
+        hint: provider.hint,
+      } as any)
     })
 
-    const total_available = models.filter(m => m.available).length
+    const totalAvailable = models.filter(m => m.available).length
 
     res.json({
       models,
-      total_available,
-      total_providers: models.length
+      total_available: totalAvailable,
+      total_providers: models.length,
+      active_providers: router.getAvailableProviders(),
     })
   } catch (error) {
     console.error('Error fetching models:', error)

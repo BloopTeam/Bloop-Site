@@ -13,7 +13,7 @@ export class GoogleService implements AIService {
   capabilities: ModelCapabilities = {
     supportsVision: true,
     supportsFunctionCalling: true,
-    maxContextLength: 1000000, // Gemini 1.5 Pro
+    maxContextLength: 1000000, // Gemini 2.0 Flash
     supportsStreaming: true,
     costPer1kTokens: {
       input: 0.00125,
@@ -33,32 +33,35 @@ export class GoogleService implements AIService {
   async generate(request: AIRequest): Promise<AIResponse> {
     this.validateRequest(request)
     
-    const modelName = request.model || 'gemini-1.5-pro'
-    const model = this.client.getGenerativeModel({ model: modelName })
+    const modelName = request.model || 'gemini-2.0-flash'
     
-    // Build prompt from messages
+    // Extract system instruction and conversation messages
     const systemMessage = request.messages.find(m => m.role === 'system')
     const conversationMessages = request.messages.filter(m => m.role !== 'system')
     
-    let prompt = ''
-    if (systemMessage) {
-      prompt += `System: ${systemMessage.content}\n\n`
-    }
+    const model = this.client.getGenerativeModel({
+      model: modelName,
+      systemInstruction: systemMessage?.content || undefined,
+    })
     
-    for (const msg of conversationMessages) {
-      const role = msg.role === 'assistant' ? 'Assistant' : 'User'
-      prompt += `${role}: ${msg.content}\n\n`
-    }
-    prompt += 'Assistant:'
+    // Build proper multi-turn chat history (all messages except the last user message)
+    const history = conversationMessages.slice(0, -1).map(msg => ({
+      role: msg.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: msg.content }],
+    }))
     
-    const result = await model.generateContent({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    // Get the last message as the current prompt
+    const lastMessage = conversationMessages[conversationMessages.length - 1]
+    
+    const chat = model.startChat({
+      history: history as any,
       generationConfig: {
         temperature: request.temperature ?? 0.7,
         maxOutputTokens: request.maxTokens ?? 4096,
       },
     })
     
+    const result = await chat.sendMessage(lastMessage.content)
     const response = result.response
     const text = response.text()
     

@@ -1,41 +1,43 @@
 /**
- * OpenAI service integration
+ * Moonshot AI (Kimi) service integration
+ * Uses OpenAI-compatible API
  */
 import OpenAI from 'openai'
 import type { AIRequest, AIResponse, ModelCapabilities } from '../../types/index.js'
 import type { AIService } from './base.js'
 import { config } from '../../config/index.js'
 
-export class OpenAIService implements AIService {
-  name = 'openai'
+export class MoonshotService implements AIService {
+  name = 'moonshot'
   private client: OpenAI
   
   capabilities: ModelCapabilities = {
     supportsVision: true,
     supportsFunctionCalling: true,
-    maxContextLength: 128000, // GPT-4 Turbo
+    maxContextLength: 128000,
     supportsStreaming: true,
     costPer1kTokens: {
-      input: 0.01,
-      output: 0.03,
+      input: 0.001,
+      output: 0.002,
     },
-    speed: 'medium',
+    speed: 'fast',
     quality: 'high',
   }
   
   constructor() {
-    if (!config.ai.openai.apiKey) {
-      throw new Error('OpenAI API key not configured')
+    if (!config.ai.moonshot.apiKey) {
+      throw new Error('Moonshot API key not configured')
     }
     this.client = new OpenAI({
-      apiKey: config.ai.openai.apiKey,
+      apiKey: config.ai.moonshot.apiKey,
+      baseURL: 'https://api.moonshot.cn/v1',
     })
   }
   
   async generate(request: AIRequest): Promise<AIResponse> {
     this.validateRequest(request)
     
-    const model = request.model || 'gpt-4o'
+    const model = request.model || 'moonshot-v1-128k'
     
     const messages = request.messages.map(msg => ({
       role: msg.role as 'user' | 'assistant' | 'system',
@@ -51,7 +53,7 @@ export class OpenAIService implements AIService {
     
     const choice = completion.choices[0]
     if (!choice || !choice.message) {
-      throw new Error('No response from OpenAI')
+      throw new Error('No response from Moonshot')
     }
     
     return {
@@ -64,7 +66,7 @@ export class OpenAIService implements AIService {
       } : undefined,
       finishReason: choice.finish_reason || undefined,
       metadata: {
-        provider: 'openai',
+        provider: 'moonshot',
       },
     }
   }

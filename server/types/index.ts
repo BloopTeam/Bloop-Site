@@ -80,7 +80,7 @@ export interface ModelCapabilities {
   quality: 'high' | 'medium' | 'low'
 }
 
-export type ModelProvider = 'openai' | 'anthropic' | 'google' | 'auto'
+export type ModelProvider = 'openai' | 'anthropic' | 'google' | 'perplexity' | 'deepseek' | 'moonshot' | 'mistral' | 'auto'
 
 export interface ModelInfo {
   provider: ModelProvider

@@ -13,13 +13,13 @@ export class AnthropicService implements AIService {
   capabilities: ModelCapabilities = {
     supportsVision: true,
     supportsFunctionCalling: true,
-    maxContextLength: 200000, // Claude 3.5 Sonnet
+    maxContextLength: 200000, // Claude Opus 4.6
     supportsStreaming: true,
     costPer1kTokens: {
-      input: 0.003,
-      output: 0.015,
+      input: 0.005,
+      output: 0.025,
     },
-    speed: 'fast',
+    speed: 'medium',
     quality: 'high',
   }
   
@@ -35,7 +35,7 @@ export class AnthropicService implements AIService {
   async generate(request: AIRequest): Promise<AIResponse> {
     this.validateRequest(request)
     
-    const model = request.model || 'claude-3-5-sonnet-20241022'
+    const model = request.model || 'claude-opus-4-6'
     
     // Separate system message from conversation
     const systemMessage = request.messages.find(m => m.role === 'system')
