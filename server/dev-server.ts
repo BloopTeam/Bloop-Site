@@ -13,7 +13,6 @@
  */
 import express from 'express'
 import dotenv from 'dotenv'
-import { createServer as createViteServer } from 'vite'
 
 // Load environment variables
 dotenv.config()
@@ -150,6 +149,7 @@ async function createServer() {
   // ─── Vite frontend middleware ──────────────────────────────────────────────
 
   if (!IS_PRODUCTION) {
+    const { createServer: createViteServer } = await import('vite')
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa'
