@@ -1,13 +1,42 @@
 /**
  * Authentication Screen — Login / Register
  *
- * Premium landing + auth screen for Bloop.
+ * Matches the Bloop IDE design system:
+ *   - Magenta (#FF00FF) accent
+ *   - Near-black backgrounds (#000, #0a0a0a, #141414)
+ *   - Inter font, 13px base
+ *   - Sharp corners (4px radius)
+ *   - Inline styles (works without Tailwind CSS loaded)
+ *
+ * Security:
+ *   - Client-side input sanitization
+ *   - Rate limit feedback
+ *   - No credentials in URL/logs
+ *   - Autofill-safe input names
+ *   - Secure password field handling
  */
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { authService, AuthError, AuthUser } from '../services/auth'
 
 interface AuthScreenProps {
   onAuthenticated: (user: AuthUser) => void
+}
+
+// ─── Input sanitization ──────────────────────────────────────────────────────
+
+function sanitize(input: string): string {
+  return input
+    .replace(/[<>]/g, '') // Strip angle brackets (XSS vectors)
+    .trim()
+    .slice(0, 200) // Cap length
+}
+
+function sanitizeEmail(input: string): string {
+  return sanitize(input).toLowerCase()
+}
+
+function sanitizeUsername(input: string): string {
+  return sanitize(input).replace(/[^a-zA-Z0-9_\-@.]/g, '')
 }
 
 export default function AuthScreen({ onAuthenticated }: AuthScreenProps) {
@@ -19,33 +48,69 @@ export default function AuthScreen({ onAuthenticated }: AuthScreenProps) {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [attempts, setAttempts] = useState(0)
 
-  useEffect(() => {
+  const checkAuth = useCallback(() => {
     const user = authService.getUser()
     if (user && authService.isAuthenticated()) {
       onAuthenticated(user)
     }
   }, [onAuthenticated])
 
+  useEffect(() => { checkAuth() }, [checkAuth])
+
+  // Client-side rate limiting (supplements server-side)
+  const isClientLocked = attempts >= 5
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+
+    if (isClientLocked) {
+      setError('Too many attempts. Please wait a moment before trying again.')
+      return
+    }
+
     setLoading(true)
 
     try {
       if (mode === 'login') {
-        const result = await authService.login(email || username, password)
-        onAuthenticated(result.user)
-      } else {
-        if (!email || !username || !password) {
-          setError('All fields are required')
+        const identifier = email.includes('@') ? sanitizeEmail(email) : sanitizeUsername(email)
+        if (!identifier || !password) {
+          setError('Please enter your credentials.')
           setLoading(false)
           return
         }
-        const result = await authService.register(email, username, password, displayName || undefined)
+        const result = await authService.login(identifier, password)
+        setAttempts(0)
+        onAuthenticated(result.user)
+      } else {
+        const cleanEmail = sanitizeEmail(email)
+        const cleanUsername = sanitizeUsername(username)
+        const cleanDisplayName = sanitize(displayName)
+
+        if (!cleanEmail || !cleanUsername || !password) {
+          setError('Email, username, and password are required.')
+          setLoading(false)
+          return
+        }
+        if (password.length < 8) {
+          setError('Password must be at least 8 characters.')
+          setLoading(false)
+          return
+        }
+        if (!/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
+          setError('Password needs at least 1 uppercase letter and 1 number.')
+          setLoading(false)
+          return
+        }
+
+        const result = await authService.register(cleanEmail, cleanUsername, password, cleanDisplayName || undefined)
+        setAttempts(0)
         onAuthenticated(result.user)
       }
     } catch (err) {
+      setAttempts(a => a + 1)
       if (err instanceof AuthError) {
         setError(err.message)
       } else {
@@ -56,293 +121,261 @@ export default function AuthScreen({ onAuthenticated }: AuthScreenProps) {
     }
   }
 
+  // Decay attempt counter
+  useEffect(() => {
+    if (attempts > 0) {
+      const timer = setTimeout(() => setAttempts(a => Math.max(0, a - 1)), 30000)
+      return () => clearTimeout(timer)
+    }
+  }, [attempts])
+
+  const MAGENTA = '#FF00FF'
+  const BG_BODY = '#000000'
+  const BG_CARD = '#0a0a0a'
+  const BG_INPUT = '#141414'
+  const BORDER = '#1a1a1a'
+  const BORDER_HOVER = '#2a2a2a'
+  const TEXT_PRIMARY = '#cccccc'
+  const TEXT_MUTED = '#666666'
+  const TEXT_DIM = '#444444'
+
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#06060b',
+      background: 'linear-gradient(135deg, #090909 0%, #0d0b12 50%, #090909 100%)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       padding: '24px',
       position: 'relative',
       overflow: 'hidden',
-      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      fontSize: '13px',
+      color: TEXT_PRIMARY,
     }}>
-      {/* Animated background orbs */}
-      <div style={{
-        position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden',
-      }}>
-        <div style={{
-          position: 'absolute', top: '-20%', right: '-10%',
-          width: '600px', height: '600px',
-          background: 'radial-gradient(circle, rgba(139,92,246,0.15) 0%, transparent 70%)',
-          borderRadius: '50%',
-          animation: 'float 8s ease-in-out infinite',
-        }} />
-        <div style={{
-          position: 'absolute', bottom: '-20%', left: '-10%',
-          width: '500px', height: '500px',
-          background: 'radial-gradient(circle, rgba(59,130,246,0.12) 0%, transparent 70%)',
-          borderRadius: '50%',
-          animation: 'float 10s ease-in-out infinite reverse',
-        }} />
-        <div style={{
-          position: 'absolute', top: '50%', left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: '800px', height: '800px',
-          background: 'radial-gradient(circle, rgba(168,85,247,0.05) 0%, transparent 60%)',
-          borderRadius: '50%',
-        }} />
-        {/* Grid overlay */}
-        <div style={{
-          position: 'absolute', inset: 0,
-          backgroundImage: 'linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)',
-          backgroundSize: '60px 60px',
-        }} />
-      </div>
-
       <style>{`
-        @keyframes float {
-          0%, 100% { transform: translateY(0px) scale(1); }
-          50% { transform: translateY(-30px) scale(1.05); }
+        @keyframes pulse-glow {
+          0%, 100% { opacity: 0.4; }
+          50% { opacity: 0.8; }
         }
-        @keyframes shimmer {
-          0% { background-position: -200% center; }
-          100% { background-position: 200% center; }
-        }
-        @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(20px); }
+        @keyframes fade-in {
+          from { opacity: 0; transform: translateY(12px); }
           to { opacity: 1; transform: translateY(0); }
         }
-        .auth-input {
+        .bloop-input {
           width: 100%;
-          padding: 12px 16px;
-          background: rgba(255,255,255,0.03);
-          border: 1px solid rgba(255,255,255,0.08);
-          border-radius: 12px;
+          padding: 10px 12px;
+          background: ${BG_INPUT};
+          border: 1px solid ${BORDER};
+          border-radius: 4px;
           color: #fff;
-          font-size: 14px;
+          font-size: 13px;
           font-family: inherit;
           outline: none;
-          transition: all 0.2s ease;
+          transition: border-color 0.15s, box-shadow 0.15s;
+          box-sizing: border-box;
         }
-        .auth-input::placeholder { color: rgba(255,255,255,0.25); }
-        .auth-input:focus {
-          border-color: rgba(139,92,246,0.5);
-          box-shadow: 0 0 0 3px rgba(139,92,246,0.1), 0 0 20px rgba(139,92,246,0.05);
-          background: rgba(255,255,255,0.05);
+        .bloop-input::placeholder {
+          color: rgba(212, 165, 255, 0.4);
         }
-        .auth-btn {
-          width: 100%;
-          padding: 14px 24px;
-          background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 50%, #3b82f6 100%);
-          color: #fff;
-          font-weight: 600;
-          font-size: 15px;
-          font-family: inherit;
-          border: none;
-          border-radius: 12px;
-          cursor: pointer;
-          transition: all 0.3s ease;
-          position: relative;
-          overflow: hidden;
+        .bloop-input:focus {
+          border-color: ${MAGENTA};
+          box-shadow: 0 0 8px rgba(255, 0, 255, 0.15);
         }
-        .auth-btn:hover:not(:disabled) {
-          transform: translateY(-1px);
-          box-shadow: 0 8px 30px rgba(139,92,246,0.3), 0 0 60px rgba(139,92,246,0.1);
-        }
-        .auth-btn:active:not(:disabled) { transform: translateY(0); }
-        .auth-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .mode-btn {
-          flex: 1;
-          padding: 10px 16px;
-          font-size: 13px;
-          font-weight: 500;
-          font-family: inherit;
-          border: none;
-          border-radius: 10px;
-          cursor: pointer;
-          transition: all 0.2s ease;
+        .bloop-input:hover:not(:focus) {
+          border-color: ${BORDER_HOVER};
         }
       `}</style>
 
+      {/* Background accents */}
+      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+        <div style={{
+          position: 'absolute', top: '-200px', right: '-200px',
+          width: '500px', height: '500px',
+          background: `radial-gradient(circle, rgba(255,0,255,0.04) 0%, transparent 70%)`,
+          borderRadius: '50%',
+        }} />
+        <div style={{
+          position: 'absolute', bottom: '-200px', left: '-200px',
+          width: '400px', height: '400px',
+          background: `radial-gradient(circle, rgba(255,0,255,0.03) 0%, transparent 70%)`,
+          borderRadius: '50%',
+        }} />
+      </div>
+
       <div style={{
         width: '100%',
-        maxWidth: '440px',
+        maxWidth: '380px',
         position: 'relative',
         zIndex: 10,
-        animation: 'fadeUp 0.6s ease-out',
+        animation: 'fade-in 0.4s ease-out',
       }}>
-        {/* Logo & Branding */}
-        <div style={{ textAlign: 'center', marginBottom: '36px' }}>
+        {/* Logo */}
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <div style={{
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: '64px',
-            height: '64px',
-            borderRadius: '20px',
-            background: 'linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%)',
-            marginBottom: '20px',
-            boxShadow: '0 8px 32px rgba(139,92,246,0.3)',
+            width: '48px',
+            height: '48px',
+            borderRadius: '8px',
+            background: BG_CARD,
+            border: `1px solid ${BORDER}`,
+            marginBottom: '16px',
           }}>
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={MAGENTA} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="16 18 22 12 16 6" />
               <polyline points="8 6 2 12 8 18" />
             </svg>
           </div>
           <h1 style={{
-            fontSize: '32px',
-            fontWeight: 700,
+            fontSize: '18px',
+            fontWeight: 600,
             color: '#fff',
-            margin: '0 0 8px 0',
+            margin: '0 0 6px 0',
             letterSpacing: '-0.02em',
           }}>
             Bloop
           </h1>
           <p style={{
-            color: 'rgba(255,255,255,0.4)',
-            fontSize: '15px',
+            color: TEXT_MUTED,
+            fontSize: '12px',
             margin: 0,
-            lineHeight: 1.5,
           }}>
-            {mode === 'login'
-              ? 'Welcome back. Sign in to your workspace.'
-              : 'Build with AI. Create your account.'}
+            {mode === 'login' ? 'Sign in to your workspace' : 'Create your account'}
           </p>
         </div>
 
-        {/* Auth Card */}
+        {/* Card */}
         <div style={{
-          background: 'rgba(255,255,255,0.03)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          border: '1px solid rgba(255,255,255,0.06)',
-          borderRadius: '20px',
-          padding: '32px',
-          boxShadow: '0 24px 80px rgba(0,0,0,0.4), 0 0 1px rgba(255,255,255,0.1) inset',
+          background: BG_CARD,
+          border: `1px solid ${BORDER}`,
+          borderRadius: '8px',
+          padding: '24px',
         }}>
           {/* Mode Toggle */}
           <div style={{
             display: 'flex',
-            gap: '4px',
-            padding: '4px',
-            background: 'rgba(255,255,255,0.03)',
-            borderRadius: '12px',
-            marginBottom: '28px',
+            gap: '2px',
+            marginBottom: '24px',
+            borderBottom: `1px solid ${BORDER}`,
           }}>
-            <button
-              className="mode-btn"
-              onClick={() => { setMode('login'); setError('') }}
-              style={{
-                background: mode === 'login'
-                  ? 'linear-gradient(135deg, rgba(139,92,246,0.9), rgba(99,102,241,0.9))'
-                  : 'transparent',
-                color: mode === 'login' ? '#fff' : 'rgba(255,255,255,0.4)',
-                boxShadow: mode === 'login' ? '0 4px 12px rgba(139,92,246,0.3)' : 'none',
-              }}
-            >
-              Sign In
-            </button>
-            <button
-              className="mode-btn"
-              onClick={() => { setMode('register'); setError('') }}
-              style={{
-                background: mode === 'register'
-                  ? 'linear-gradient(135deg, rgba(139,92,246,0.9), rgba(99,102,241,0.9))'
-                  : 'transparent',
-                color: mode === 'register' ? '#fff' : 'rgba(255,255,255,0.4)',
-                boxShadow: mode === 'register' ? '0 4px 12px rgba(139,92,246,0.3)' : 'none',
-              }}
-            >
-              Create Account
-            </button>
+            {(['login', 'register'] as const).map(m => (
+              <button
+                key={m}
+                onClick={() => { setMode(m); setError('') }}
+                style={{
+                  flex: 1,
+                  padding: '10px 0',
+                  fontSize: '12px',
+                  fontWeight: 500,
+                  fontFamily: 'inherit',
+                  letterSpacing: '0.03em',
+                  textTransform: 'uppercase',
+                  background: 'none',
+                  border: 'none',
+                  borderBottom: `2px solid ${mode === m ? MAGENTA : 'transparent'}`,
+                  color: mode === m ? '#fff' : TEXT_MUTED,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                  marginBottom: '-1px',
+                }}
+              >
+                {m === 'login' ? 'Sign In' : 'Create Account'}
+              </button>
+            ))}
           </div>
 
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {mode === 'register' && (
               <>
                 <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: 'rgba(255,255,255,0.6)', marginBottom: '8px' }}>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 500, color: TEXT_MUTED, marginBottom: '6px', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
                     Display Name
                   </label>
                   <input
-                    className="auth-input"
+                    className="bloop-input"
                     type="text"
                     value={displayName}
                     onChange={e => setDisplayName(e.target.value)}
-                    placeholder="Your name (optional)"
+                    placeholder="Optional"
+                    autoComplete="name"
+                    maxLength={100}
                   />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: 'rgba(255,255,255,0.6)', marginBottom: '8px' }}>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 500, color: TEXT_MUTED, marginBottom: '6px', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
                     Username
                   </label>
                   <input
-                    className="auth-input"
+                    className="bloop-input"
                     type="text"
                     value={username}
                     onChange={e => setUsername(e.target.value)}
-                    placeholder="Choose a username"
+                    placeholder="your-username"
                     required
                     autoComplete="username"
+                    maxLength={30}
                   />
                 </div>
               </>
             )}
 
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: 'rgba(255,255,255,0.6)', marginBottom: '8px' }}>
+              <label style={{ display: 'block', fontSize: '11px', fontWeight: 500, color: TEXT_MUTED, marginBottom: '6px', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
                 {mode === 'login' ? 'Email or Username' : 'Email'}
               </label>
               <input
-                className="auth-input"
+                className="bloop-input"
                 type={mode === 'register' ? 'email' : 'text'}
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                placeholder={mode === 'login' ? 'you@example.com or username' : 'you@example.com'}
+                placeholder={mode === 'login' ? 'you@example.com' : 'you@example.com'}
                 required
                 autoComplete={mode === 'login' ? 'username' : 'email'}
+                maxLength={200}
               />
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: 'rgba(255,255,255,0.6)', marginBottom: '8px' }}>
+              <label style={{ display: 'block', fontSize: '11px', fontWeight: 500, color: TEXT_MUTED, marginBottom: '6px', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
                 Password
               </label>
               <div style={{ position: 'relative' }}>
                 <input
-                  className="auth-input"
-                  style={{ paddingRight: '48px' }}
+                  className="bloop-input"
+                  style={{ paddingRight: '40px' }}
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  placeholder={mode === 'register' ? 'Min 8 chars, 1 uppercase, 1 number' : 'Enter your password'}
+                  placeholder={mode === 'register' ? '8+ chars, 1 upper, 1 number' : 'Enter password'}
                   required
                   autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                  maxLength={128}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   style={{
-                    position: 'absolute', right: '14px', top: '50%',
+                    position: 'absolute', right: '10px', top: '50%',
                     transform: 'translateY(-50%)',
                     background: 'none', border: 'none', cursor: 'pointer',
-                    color: 'rgba(255,255,255,0.3)',
-                    padding: '4px',
+                    color: TEXT_DIM,
+                    padding: '2px',
                     display: 'flex',
-                    transition: 'color 0.2s',
+                    transition: 'color 0.15s',
                   }}
-                  onMouseOver={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.6)')}
-                  onMouseOut={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.3)')}
+                  onMouseOver={e => (e.currentTarget.style.color = TEXT_MUTED)}
+                  onMouseOut={e => (e.currentTarget.style.color = TEXT_DIM)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
                       <line x1="1" y1="1" x2="23" y2="23" />
                     </svg>
                   ) : (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                       <circle cx="12" cy="12" r="3" />
                     </svg>
@@ -353,87 +386,76 @@ export default function AuthScreen({ onAuthenticated }: AuthScreenProps) {
 
             {error && (
               <div style={{
-                padding: '12px 16px',
-                background: 'rgba(239,68,68,0.08)',
-                border: '1px solid rgba(239,68,68,0.2)',
-                borderRadius: '12px',
-                color: '#f87171',
-                fontSize: '13px',
+                padding: '10px 12px',
+                background: 'rgba(255, 0, 0, 0.06)',
+                border: '1px solid rgba(255, 60, 60, 0.15)',
+                borderRadius: '4px',
+                color: '#ff4444',
+                fontSize: '12px',
+                lineHeight: 1.4,
               }}>
                 {error}
               </div>
             )}
 
-            <button className="auth-btn" type="submit" disabled={loading}>
-              {loading ? (
-                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                  <svg style={{ animation: 'spin 1s linear infinite' }} width="16" height="16" viewBox="0 0 24 24">
-                    <circle style={{ opacity: 0.25 }} cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path style={{ opacity: 0.75 }} fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  {mode === 'login' ? 'Signing in...' : 'Creating account...'}
-                </span>
-              ) : (
-                mode === 'login' ? 'Sign In' : 'Create Account'
-              )}
+            <button
+              type="submit"
+              disabled={loading || isClientLocked}
+              style={{
+                width: '100%',
+                padding: '10px 16px',
+                background: loading || isClientLocked ? '#333' : MAGENTA,
+                color: '#fff',
+                fontWeight: 600,
+                fontSize: '13px',
+                fontFamily: 'inherit',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: loading || isClientLocked ? 'not-allowed' : 'pointer',
+                transition: 'all 0.15s',
+                opacity: loading || isClientLocked ? 0.5 : 1,
+              }}
+              onMouseOver={e => {
+                if (!loading && !isClientLocked) {
+                  e.currentTarget.style.boxShadow = `0 0 12px rgba(255, 0, 255, 0.4)`
+                }
+              }}
+              onMouseOut={e => {
+                e.currentTarget.style.boxShadow = 'none'
+              }}
+            >
+              {loading ? (mode === 'login' ? 'Signing in...' : 'Creating account...') : (mode === 'login' ? 'Sign In' : 'Create Account')}
             </button>
           </form>
-
-          {mode === 'register' && (
-            <p style={{
-              marginTop: '16px',
-              fontSize: '12px',
-              color: 'rgba(255,255,255,0.25)',
-              textAlign: 'center',
-              lineHeight: 1.5,
-            }}>
-              Password: 8+ characters, 1 uppercase, 1 number
-            </p>
-          )}
         </div>
 
-        {/* Feature pills */}
+        {/* Footer info */}
         <div style={{
           display: 'flex',
           justifyContent: 'center',
-          gap: '16px',
-          marginTop: '28px',
-          flexWrap: 'wrap',
+          gap: '20px',
+          marginTop: '20px',
         }}>
           {[
-            { icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z', label: 'End-to-End Encrypted' },
-            { icon: 'M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 002 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0022 16z', label: 'Isolated Workspaces' },
-            { icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75', label: '24/7 AI Bot Team' },
+            { icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z', label: 'Encrypted' },
+            { icon: 'M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 002 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0022 16z', label: 'Isolated' },
+            { icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2', label: 'Bot Team' },
           ].map(({ icon, label }) => (
-            <div key={label} style={{
+            <span key={label} style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
-              padding: '6px 12px',
-              borderRadius: '20px',
-              background: 'rgba(255,255,255,0.03)',
-              border: '1px solid rgba(255,255,255,0.05)',
+              gap: '5px',
+              fontSize: '11px',
+              color: TEXT_DIM,
+              letterSpacing: '0.02em',
             }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(139,92,246,0.7)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={TEXT_DIM} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d={icon} />
               </svg>
-              <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                {label}
-              </span>
-            </div>
+              {label}
+            </span>
           ))}
         </div>
-
-        {/* Tagline */}
-        <p style={{
-          textAlign: 'center',
-          marginTop: '24px',
-          fontSize: '12px',
-          color: 'rgba(255,255,255,0.15)',
-          letterSpacing: '0.05em',
-        }}>
-          THE FUTURE OF AI-POWERED DEVELOPMENT
-        </p>
       </div>
     </div>
   )
