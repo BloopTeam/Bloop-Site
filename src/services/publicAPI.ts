@@ -571,7 +571,7 @@ class PublicAPIService {
 
 // Create default instance
 export const publicAPIService = new PublicAPIService({
-  baseUrl: import.meta.env.VITE_API_URL || 'http://localhost:3001',
+  baseUrl: import.meta.env.VITE_API_URL || '',
   version: 'v1',
   enableCache: true
 })

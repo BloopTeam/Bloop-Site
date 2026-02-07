@@ -158,9 +158,12 @@ async function createServer() {
   } else {
     // In production, serve static files
     app.use(express.static('dist'))
-    app.get('*', (req, res) => {
+    // SPA fallback — serve index.html for all non-API routes
+    app.use((req, res, next) => {
       if (!req.path.startsWith('/api/')) {
         res.sendFile('dist/index.html', { root: process.cwd() })
+      } else {
+        next()
       }
     })
   }
