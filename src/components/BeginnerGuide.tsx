@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Lightbulb, ChevronRight } from 'lucide-react'
 
 export default function BeginnerGuide() {
@@ -6,6 +6,16 @@ export default function BeginnerGuide() {
     localStorage.getItem('bloop-guide-dismissed') === 'true'
   )
   const [currentTip, setCurrentTip] = useState(0)
+
+  // Auto-dismiss after 8 seconds
+  useEffect(() => {
+    if (dismissed) return
+    const timer = setTimeout(() => {
+      setDismissed(true)
+      localStorage.setItem('bloop-guide-dismissed', 'true')
+    }, 8000)
+    return () => clearTimeout(timer)
+  }, [dismissed])
 
   const tips = [
     {

@@ -291,21 +291,53 @@ function EditorAreaComponent({ onShowToast }: EditorAreaProps, ref: React.Forwar
 
   const currentTab = tabs.find(t => t.id === activeTab) || tabs[0]
 
-  const highlightSyntax = (line: string) => {
+  const highlightSyntax = (line: string): string => {
+    // Tokenize the line to avoid regex overlap issues
     const escaped = line
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
 
-    return escaped
-      .replace(/(\/\/.*$|#.*$)/g, '<span style="color:#6a9955;font-style:italic;">$1</span>')
-      .replace(/(['"`])(.*?)(\1)/g, '<span style="color:#ce9178;">$1$2$3</span>')
+    // Check for full-line comment first (// or #) — highlight the entire line
+    const commentMatch = escaped.match(/^(\s*)(\/\/.*|#.*)$/)
+    if (commentMatch) {
+      return `${commentMatch[1]}<span style="color:#6a9955;font-style:italic">${commentMatch[2]}</span>`
+    }
+
+    // Split into string tokens and non-string tokens to avoid highlighting inside strings
+    const parts: string[] = []
+    let remaining = escaped
+    const stringRegex = /(['"`])(.*?)(\1)/g
+    let lastIndex = 0
+    let match: RegExpExecArray | null
+
+    while ((match = stringRegex.exec(escaped)) !== null) {
+      // Add non-string part before this match
+      if (match.index > lastIndex) {
+        parts.push(highlightCode(escaped.slice(lastIndex, match.index)))
+      }
+      // Add the string literal with string color
+      parts.push(`<span style="color:#ce9178">${match[0]}</span>`)
+      lastIndex = match.index + match[0].length
+    }
+    // Add remaining non-string part
+    if (lastIndex < escaped.length) {
+      parts.push(highlightCode(escaped.slice(lastIndex)))
+    }
+
+    return parts.join('')
+  }
+
+  // Highlight keywords, functions, and numbers in non-string code
+  const highlightCode = (code: string): string => {
+    return code
       .replace(
-        /\b(import|export|from|const|let|var|function|return|if|else|for|while|class|interface|type|new|this|async|await|def|elif|self|None|True|False)\b/g,
-        '<span style="color:#c586c0;">$1</span>'
+        /\b(import|export|from|const|let|var|function|return|if|else|for|while|class|interface|type|new|this|async|await|def|elif|self|None|True|False|extends|implements|static|public|private|protected|readonly|enum|typeof|instanceof)\b/g,
+        '<span style="color:#c586c0">$1</span>'
       )
-      .replace(/\b([a-zA-Z_]\w*)(?=\s*\()/g, '<span style="color:#dcdcaa;">$1</span>')
-      .replace(/\b\d+(\.\d+)?\b/g, '<span style="color:#b5cea8;">$&</span>')
+      .replace(/\b([a-zA-Z_]\w*)(?=\s*\()/g, '<span style="color:#dcdcaa">$1</span>')
+      .replace(/\b(\d+(?:\.\d+)?)\b/g, '<span style="color:#b5cea8">$1</span>')
+      .replace(/(\/\/[^\n]*)$/g, '<span style="color:#6a9955;font-style:italic">$1</span>')
   }
 
   const getFileIcon = (name: string) => {
@@ -360,41 +392,8 @@ function EditorAreaComponent({ onShowToast }: EditorAreaProps, ref: React.Forwar
     return null
   }
 
-  const highlightBrackets = (line: string): string => {
-    const bracketPairs: Record<string, string> = {
-      '(': ')',
-      '[': ']',
-      '{': '}',
-    }
-    
-    let highlighted = line
-    const stack: Array<{ char: string; index: number }> = []
-    
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i]
-      if (bracketPairs[char]) {
-        stack.push({ char, index: i })
-      } else if (Object.values(bracketPairs).includes(char)) {
-        if (stack.length > 0) {
-          const last = stack.pop()
-          if (last) {
-            const pair = Object.entries(bracketPairs).find(([_, v]) => v === char)?.[0]
-            if (pair === last.char) {
-              // Colorize matching pair
-              const before = highlighted.substring(0, last.index)
-              const openChar = highlighted[last.index]
-              const middle = highlighted.substring(last.index + 1, i)
-              const closeChar = highlighted[i]
-              const after = highlighted.substring(i + 1)
-              highlighted = `${before}<span style="color:#FF00FF">${openChar}</span>${middle}<span style="color:#FF00FF">${closeChar}</span>${after}`
-            }
-          }
-        }
-      }
-    }
-    
-    return highlighted
-  }
+  // Bracket highlighting is handled via CSS — no need to modify HTML after syntax highlight
+  const highlightBrackets = (html: string): string => html
 
   const handleSaveFile = async (fileName: string, path: string[], content: string) => {
     try {

@@ -2880,7 +2880,20 @@ IMPORTANT: Use the format \`\`\`path/to/file.ext to create files. This is how th
                 overflow: isCollapsed ? 'hidden' : 'visible',
                 transition: 'max-height 0.3s'
               }}>
-                {renderMessageContent(msg.content)}
+                {msg.role === 'assistant' && isTyping && (!msg.content || msg.content.length === 0) ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#858585', fontSize: '13px' }}>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      {[0, 1, 2].map(i => (
+                        <div key={i} style={{
+                          width: '6px', height: '6px', borderRadius: '50%',
+                          background: '#FF00FF',
+                          animation: `pulse 1.4s ease-in-out ${i * 0.2}s infinite`
+                        }} />
+                      ))}
+                    </div>
+                    <span>Generating response...</span>
+                  </div>
+                ) : renderMessageContent(msg.content)}
               </div>
               
               {/* Collapse button for long messages */}
