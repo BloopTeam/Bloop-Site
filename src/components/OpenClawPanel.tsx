@@ -11,7 +11,7 @@ import {
   Settings, Activity, Bot
 } from 'lucide-react'
 import { openClawService } from '../services/openclaw'
-import { botTeamService, BOT_SPECIALIZATIONS, type TeamBot, type BotSpecialization } from '../services/botTeam'
+import { botTeamService, BOT_SPECIALIZATIONS, type TeamBot, type BotSpecialization, type RoleAllocation } from '../services/botTeam'
 import type { OpenClawSkill, SkillExecutionResult, OpenClawSession } from '../types/openclaw'
 
 interface OpenClawPanelProps {
@@ -189,16 +189,53 @@ export default function OpenClawPanel({
     setBots(botTeamService.getBots())
   }
 
-  const handleCreateBot = (spec: BotSpecialization) => {
-    botTeamService.createBot(spec)
+  // ─── Role Configuration State ─────────────────────────────────────
+  const [configuringSpec, setConfiguringSpec] = useState<BotSpecialization | null>(null)
+  const [roleConfig, setRoleConfig] = useState<RoleAllocation | null>(null)
+
+  const handleSelectSpec = (spec: BotSpecialization) => {
+    setConfiguringSpec(spec)
+    // Pre-fill with the default role for this specialization
+    setRoleConfig({ ...BOT_SPECIALIZATIONS[spec].defaultRole })
+  }
+
+  const handleConfirmCreateBot = () => {
+    if (!configuringSpec || !roleConfig) return
+    botTeamService.createBot(configuringSpec, { role: roleConfig })
     setBots(botTeamService.getBots())
+    setConfiguringSpec(null)
+    setRoleConfig(null)
     setShowCreateBot(false)
+  }
+
+  const handleCancelConfigure = () => {
+    setConfiguringSpec(null)
+    setRoleConfig(null)
+  }
+
+  const handleCreateBot = (spec: BotSpecialization) => {
+    handleSelectSpec(spec)
   }
 
   const handleCreateFullTeam = () => {
     botTeamService.createDefaultTeam()
     setBots(botTeamService.getBots())
     setShowCreateBot(false)
+  }
+
+  // Update a field on the role being configured
+  const updateRoleField = <K extends keyof RoleAllocation>(field: K, value: RoleAllocation[K]) => {
+    if (!roleConfig) return
+    setRoleConfig({ ...roleConfig, [field]: value })
+  }
+
+  // Update role on an existing bot (from expanded detail)
+  const handleUpdateBotRole = (botId: string, updates: Partial<RoleAllocation>) => {
+    botTeamService.updateBot(botId, { role: updates })
+    setBots(botTeamService.getBots())
+    if (selectedBot?.id === botId) {
+      setSelectedBot(botTeamService.getBot(botId) || null)
+    }
   }
 
   const handleToggleBot = (botId: string) => {
@@ -817,8 +854,8 @@ export default function OpenClawPanel({
               </div>
             )}
 
-            {/* Create Bot Panel */}
-            {showCreateBot && (
+            {/* Create Bot Panel — Step 1: Pick Specialization, Step 2: Configure Role */}
+            {showCreateBot && !configuringSpec && (
               <div style={{
                 padding: '12px', background: '#141414', borderRadius: '4px',
                 marginBottom: '12px', border: '1px solid #1a1a1a'
@@ -862,6 +899,247 @@ export default function OpenClawPanel({
                       </div>
                     )
                   })}
+                </div>
+              </div>
+            )}
+
+            {/* Role Configuration Panel — shown after picking a specialization */}
+            {configuringSpec && roleConfig && (
+              <div style={{
+                padding: '12px', background: '#141414', borderRadius: '4px',
+                marginBottom: '12px', border: '1px solid rgba(255,0,255,0.2)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                  <span style={{ fontSize: '20px' }}>{BOT_SPECIALIZATIONS[configuringSpec].avatar}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '13px', color: '#cccccc', fontWeight: 600 }}>
+                      {BOT_SPECIALIZATIONS[configuringSpec].name}
+                    </div>
+                    <div style={{ fontSize: '10px', color: '#FF00FF' }}>Configure Role Allocation</div>
+                  </div>
+                  <button onClick={handleCancelConfigure} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: '16px' }}>
+                    <XCircle size={16} />
+                  </button>
+                </div>
+
+                {/* Role Title */}
+                <div style={{ marginBottom: '10px' }}>
+                  <label style={{ fontSize: '10px', color: '#666', display: 'block', marginBottom: '4px' }}>Role Title</label>
+                  <input
+                    value={roleConfig.title}
+                    onChange={e => updateRoleField('title', e.target.value)}
+                    style={{
+                      width: '100%', padding: '6px 8px', fontSize: '12px', color: '#cccccc',
+                      background: '#0d0d0d', border: '1px solid #222', borderRadius: '4px',
+                      outline: 'none', boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+
+                {/* Focus Areas (editable tags) */}
+                <div style={{ marginBottom: '10px' }}>
+                  <label style={{ fontSize: '10px', color: '#666', display: 'block', marginBottom: '4px' }}>Focus Areas</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '4px' }}>
+                    {roleConfig.focusAreas.map((area, i) => (
+                      <span key={i} style={{
+                        padding: '2px 8px', background: 'rgba(255,0,255,0.08)', borderRadius: '3px',
+                        fontSize: '10px', color: '#FF00FF', border: '1px solid rgba(255,0,255,0.15)',
+                        display: 'flex', alignItems: 'center', gap: '4px'
+                      }}>
+                        {area}
+                        <span style={{ cursor: 'pointer', opacity: 0.6 }} onClick={() =>
+                          updateRoleField('focusAreas', roleConfig.focusAreas.filter((_, j) => j !== i))
+                        }>x</span>
+                      </span>
+                    ))}
+                  </div>
+                  <input
+                    placeholder="Add focus area + Enter"
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                        updateRoleField('focusAreas', [...roleConfig.focusAreas, (e.target as HTMLInputElement).value.trim()]);
+                        (e.target as HTMLInputElement).value = ''
+                      }
+                    }}
+                    style={{
+                      width: '100%', padding: '4px 8px', fontSize: '11px', color: '#cccccc',
+                      background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: '3px',
+                      outline: 'none', boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+
+                {/* Behavior Mode + Severity */}
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: '10px', color: '#666', display: 'block', marginBottom: '4px' }}>Behavior</label>
+                    <select
+                      value={roleConfig.behaviorMode}
+                      onChange={e => updateRoleField('behaviorMode', e.target.value as any)}
+                      style={{
+                        width: '100%', padding: '5px 6px', fontSize: '11px', color: '#cccccc',
+                        background: '#0d0d0d', border: '1px solid #222', borderRadius: '4px', outline: 'none'
+                      }}
+                    >
+                      <option value="strict">Strict</option>
+                      <option value="balanced">Balanced</option>
+                      <option value="lenient">Lenient</option>
+                    </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: '10px', color: '#666', display: 'block', marginBottom: '4px' }}>Severity</label>
+                    <select
+                      value={roleConfig.severityThreshold}
+                      onChange={e => updateRoleField('severityThreshold', e.target.value as any)}
+                      style={{
+                        width: '100%', padding: '5px 6px', fontSize: '11px', color: '#cccccc',
+                        background: '#0d0d0d', border: '1px solid #222', borderRadius: '4px', outline: 'none'
+                      }}
+                    >
+                      <option value="all">All issues</option>
+                      <option value="warning+">Warnings+</option>
+                      <option value="critical-only">Critical only</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Output Format + Response Style */}
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: '10px', color: '#666', display: 'block', marginBottom: '4px' }}>Output Format</label>
+                    <select
+                      value={roleConfig.outputFormat}
+                      onChange={e => updateRoleField('outputFormat', e.target.value as any)}
+                      style={{
+                        width: '100%', padding: '5px 6px', fontSize: '11px', color: '#cccccc',
+                        background: '#0d0d0d', border: '1px solid #222', borderRadius: '4px', outline: 'none'
+                      }}
+                    >
+                      <option value="report">Structured Report</option>
+                      <option value="inline-comments">Inline Comments</option>
+                      <option value="diff-patches">Diff Patches</option>
+                      <option value="checklist">Checklist</option>
+                    </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: '10px', color: '#666', display: 'block', marginBottom: '4px' }}>Response Style</label>
+                    <select
+                      value={roleConfig.responseStyle}
+                      onChange={e => updateRoleField('responseStyle', e.target.value as any)}
+                      style={{
+                        width: '100%', padding: '5px 6px', fontSize: '11px', color: '#cccccc',
+                        background: '#0d0d0d', border: '1px solid #222', borderRadius: '4px', outline: 'none'
+                      }}
+                    >
+                      <option value="concise">Concise</option>
+                      <option value="detailed">Detailed</option>
+                      <option value="tutorial">Tutorial</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Languages */}
+                <div style={{ marginBottom: '10px' }}>
+                  <label style={{ fontSize: '10px', color: '#666', display: 'block', marginBottom: '4px' }}>Target Languages</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '4px' }}>
+                    {roleConfig.languages.map((lang, i) => (
+                      <span key={i} style={{
+                        padding: '2px 8px', background: '#1a1a1a', borderRadius: '3px',
+                        fontSize: '10px', color: '#888', display: 'flex', alignItems: 'center', gap: '4px'
+                      }}>
+                        {lang}
+                        <span style={{ cursor: 'pointer', opacity: 0.6 }} onClick={() =>
+                          updateRoleField('languages', roleConfig.languages.filter((_, j) => j !== i))
+                        }>x</span>
+                      </span>
+                    ))}
+                  </div>
+                  <input
+                    placeholder="Add language + Enter"
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                        updateRoleField('languages', [...roleConfig.languages, (e.target as HTMLInputElement).value.trim()]);
+                        (e.target as HTMLInputElement).value = ''
+                      }
+                    }}
+                    style={{
+                      width: '100%', padding: '4px 8px', fontSize: '11px', color: '#cccccc',
+                      background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: '3px',
+                      outline: 'none', boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+
+                {/* Frameworks */}
+                <div style={{ marginBottom: '10px' }}>
+                  <label style={{ fontSize: '10px', color: '#666', display: 'block', marginBottom: '4px' }}>Frameworks</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '4px' }}>
+                    {roleConfig.frameworks.map((fw, i) => (
+                      <span key={i} style={{
+                        padding: '2px 8px', background: '#1a1a1a', borderRadius: '3px',
+                        fontSize: '10px', color: '#888', display: 'flex', alignItems: 'center', gap: '4px'
+                      }}>
+                        {fw}
+                        <span style={{ cursor: 'pointer', opacity: 0.6 }} onClick={() =>
+                          updateRoleField('frameworks', roleConfig.frameworks.filter((_, j) => j !== i))
+                        }>x</span>
+                      </span>
+                    ))}
+                  </div>
+                  <input
+                    placeholder="Add framework + Enter"
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                        updateRoleField('frameworks', [...roleConfig.frameworks, (e.target as HTMLInputElement).value.trim()]);
+                        (e.target as HTMLInputElement).value = ''
+                      }
+                    }}
+                    style={{
+                      width: '100%', padding: '4px 8px', fontSize: '11px', color: '#cccccc',
+                      background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: '3px',
+                      outline: 'none', boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+
+                {/* Custom Directive */}
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ fontSize: '10px', color: '#666', display: 'block', marginBottom: '4px' }}>Custom Directive (optional)</label>
+                  <textarea
+                    value={roleConfig.customDirective || ''}
+                    onChange={e => updateRoleField('customDirective', e.target.value || undefined)}
+                    placeholder="Any specific instructions for this bot's role..."
+                    rows={2}
+                    style={{
+                      width: '100%', padding: '6px 8px', fontSize: '11px', color: '#cccccc',
+                      background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: '4px',
+                      outline: 'none', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+
+                {/* Confirm / Cancel */}
+                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                  <button
+                    onClick={handleCancelConfigure}
+                    style={{
+                      padding: '6px 14px', fontSize: '11px', cursor: 'pointer',
+                      background: 'transparent', border: '1px solid #333',
+                      borderRadius: '4px', color: '#888'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleConfirmCreateBot}
+                    style={{
+                      padding: '6px 14px', fontSize: '11px', cursor: 'pointer',
+                      background: 'rgba(255,0,255,0.15)', border: '1px solid rgba(255,0,255,0.4)',
+                      borderRadius: '4px', color: '#FF00FF', fontWeight: 600
+                    }}
+                  >
+                    Create {BOT_SPECIALIZATIONS[configuringSpec].name}
+                  </button>
                 </div>
               </div>
             )}
@@ -975,6 +1253,53 @@ export default function OpenClawPanel({
                             <div style={{ color: '#555', fontSize: '10px' }}>Suggestions</div>
                           </div>
                         </div>
+
+                        {/* Role Allocation */}
+                        {bot.role && (
+                          <div style={{
+                            marginBottom: '10px', padding: '8px', background: '#0a0a0a',
+                            borderRadius: '4px', border: '1px solid rgba(255,0,255,0.1)'
+                          }}>
+                            <div style={{ color: '#FF00FF', marginBottom: '6px', fontSize: '10px', fontWeight: 600, letterSpacing: '0.5px' }}>
+                              ROLE: {bot.role.title}
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '6px' }}>
+                              {bot.role.focusAreas.map((area, i) => (
+                                <span key={i} style={{
+                                  padding: '2px 6px', background: 'rgba(255,0,255,0.06)', borderRadius: '3px',
+                                  fontSize: '9px', color: '#FF00FF', border: '1px solid rgba(255,0,255,0.12)'
+                                }}>{area}</span>
+                              ))}
+                            </div>
+                            <div style={{ display: 'flex', gap: '10px', fontSize: '10px', color: '#666' }}>
+                              <span>{bot.role.behaviorMode}</span>
+                              <span>{bot.role.outputFormat}</span>
+                              <span>{bot.role.responseStyle}</span>
+                              <span>{bot.role.severityThreshold}</span>
+                            </div>
+                            {(bot.role.languages.length > 0 || bot.role.frameworks.length > 0) && (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
+                                {bot.role.languages.map((lang, i) => (
+                                  <span key={`l-${i}`} style={{
+                                    padding: '1px 6px', background: '#141414', borderRadius: '3px',
+                                    fontSize: '9px', color: '#888'
+                                  }}>{lang}</span>
+                                ))}
+                                {bot.role.frameworks.map((fw, i) => (
+                                  <span key={`f-${i}`} style={{
+                                    padding: '1px 6px', background: '#141414', borderRadius: '3px',
+                                    fontSize: '9px', color: '#6a9955'
+                                  }}>{fw}</span>
+                                ))}
+                              </div>
+                            )}
+                            {bot.role.customDirective && (
+                              <div style={{ marginTop: '6px', fontSize: '10px', color: '#888', fontStyle: 'italic' }}>
+                                "{bot.role.customDirective}"
+                              </div>
+                            )}
+                          </div>
+                        )}
 
                         {/* Capabilities */}
                         <div style={{ marginBottom: '10px' }}>

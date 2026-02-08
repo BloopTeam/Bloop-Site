@@ -23,6 +23,20 @@ export type BotSpecialization =
 
 export type BotStatus = 'active' | 'idle' | 'working' | 'paused' | 'error'
 
+// ─── Role Allocation — each bot's specialized role definition ─────────────
+export interface RoleAllocation {
+  title: string                       // e.g. "Senior Code Reviewer"
+  focusAreas: string[]                // What this role zeroes in on
+  behaviorMode: 'strict' | 'balanced' | 'lenient'  // How aggressive the bot is
+  outputFormat: 'report' | 'inline-comments' | 'diff-patches' | 'checklist'
+  severityThreshold: 'all' | 'warning+' | 'critical-only'  // What gets flagged
+  expertise: string[]                 // Domain expertise tags
+  responseStyle: 'concise' | 'detailed' | 'tutorial'  // How verbose
+  languages: string[]                 // Programming languages this role targets
+  frameworks: string[]                // Frameworks/tools this role knows
+  customDirective?: string            // User's custom role instructions
+}
+
 export interface BotPreferences {
   targetPaths: string[]          // Files/dirs this bot focuses on
   excludePaths: string[]         // Files/dirs to ignore
@@ -66,6 +80,7 @@ export interface TeamBot {
   status: BotStatus
   avatar: string                 // Emoji avatar
   description: string
+  role: RoleAllocation           // Specialized role allocation
   preferences: BotPreferences
   taskQueue: BotTask[]
   workLog: BotWorkLogEntry[]
@@ -101,6 +116,7 @@ export const BOT_SPECIALIZATIONS: Record<BotSpecialization, {
   defaultModel: string
   defaultInstructions: string
   capabilities: string[]
+  defaultRole: RoleAllocation     // Pre-configured role for this specialization
 }> = {
   'code-reviewer': {
     name: 'Code Reviewer',
@@ -109,7 +125,18 @@ export const BOT_SPECIALIZATIONS: Record<BotSpecialization, {
     skill: 'bloop-code-review',
     defaultModel: 'claude-opus-4-6',
     defaultInstructions: 'Review all changed files for code quality, potential bugs, style issues, and adherence to project conventions. Provide specific, actionable feedback.',
-    capabilities: ['code-analysis', 'bug-detection', 'style-review', 'best-practices']
+    capabilities: ['code-analysis', 'bug-detection', 'style-review', 'best-practices'],
+    defaultRole: {
+      title: 'Senior Code Reviewer',
+      focusAreas: ['Code quality', 'Bug detection', 'Style consistency', 'Best practices', 'DRY violations', 'Error handling'],
+      behaviorMode: 'balanced',
+      outputFormat: 'report',
+      severityThreshold: 'all',
+      expertise: ['clean-code', 'design-patterns', 'code-smells', 'naming-conventions'],
+      responseStyle: 'detailed',
+      languages: ['TypeScript', 'JavaScript', 'Python', 'Rust', 'Go'],
+      frameworks: ['React', 'Node.js', 'Express', 'Next.js'],
+    }
   },
   'test-engineer': {
     name: 'Test Engineer',
@@ -118,7 +145,18 @@ export const BOT_SPECIALIZATIONS: Record<BotSpecialization, {
     skill: 'bloop-test-gen',
     defaultModel: 'gpt-4o',
     defaultInstructions: 'Generate comprehensive unit and integration tests for recently changed code. Cover edge cases, error paths, and ensure high coverage.',
-    capabilities: ['unit-testing', 'integration-testing', 'edge-case-coverage', 'test-maintenance']
+    capabilities: ['unit-testing', 'integration-testing', 'edge-case-coverage', 'test-maintenance'],
+    defaultRole: {
+      title: 'QA Test Architect',
+      focusAreas: ['Unit tests', 'Integration tests', 'Edge case coverage', 'Error path testing', 'Mocking strategies', 'Assertion quality'],
+      behaviorMode: 'strict',
+      outputFormat: 'diff-patches',
+      severityThreshold: 'all',
+      expertise: ['test-design', 'coverage-analysis', 'mocking', 'fixture-management'],
+      responseStyle: 'detailed',
+      languages: ['TypeScript', 'JavaScript', 'Python'],
+      frameworks: ['Jest', 'Vitest', 'Mocha', 'Pytest', 'React Testing Library'],
+    }
   },
   'security-auditor': {
     name: 'Security Auditor',
@@ -127,7 +165,18 @@ export const BOT_SPECIALIZATIONS: Record<BotSpecialization, {
     skill: 'bloop-security',
     defaultModel: 'claude-opus-4-6',
     defaultInstructions: 'Scan the codebase for security vulnerabilities including OWASP Top 10, dependency risks, exposed secrets, and insecure patterns. Prioritize by severity.',
-    capabilities: ['vulnerability-scanning', 'dependency-audit', 'secret-detection', 'owasp-analysis']
+    capabilities: ['vulnerability-scanning', 'dependency-audit', 'secret-detection', 'owasp-analysis'],
+    defaultRole: {
+      title: 'Chief Security Analyst',
+      focusAreas: ['OWASP Top 10', 'Injection attacks', 'Authentication flaws', 'Data exposure', 'Dependency vulnerabilities', 'Hardcoded secrets', 'CSRF/XSS'],
+      behaviorMode: 'strict',
+      outputFormat: 'report',
+      severityThreshold: 'warning+',
+      expertise: ['appsec', 'penetration-testing', 'threat-modeling', 'compliance'],
+      responseStyle: 'detailed',
+      languages: ['TypeScript', 'JavaScript', 'Python', 'SQL'],
+      frameworks: ['Express', 'Node.js', 'Django', 'Flask'],
+    }
   },
   'docs-writer': {
     name: 'Documentation Writer',
@@ -136,7 +185,18 @@ export const BOT_SPECIALIZATIONS: Record<BotSpecialization, {
     skill: 'bloop-docs',
     defaultModel: 'gemini-2.0-flash',
     defaultInstructions: 'Generate and update documentation for changed code. Create clear API references, update README sections, and add meaningful inline comments where missing.',
-    capabilities: ['api-docs', 'readme-generation', 'inline-comments', 'changelog-updates']
+    capabilities: ['api-docs', 'readme-generation', 'inline-comments', 'changelog-updates'],
+    defaultRole: {
+      title: 'Technical Documentation Lead',
+      focusAreas: ['API documentation', 'README generation', 'Inline comments', 'Usage examples', 'Type documentation', 'Architecture guides'],
+      behaviorMode: 'balanced',
+      outputFormat: 'inline-comments',
+      severityThreshold: 'all',
+      expertise: ['technical-writing', 'api-design', 'jsdoc', 'markdown'],
+      responseStyle: 'tutorial',
+      languages: ['TypeScript', 'JavaScript', 'Python', 'Markdown'],
+      frameworks: ['React', 'Node.js', 'OpenAPI', 'Swagger'],
+    }
   },
   'optimizer': {
     name: 'Performance Optimizer',
@@ -145,7 +205,18 @@ export const BOT_SPECIALIZATIONS: Record<BotSpecialization, {
     skill: 'bloop-optimize',
     defaultModel: 'gemini-2.0-flash',
     defaultInstructions: 'Analyze code for performance bottlenecks, unnecessary re-renders, memory leaks, and optimization opportunities. Suggest concrete improvements with benchmarks.',
-    capabilities: ['performance-profiling', 'memory-optimization', 'render-optimization', 'bundle-analysis']
+    capabilities: ['performance-profiling', 'memory-optimization', 'render-optimization', 'bundle-analysis'],
+    defaultRole: {
+      title: 'Performance Engineering Lead',
+      focusAreas: ['Algorithm complexity', 'Memory leaks', 'Render optimization', 'Bundle size', 'Lazy loading', 'Caching strategies', 'Database queries'],
+      behaviorMode: 'balanced',
+      outputFormat: 'checklist',
+      severityThreshold: 'warning+',
+      expertise: ['big-o-analysis', 'profiling', 'web-vitals', 'react-performance'],
+      responseStyle: 'concise',
+      languages: ['TypeScript', 'JavaScript', 'SQL'],
+      frameworks: ['React', 'Node.js', 'Webpack', 'Vite'],
+    }
   },
   'debugger': {
     name: 'Bug Hunter',
@@ -154,7 +225,18 @@ export const BOT_SPECIALIZATIONS: Record<BotSpecialization, {
     skill: 'bloop-debug',
     defaultModel: 'claude-opus-4-6',
     defaultInstructions: 'Analyze code for potential bugs, race conditions, null pointer risks, logic errors, and edge cases. Think through execution paths and identify where things could go wrong.',
-    capabilities: ['bug-detection', 'race-condition-analysis', 'logic-validation', 'error-path-analysis']
+    capabilities: ['bug-detection', 'race-condition-analysis', 'logic-validation', 'error-path-analysis'],
+    defaultRole: {
+      title: 'Principal Debug Engineer',
+      focusAreas: ['Race conditions', 'Null/undefined risks', 'Off-by-one errors', 'State mutation bugs', 'Async/await pitfalls', 'Memory leaks', 'Type coercion'],
+      behaviorMode: 'strict',
+      outputFormat: 'report',
+      severityThreshold: 'all',
+      expertise: ['root-cause-analysis', 'stack-trace-reading', 'async-debugging', 'state-management'],
+      responseStyle: 'detailed',
+      languages: ['TypeScript', 'JavaScript', 'Python', 'Rust'],
+      frameworks: ['React', 'Node.js', 'Express'],
+    }
   },
   'architect': {
     name: 'Architect',
@@ -163,7 +245,18 @@ export const BOT_SPECIALIZATIONS: Record<BotSpecialization, {
     skill: 'bloop-refactor',
     defaultModel: 'mistral-large-2512',
     defaultInstructions: 'Analyze the project architecture for structural issues, code smells, and refactoring opportunities. Ensure clean separation of concerns, proper abstractions, and maintainability.',
-    capabilities: ['architecture-review', 'refactoring', 'dependency-analysis', 'pattern-detection']
+    capabilities: ['architecture-review', 'refactoring', 'dependency-analysis', 'pattern-detection'],
+    defaultRole: {
+      title: 'Principal Software Architect',
+      focusAreas: ['SOLID principles', 'Separation of concerns', 'Dependency management', 'Module boundaries', 'API design', 'Scalability patterns'],
+      behaviorMode: 'balanced',
+      outputFormat: 'report',
+      severityThreshold: 'warning+',
+      expertise: ['system-design', 'microservices', 'monolith-decomposition', 'event-driven-architecture'],
+      responseStyle: 'detailed',
+      languages: ['TypeScript', 'JavaScript', 'Go', 'Rust', 'Python'],
+      frameworks: ['React', 'Node.js', 'Express', 'Next.js', 'Docker'],
+    }
   }
 }
 
@@ -249,6 +342,7 @@ class BotTeamService {
     name?: string
     model?: string
     preferences?: Partial<BotPreferences>
+    role?: Partial<RoleAllocation>
   }): TeamBot {
     const specDef = BOT_SPECIALIZATIONS[spec]
     const id = `bot-${spec}-${Date.now()}`
@@ -261,6 +355,10 @@ class BotTeamService {
       status: 'idle',
       avatar: specDef.avatar,
       description: specDef.description,
+      role: {
+        ...specDef.defaultRole,
+        ...(overrides?.role || {})
+      },
       preferences: {
         targetPaths: ['src/'],
         excludePaths: ['node_modules/', 'dist/', '.git/'],
@@ -291,7 +389,7 @@ class BotTeamService {
     return bot
   }
 
-  updateBot(id: string, updates: Partial<Pick<TeamBot, 'name' | 'model' | 'preferences'>>): TeamBot {
+  updateBot(id: string, updates: Partial<Pick<TeamBot, 'name' | 'model' | 'preferences'>> & { role?: Partial<RoleAllocation> }): TeamBot {
     const bot = this.bots.get(id)
     if (!bot) throw new Error(`Bot ${id} not found`)
 
@@ -299,6 +397,9 @@ class BotTeamService {
     if (updates.model) bot.model = updates.model
     if (updates.preferences) {
       bot.preferences = { ...bot.preferences, ...updates.preferences }
+    }
+    if (updates.role) {
+      bot.role = { ...bot.role, ...updates.role }
     }
     bot.updatedAt = new Date().toISOString()
 
@@ -436,6 +537,7 @@ class BotTeamService {
           model: bot.model,
           skill: BOT_SPECIALIZATIONS[bot.specialization].skill,
           preferences: bot.preferences,
+          role: bot.role,
           context: {
             targetPaths: bot.preferences.targetPaths,
             excludePaths: bot.preferences.excludePaths,
@@ -556,6 +658,7 @@ class BotTeamService {
           model: bot.model,
           skill: BOT_SPECIALIZATIONS[bot.specialization].skill,
           preferences: bot.preferences,
+          role: bot.role,
           context: {
             targetPaths: bot.preferences.targetPaths,
             excludePaths: bot.preferences.excludePaths,
@@ -631,6 +734,7 @@ class BotTeamService {
         skill: BOT_SPECIALIZATIONS[bot.specialization].skill,
         specialization: bot.specialization,
         model: bot.model,
+        role: bot.role,
       }
     }).filter(Boolean)
 
@@ -746,6 +850,7 @@ class BotTeamService {
           model: bot.model,
           skill: BOT_SPECIALIZATIONS[bot.specialization].skill,
           preferences: bot.preferences,
+          role: bot.role,
           context: {
             targetPaths: bot.preferences.targetPaths,
             excludePaths: bot.preferences.excludePaths,
@@ -903,6 +1008,10 @@ class BotTeamService {
         entries.forEach(([id, bot]) => {
           // Reset working status on load (server restarted)
           if (bot.status === 'working') bot.status = 'active'
+          // Backfill role allocation for bots created before role system existed
+          if (!bot.role && bot.specialization && BOT_SPECIALIZATIONS[bot.specialization]) {
+            bot.role = { ...BOT_SPECIALIZATIONS[bot.specialization].defaultRole }
+          }
           this.bots.set(id, bot)
         })
       }

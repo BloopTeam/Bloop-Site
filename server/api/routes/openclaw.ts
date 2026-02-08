@@ -373,6 +373,34 @@ openclawRouter.post('/exec/approve', async (req, res) => {
 // ─── Bot Team Endpoints ──────────────────────────────────────────────────────
 // 24/7 autonomous bot execution via OpenClaw orchestration
 
+// Build a role-aware system prompt from base skill prompt + role allocation
+function buildRolePrompt(basePrompt: string, role?: any): string {
+  if (!role) return basePrompt
+  const parts: string[] = [basePrompt, '']
+  if (role.title) parts.push(`Your assigned role: ${role.title}.`)
+  if (role.focusAreas?.length) parts.push(`Focus areas: ${role.focusAreas.join(', ')}.`)
+  if (role.behaviorMode) {
+    const desc = role.behaviorMode === 'strict' ? 'flag everything, no tolerance for potential issues' : role.behaviorMode === 'lenient' ? 'only flag clear, confirmed issues' : 'use reasonable judgment, flag likely issues'
+    parts.push(`Behavior mode: ${role.behaviorMode} — ${desc}.`)
+  }
+  if (role.outputFormat) {
+    const fmt: Record<string, string> = {
+      'report': 'Provide a structured report with sections and severity ratings.',
+      'inline-comments': 'Format your output as inline code comments at the relevant locations.',
+      'diff-patches': 'Output concrete code diffs/patches that can be applied directly.',
+      'checklist': 'Format findings as a prioritized checklist with checkboxes.',
+    }
+    parts.push(`Output format: ${fmt[role.outputFormat] || role.outputFormat}`)
+  }
+  if (role.severityThreshold && role.severityThreshold !== 'all') parts.push(`Severity filter: only report ${role.severityThreshold === 'critical-only' ? 'critical issues' : 'warnings and above'}.`)
+  if (role.expertise?.length) parts.push(`Your expertise domains: ${role.expertise.join(', ')}.`)
+  if (role.responseStyle) parts.push(`Response style: ${role.responseStyle}.`)
+  if (role.languages?.length) parts.push(`Target languages: ${role.languages.join(', ')}.`)
+  if (role.frameworks?.length) parts.push(`Known frameworks: ${role.frameworks.join(', ')}.`)
+  if (role.customDirective) parts.push(`Custom directive: ${role.customDirective}`)
+  return parts.join('\n')
+}
+
 // Skill-to-prompt mapping for each bot specialization
 const skillPrompts: Record<string, string> = {
   'bloop-code-review': 'You are an expert code reviewer. Analyze the following code for quality issues, potential bugs, security vulnerabilities, style inconsistencies, and adherence to best practices. Provide specific, actionable feedback with severity ratings (critical/warning/info). Format your findings as a structured report.',
@@ -388,7 +416,7 @@ const skillPrompts: Record<string, string> = {
 // Auth middleware is applied at the router level in dev-server.ts
 openclawRouter.post('/team/bots/:id/execute', async (req, res) => {
   try {
-    const { specialization, model, skill, preferences, context } = req.body
+    const { specialization, model, skill, preferences, context, role } = req.body
     const botId = req.params.id
     const userId = req.user?.id || 'anonymous'
 
@@ -396,7 +424,9 @@ openclawRouter.post('/team/bots/:id/execute', async (req, res) => {
       return res.status(400).json({ error: 'skill and specialization are required' })
     }
 
-    const systemPrompt = skillPrompts[skill] || skillPrompts['bloop-code-review']
+    const basePrompt = skillPrompts[skill] || skillPrompts['bloop-code-review']
+    const systemPrompt = buildRolePrompt(basePrompt, role)
+
     const userInstructions = context?.customInstructions || preferences?.customInstructions || ''
 
     // Read actual project files from disk (paths are sandboxed by readProjectFiles)
@@ -571,7 +601,7 @@ openclawRouter.post('/team/bots/:id/execute', async (req, res) => {
 // POST /api/v1/openclaw/team/bots/:id/fix — Execute bot AND apply code fixes
 openclawRouter.post('/team/bots/:id/fix', async (req, res) => {
   try {
-    const { specialization, model, skill, preferences, context } = req.body
+    const { specialization, model, skill, preferences, context, role } = req.body
     const botId = req.params.id
     const userId = req.user?.id || 'anonymous'
 
@@ -579,7 +609,8 @@ openclawRouter.post('/team/bots/:id/fix', async (req, res) => {
       return res.status(400).json({ error: 'skill and specialization are required' })
     }
 
-    const systemPrompt = (skillPrompts[skill] || skillPrompts['bloop-code-review']) + `
+    const basePrompt = buildRolePrompt(skillPrompts[skill] || skillPrompts['bloop-code-review'], role)
+    const systemPrompt = basePrompt + `
 
 IMPORTANT: In addition to your analysis, you MUST output concrete fixes.
 For each issue you find, output the fixed code in a fenced code block with the FULL FILE PATH as the label:
@@ -737,8 +768,8 @@ openclawRouter.post('/team/chain', async (req, res) => {
 
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i]
-      const { skill, specialization, botId } = step
-      const systemPrompt = skillPrompts[skill] || skillPrompts['bloop-code-review']
+      const { skill, specialization, botId, role: stepRole } = step
+      const systemPrompt = buildRolePrompt(skillPrompts[skill] || skillPrompts['bloop-code-review'], stepRole)
 
       // Re-read files for each step (in case previous bot wrote fixes)
       const projectFiles = readProjectFiles(targetPaths, excludePaths, projectPath)
@@ -847,7 +878,7 @@ openclawRouter.post('/team/chain', async (req, res) => {
 // POST /api/v1/openclaw/team/bots/:id/stream — Stream bot execution in real-time
 openclawRouter.post('/team/bots/:id/stream', async (req, res) => {
   try {
-    const { specialization, model, skill, preferences, context } = req.body
+    const { specialization, model, skill, preferences, context, role } = req.body
     const botId = req.params.id
 
     if (!skill || !specialization) {
@@ -862,7 +893,7 @@ openclawRouter.post('/team/bots/:id/stream', async (req, res) => {
 
     res.write(`data: ${JSON.stringify({ type: 'status', status: 'reading_files', message: 'Reading project files...' })}\n\n`)
 
-    const systemPrompt = skillPrompts[skill] || skillPrompts['bloop-code-review']
+    const systemPrompt = buildRolePrompt(skillPrompts[skill] || skillPrompts['bloop-code-review'], role)
     const rawTargetPaths: string[] = context?.targetPaths || preferences?.targetPaths || ['src/']
     const rawExcludePaths: string[] = context?.excludePaths || preferences?.excludePaths || ['node_modules/', 'dist/']
     const targetPaths = rawTargetPaths.filter((p: string) => typeof p === 'string' && !path.isAbsolute(p) && !p.includes('..'))
