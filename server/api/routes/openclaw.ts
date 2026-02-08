@@ -567,6 +567,400 @@ openclawRouter.post('/team/bots/:id/execute', async (req, res) => {
   }
 })
 
+// ─── Advanced: Bot writes fixes to workspace ────────────────────────────────
+// POST /api/v1/openclaw/team/bots/:id/fix — Execute bot AND apply code fixes
+openclawRouter.post('/team/bots/:id/fix', async (req, res) => {
+  try {
+    const { specialization, model, skill, preferences, context } = req.body
+    const botId = req.params.id
+    const userId = req.user?.id || 'anonymous'
+
+    if (!skill || !specialization) {
+      return res.status(400).json({ error: 'skill and specialization are required' })
+    }
+
+    const systemPrompt = (skillPrompts[skill] || skillPrompts['bloop-code-review']) + `
+
+IMPORTANT: In addition to your analysis, you MUST output concrete fixes.
+For each issue you find, output the fixed code in a fenced code block with the FULL FILE PATH as the label:
+
+\`\`\`path/to/file.ext
+// complete fixed file contents
+\`\`\`
+
+Only output file blocks for files that actually need changes. Include the COMPLETE file content (not just the changed lines).`
+
+    // Read project files
+    const rawTargetPaths: string[] = context?.targetPaths || preferences?.targetPaths || ['src/']
+    const rawExcludePaths: string[] = context?.excludePaths || preferences?.excludePaths || ['node_modules/', 'dist/']
+    const targetPaths = rawTargetPaths.filter((p: string) => typeof p === 'string' && !path.isAbsolute(p) && !p.includes('..'))
+    const excludePaths = rawExcludePaths.filter((p: string) => typeof p === 'string' && !path.isAbsolute(p))
+
+    let projectPath = '.'
+    if (req.workspace?.diskPath) {
+      const workspaceAbsolute = path.resolve(PROJECT_ROOT, req.workspace.diskPath)
+      if (workspaceAbsolute.startsWith(PROJECT_ROOT)) {
+        projectPath = req.workspace.diskPath
+        if (!fs.existsSync(workspaceAbsolute)) fs.mkdirSync(workspaceAbsolute, { recursive: true })
+      }
+    }
+
+    const projectFiles = readProjectFiles(targetPaths, excludePaths, projectPath)
+
+    const userMessage = [
+      `Analyze AND fix the code below. Output your analysis followed by complete fixed files.\n`,
+      `**Files analyzed:** ${projectFiles.fileCount} (${projectFiles.fileList.join(', ')})\n`,
+      '\n--- BEGIN PROJECT CODE ---\n',
+      projectFiles.content,
+      '\n--- END PROJECT CODE ---',
+    ].join('')
+
+    const messages = [
+      { role: 'system' as const, content: systemPrompt },
+      { role: 'user' as const, content: userMessage }
+    ]
+
+    // Execute AI
+    const modelInfo = aiRouter.selectBestModel({ messages, model })
+    const availableProviders = aiRouter.getAvailableProviders()
+    const tryOrder = [modelInfo.provider, ...availableProviders.filter(p => p !== modelInfo.provider)]
+
+    let responseContent = ''
+    let provider = 'local'
+
+    for (const providerKey of tryOrder) {
+      const service = aiRouter.getService(providerKey)
+      if (!service) continue
+      try {
+        const aiResponse = await service.generate({
+          messages,
+          model: modelInfo.provider === providerKey ? modelInfo.model : undefined as any,
+          temperature: 0.2,
+          maxTokens: 8000,
+        })
+        responseContent = aiResponse.content
+        provider = providerKey
+        break
+      } catch (err) {
+        console.warn(`Bot fix: ${providerKey} failed, trying next...`, (err as Error).message?.slice(0, 80))
+      }
+    }
+
+    if (!responseContent) {
+      return res.status(503).json({ error: 'All AI providers failed' })
+    }
+
+    // Parse code blocks with file paths from the response
+    const fileRegex = /```(\S+\.[\w.]+)\n([\s\S]*?)```/g
+    const fixedFiles: { path: string; content: string; written: boolean }[] = []
+    let match
+
+    while ((match = fileRegex.exec(responseContent)) !== null) {
+      const filePath = match[1].replace(/^\/+/, '')
+      const fileContent = match[2].trim()
+
+      if (!filePath || !fileContent) continue
+
+      // Security: validate path stays inside workspace
+      const absPath = path.resolve(PROJECT_ROOT, projectPath, filePath)
+      const workspaceRoot = path.resolve(PROJECT_ROOT, projectPath)
+      if (!absPath.startsWith(workspaceRoot)) {
+        fixedFiles.push({ path: filePath, content: '', written: false })
+        continue
+      }
+
+      // Write the fixed file
+      const dir = path.dirname(absPath)
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+      fs.writeFileSync(absPath, fileContent, 'utf-8')
+      fixedFiles.push({ path: filePath, content: fileContent, written: true })
+    }
+
+    const issuesFound = (responseContent.match(/critical|warning|vulnerability|bug|error|issue/gi) || []).length
+
+    // Anchor proof
+    const executionData: ExecutionData = {
+      botId, userId, specialization, skill,
+      filesAnalyzed: projectFiles.fileCount,
+      fileList: projectFiles.fileList,
+      issuesFound,
+      executionTimeMs: 0,
+      provider,
+      summary: `Fixed ${fixedFiles.filter(f => f.written).length} files`,
+    }
+    anchorExecutionProof(executionData).catch(() => {})
+
+    res.json({
+      botId,
+      response: responseContent,
+      provider,
+      fixedFiles,
+      filesWritten: fixedFiles.filter(f => f.written).length,
+      issuesFound,
+      executedAt: new Date().toISOString(),
+    })
+  } catch (error) {
+    console.error('Bot fix error:', error)
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Bot fix failed' })
+  }
+})
+
+// ─── Advanced: Bot collaboration chain ──────────────────────────────────────
+// POST /api/v1/openclaw/team/chain — Execute a chain of bots in sequence
+// Each bot's output feeds into the next bot's context
+openclawRouter.post('/team/chain', async (req, res) => {
+  try {
+    const { steps, preferences, context } = req.body
+    const userId = req.user?.id || 'anonymous'
+
+    if (!Array.isArray(steps) || steps.length === 0) {
+      return res.status(400).json({ error: 'steps array is required (each with skill + specialization)' })
+    }
+
+    // Read project files once (shared across all bots in the chain)
+    const rawTargetPaths: string[] = context?.targetPaths || preferences?.targetPaths || ['src/']
+    const rawExcludePaths: string[] = context?.excludePaths || preferences?.excludePaths || ['node_modules/', 'dist/']
+    const targetPaths = rawTargetPaths.filter((p: string) => typeof p === 'string' && !path.isAbsolute(p) && !p.includes('..'))
+    const excludePaths = rawExcludePaths.filter((p: string) => typeof p === 'string' && !path.isAbsolute(p))
+
+    let projectPath = '.'
+    if (req.workspace?.diskPath) {
+      const workspaceAbsolute = path.resolve(PROJECT_ROOT, req.workspace.diskPath)
+      if (workspaceAbsolute.startsWith(PROJECT_ROOT)) {
+        projectPath = req.workspace.diskPath
+        if (!fs.existsSync(workspaceAbsolute)) fs.mkdirSync(workspaceAbsolute, { recursive: true })
+      }
+    }
+
+    const chainResults: any[] = []
+    let previousOutput = ''
+
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i]
+      const { skill, specialization, botId } = step
+      const systemPrompt = skillPrompts[skill] || skillPrompts['bloop-code-review']
+
+      // Re-read files for each step (in case previous bot wrote fixes)
+      const projectFiles = readProjectFiles(targetPaths, excludePaths, projectPath)
+
+      const userMessage = [
+        previousOutput ? `**Previous bot output (${chainResults[chainResults.length - 1]?.specialization || 'unknown'}):**\n${previousOutput.slice(0, 4000)}\n\n---\n\n` : '',
+        `**Step ${i + 1}/${steps.length} in chain** — Your specialization: ${specialization}\n`,
+        `**Files:** ${projectFiles.fileCount} (${projectFiles.fileList.join(', ')})\n`,
+        '\n--- BEGIN PROJECT CODE ---\n',
+        projectFiles.content,
+        '\n--- END PROJECT CODE ---',
+      ].join('')
+
+      const messages = [
+        { role: 'system' as const, content: systemPrompt + '\n\nYou are part of a bot collaboration chain. Build on the findings of previous bots and add your specialized analysis. If you find issues, output fixed files as fenced code blocks with the full file path as the label.' },
+        { role: 'user' as const, content: userMessage }
+      ]
+
+      // Execute
+      const modelInfo = aiRouter.selectBestModel({ messages, model: step.model })
+      const availableProviders = aiRouter.getAvailableProviders()
+      const tryOrder = [modelInfo.provider, ...availableProviders.filter(p => p !== modelInfo.provider)]
+
+      let responseContent = ''
+      let provider = 'local'
+
+      for (const providerKey of tryOrder) {
+        const service = aiRouter.getService(providerKey)
+        if (!service) continue
+        try {
+          const aiResponse = await service.generate({
+            messages,
+            model: modelInfo.provider === providerKey ? modelInfo.model : undefined as any,
+            temperature: 0.3,
+            maxTokens: 6000,
+          })
+          responseContent = aiResponse.content
+          provider = providerKey
+          break
+        } catch {
+          continue
+        }
+      }
+
+      if (!responseContent) {
+        chainResults.push({
+          step: i + 1, botId, specialization, skill,
+          status: 'failed', error: 'All AI providers failed',
+        })
+        continue
+      }
+
+      // Parse and write any fixed files from this step
+      const fileRegex = /```(\S+\.[\w.]+)\n([\s\S]*?)```/g
+      const fixedFiles: string[] = []
+      let fileMatch
+
+      while ((fileMatch = fileRegex.exec(responseContent)) !== null) {
+        const filePath = fileMatch[1].replace(/^\/+/, '')
+        const fileContent = fileMatch[2].trim()
+        if (!filePath || !fileContent) continue
+
+        const absPath = path.resolve(PROJECT_ROOT, projectPath, filePath)
+        const workspaceRoot = path.resolve(PROJECT_ROOT, projectPath)
+        if (!absPath.startsWith(workspaceRoot)) continue
+
+        const dir = path.dirname(absPath)
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+        fs.writeFileSync(absPath, fileContent, 'utf-8')
+        fixedFiles.push(filePath)
+      }
+
+      const issuesFound = (responseContent.match(/critical|warning|vulnerability|bug|error|issue/gi) || []).length
+
+      chainResults.push({
+        step: i + 1,
+        botId,
+        specialization,
+        skill,
+        status: 'completed',
+        provider,
+        issuesFound,
+        fixedFiles,
+        summary: responseContent.split('\n').find(l => l.trim().length > 10)?.replace(/^[#*\->\s]+/, '').substring(0, 200) || '',
+        responseLength: responseContent.length,
+      })
+
+      // Pass output to next bot
+      previousOutput = responseContent
+    }
+
+    res.json({
+      chain: chainResults,
+      totalSteps: steps.length,
+      completedSteps: chainResults.filter(r => r.status === 'completed').length,
+      totalFilesFixed: chainResults.reduce((acc, r) => acc + (r.fixedFiles?.length || 0), 0),
+      executedAt: new Date().toISOString(),
+    })
+  } catch (error) {
+    console.error('Chain execution error:', error)
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Chain execution failed' })
+  }
+})
+
+// ─── Advanced: Streaming bot execution (SSE) ────────────────────────────────
+// POST /api/v1/openclaw/team/bots/:id/stream — Stream bot execution in real-time
+openclawRouter.post('/team/bots/:id/stream', async (req, res) => {
+  try {
+    const { specialization, model, skill, preferences, context } = req.body
+    const botId = req.params.id
+
+    if (!skill || !specialization) {
+      return res.status(400).json({ error: 'skill and specialization are required' })
+    }
+
+    // SSE headers
+    res.setHeader('Content-Type', 'text/event-stream')
+    res.setHeader('Cache-Control', 'no-cache')
+    res.setHeader('Connection', 'keep-alive')
+    res.setHeader('X-Accel-Buffering', 'no')
+
+    res.write(`data: ${JSON.stringify({ type: 'status', status: 'reading_files', message: 'Reading project files...' })}\n\n`)
+
+    const systemPrompt = skillPrompts[skill] || skillPrompts['bloop-code-review']
+    const rawTargetPaths: string[] = context?.targetPaths || preferences?.targetPaths || ['src/']
+    const rawExcludePaths: string[] = context?.excludePaths || preferences?.excludePaths || ['node_modules/', 'dist/']
+    const targetPaths = rawTargetPaths.filter((p: string) => typeof p === 'string' && !path.isAbsolute(p) && !p.includes('..'))
+    const excludePaths = rawExcludePaths.filter((p: string) => typeof p === 'string' && !path.isAbsolute(p))
+
+    let projectPath = '.'
+    if (req.workspace?.diskPath) {
+      const workspaceAbsolute = path.resolve(PROJECT_ROOT, req.workspace.diskPath)
+      if (workspaceAbsolute.startsWith(PROJECT_ROOT)) {
+        projectPath = req.workspace.diskPath
+        if (!fs.existsSync(workspaceAbsolute)) fs.mkdirSync(workspaceAbsolute, { recursive: true })
+      }
+    }
+
+    const projectFiles = readProjectFiles(targetPaths, excludePaths, projectPath)
+    res.write(`data: ${JSON.stringify({ type: 'status', status: 'files_read', filesCount: projectFiles.fileCount, files: projectFiles.fileList })}\n\n`)
+
+    const userMessage = [
+      `**Files analyzed:** ${projectFiles.fileCount}\n`,
+      '\n--- BEGIN PROJECT CODE ---\n',
+      projectFiles.content,
+      '\n--- END PROJECT CODE ---',
+    ].join('')
+
+    const messages = [
+      { role: 'system' as const, content: systemPrompt },
+      { role: 'user' as const, content: userMessage }
+    ]
+
+    res.write(`data: ${JSON.stringify({ type: 'status', status: 'analyzing', message: `${specialization} is analyzing...` })}\n\n`)
+
+    // Try to stream using AI providers
+    const modelInfo = aiRouter.selectBestModel({ messages, model })
+    const availableProviders = aiRouter.getAvailableProviders()
+    const tryOrder = [modelInfo.provider, ...availableProviders.filter(p => p !== modelInfo.provider)]
+
+    let streamed = false
+
+    for (const providerKey of tryOrder) {
+      const service = aiRouter.getService(providerKey)
+      if (!service) continue
+
+      res.write(`data: ${JSON.stringify({ type: 'meta', provider: providerKey, model: modelInfo.model })}\n\n`)
+
+      try {
+        if (service.generateStream) {
+          await new Promise<void>((resolve, reject) => {
+            service.generateStream!(
+              { messages, model: providerKey === modelInfo.provider ? modelInfo.model : undefined, temperature: 0.3, maxTokens: 6000 },
+              {
+                onToken: (text: string) => {
+                  res.write(`data: ${JSON.stringify({ type: 'content', text })}\n\n`)
+                },
+                onDone: (info: any) => {
+                  res.write(`data: ${JSON.stringify({ type: 'done', ...info })}\n\n`)
+                  resolve()
+                },
+                onError: (error: string) => { reject(new Error(error)) },
+              }
+            ).catch(reject)
+          })
+          streamed = true
+          break
+        } else {
+          const aiResponse = await service.generate({
+            messages,
+            model: providerKey === modelInfo.provider ? modelInfo.model : undefined as any,
+            temperature: 0.3, maxTokens: 6000,
+          })
+          const content = aiResponse.content
+          const chunkSize = 15
+          for (let i = 0; i < content.length; i += chunkSize) {
+            res.write(`data: ${JSON.stringify({ type: 'content', text: content.slice(i, i + chunkSize) })}\n\n`)
+          }
+          res.write(`data: ${JSON.stringify({ type: 'done', model: aiResponse.model, finishReason: aiResponse.finishReason })}\n\n`)
+          streamed = true
+          break
+        }
+      } catch (err) {
+        console.warn(`Bot stream: ${providerKey} failed, trying next...`, (err as Error).message?.slice(0, 80))
+      }
+    }
+
+    if (!streamed) {
+      res.write(`data: ${JSON.stringify({ type: 'error', error: 'All AI providers failed' })}\n\n`)
+    }
+
+    res.end()
+  } catch (error) {
+    if (res.headersSent) {
+      res.write(`data: ${JSON.stringify({ type: 'error', error: error instanceof Error ? error.message : 'Stream error' })}\n\n`)
+      res.end()
+    } else {
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Stream error' })
+    }
+  }
+})
+
 // GET /api/v1/openclaw/team/status — Team overview
 openclawRouter.get('/team/status', async (req, res) => {
   try {

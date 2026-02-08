@@ -228,6 +228,66 @@ export default function OpenClawPanel({
     if (selectedBot?.id === botId) setSelectedBot(null)
   }
 
+  // ─── Advanced: Fix Mode — bot analyzes AND writes fixes ─────────────
+  const [fixRunning, setFixRunning] = useState<Record<string, boolean>>({})
+  const [fixResults, setFixResults] = useState<Record<string, { filesWritten: number; paths: string[] }>>({})
+
+  const handleFixNow = async (botId: string) => {
+    setFixRunning(prev => ({ ...prev, [botId]: true }))
+    try {
+      const result = await botTeamService.executeFix(botId)
+      const written = result.fixedFiles.filter(f => f.written)
+      setFixResults(prev => ({ ...prev, [botId]: { filesWritten: written.length, paths: written.map(f => f.path) } }))
+    } finally {
+      setFixRunning(prev => ({ ...prev, [botId]: false }))
+      setBots(botTeamService.getBots())
+    }
+  }
+
+  // ─── Advanced: Chain execution — multi-bot collaboration ────────────
+  const [chainRunning, setChainRunning] = useState(false)
+  const [chainResult, setChainResult] = useState<{ completedSteps: number; totalFilesFixed: number } | null>(null)
+
+  const handleRunChain = async () => {
+    const activeBots = bots.filter(b => b.status === 'active' || b.status === 'idle')
+    if (activeBots.length < 2) return
+
+    setChainRunning(true)
+    setChainResult(null)
+    try {
+      const result = await botTeamService.executeChain(activeBots.map(b => b.id))
+      setChainResult({ completedSteps: result.completedSteps, totalFilesFixed: result.totalFilesFixed })
+    } finally {
+      setChainRunning(false)
+      setBots(botTeamService.getBots())
+    }
+  }
+
+  // ─── Advanced: Streaming execution — real-time bot feed ─────────────
+  const [streamOutput, setStreamOutput] = useState<string>('')
+  const [streamStatus, setStreamStatus] = useState<string>('')
+  const [streamingBotId, setStreamingBotId] = useState<string | null>(null)
+
+  const handleStreamBot = async (botId: string) => {
+    setStreamingBotId(botId)
+    setStreamOutput('')
+    setStreamStatus('Starting...')
+    try {
+      await botTeamService.executeStream(botId, {
+        onStatus: (status, message) => setStreamStatus(message || status),
+        onMeta: (provider) => setStreamStatus(`Provider: ${provider}`),
+        onContent: (text) => setStreamOutput(prev => prev + text),
+        onDone: () => { setStreamStatus('Complete'); setStreamingBotId(null) },
+        onError: (err) => { setStreamStatus(`Error: ${err}`); setStreamingBotId(null) },
+      })
+    } catch {
+      setStreamStatus('Stream failed')
+      setStreamingBotId(null)
+    } finally {
+      setBots(botTeamService.getBots())
+    }
+  }
+
   const handleCopyResult = () => {
     if (executionResult?.output) {
       navigator.clipboard.writeText(executionResult.output)
@@ -695,15 +755,65 @@ export default function OpenClawPanel({
 
             {/* Team Stats Bar */}
             {bots.length > 0 && (
+              <div style={{ marginBottom: '12px' }}>
+                <div style={{
+                  display: 'flex', gap: '12px', padding: '8px 12px',
+                  background: '#141414', borderRadius: '4px',
+                  border: '1px solid #1a1a1a', fontSize: '11px', marginBottom: '8px'
+                }}>
+                  <div><span style={{ color: '#666' }}>Bots: </span><span style={{ color: '#cccccc' }}>{bots.length}</span></div>
+                  <div><span style={{ color: '#666' }}>Active: </span><span style={{ color: '#22c55e' }}>{bots.filter(b => b.status === 'active' || b.status === 'working').length}</span></div>
+                  <div><span style={{ color: '#666' }}>Tasks: </span><span style={{ color: '#cccccc' }}>{bots.reduce((s, b) => s + b.stats.tasksCompleted, 0)}</span></div>
+                  <div><span style={{ color: '#666' }}>Issues: </span><span style={{ color: '#f59e0b' }}>{bots.reduce((s, b) => s + b.stats.issuesFound, 0)}</span></div>
+                </div>
+
+                {/* Advanced: Chain Execution Bar */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  padding: '8px 12px', background: '#0d0d0d', borderRadius: '4px',
+                  border: '1px solid #1a1a1a'
+                }}>
+                  <Zap size={14} style={{ color: '#FF00FF' }} />
+                  <span style={{ fontSize: '11px', color: '#888', flex: 1 }}>Collaboration Chain</span>
+                  {chainResult && (
+                    <span style={{ fontSize: '10px', color: '#22c55e' }}>
+                      {chainResult.completedSteps} steps, {chainResult.totalFilesFixed} files fixed
+                    </span>
+                  )}
+                  <button
+                    onClick={handleRunChain}
+                    disabled={chainRunning || bots.filter(b => b.status === 'active' || b.status === 'idle').length < 2}
+                    style={{
+                      padding: '3px 10px', fontSize: '10px', cursor: chainRunning ? 'default' : 'pointer',
+                      background: chainRunning ? 'transparent' : 'rgba(255,0,255,0.1)',
+                      border: `1px solid ${chainRunning ? '#333' : 'rgba(255,0,255,0.3)'}`,
+                      borderRadius: '4px', color: chainRunning ? '#666' : '#FF00FF',
+                      display: 'flex', alignItems: 'center', gap: '4px'
+                    }}
+                  >
+                    {chainRunning ? <><Loader2 size={10} className="animate-spin" /> Running...</> : 'Run Chain'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Live Stream Output */}
+            {streamingBotId && (
               <div style={{
-                display: 'flex', gap: '12px', padding: '8px 12px',
-                background: '#141414', borderRadius: '4px', marginBottom: '12px',
-                border: '1px solid #1a1a1a', fontSize: '11px'
+                padding: '10px', background: '#0a0a0a', borderRadius: '4px',
+                marginBottom: '12px', border: '1px solid rgba(255,0,255,0.2)',
+                maxHeight: '200px', overflow: 'auto'
               }}>
-                <div><span style={{ color: '#666' }}>Bots: </span><span style={{ color: '#cccccc' }}>{bots.length}</span></div>
-                <div><span style={{ color: '#666' }}>Active: </span><span style={{ color: '#22c55e' }}>{bots.filter(b => b.status === 'active' || b.status === 'working').length}</span></div>
-                <div><span style={{ color: '#666' }}>Tasks: </span><span style={{ color: '#cccccc' }}>{bots.reduce((s, b) => s + b.stats.tasksCompleted, 0)}</span></div>
-                <div><span style={{ color: '#666' }}>Issues: </span><span style={{ color: '#f59e0b' }}>{bots.reduce((s, b) => s + b.stats.issuesFound, 0)}</span></div>
+                <div style={{ fontSize: '10px', color: '#FF00FF', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Loader2 size={10} className="animate-spin" />
+                  {streamStatus}
+                </div>
+                <pre style={{
+                  margin: 0, fontSize: '11px', color: '#cccccc', whiteSpace: 'pre-wrap',
+                  fontFamily: 'Fira Code, monospace', lineHeight: 1.5
+                }}>
+                  {streamOutput || 'Waiting for output...'}
+                </pre>
               </div>
             )}
 
@@ -899,8 +1009,23 @@ export default function OpenClawPanel({
                           </div>
                         )}
 
-                        {/* Actions */}
-                        <div style={{ display: 'flex', gap: '8px' }}>
+                        {/* Fix Results */}
+                        {fixResults[bot.id] && fixResults[bot.id].filesWritten > 0 && (
+                          <div style={{
+                            padding: '8px', background: 'rgba(34,197,94,0.05)', borderRadius: '4px',
+                            marginBottom: '10px', border: '1px solid rgba(34,197,94,0.2)'
+                          }}>
+                            <div style={{ fontSize: '10px', color: '#22c55e', marginBottom: '4px' }}>
+                              Fixed {fixResults[bot.id].filesWritten} files
+                            </div>
+                            {fixResults[bot.id].paths.map(p => (
+                              <div key={p} style={{ fontSize: '10px', color: '#888', paddingLeft: '8px' }}>{p}</div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Actions — Now with Fix and Stream */}
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                           <button
                             onClick={() => handleRunBotNow(bot.id)}
                             disabled={botRunning[bot.id]}
@@ -912,7 +1037,35 @@ export default function OpenClawPanel({
                             }}
                           >
                             {botRunning[bot.id] ? <Loader2 size={10} className="animate-spin" /> : <Play size={10} />}
-                            Run Now
+                            Analyze
+                          </button>
+                          <button
+                            onClick={() => handleFixNow(bot.id)}
+                            disabled={fixRunning[bot.id] || botRunning[bot.id]}
+                            style={{
+                              padding: '4px 10px', fontSize: '11px', cursor: fixRunning[bot.id] ? 'default' : 'pointer',
+                              background: fixRunning[bot.id] ? 'transparent' : 'rgba(34,197,94,0.08)',
+                              border: `1px solid ${fixRunning[bot.id] ? '#333' : 'rgba(34,197,94,0.3)'}`,
+                              borderRadius: '4px', color: fixRunning[bot.id] ? '#666' : '#22c55e',
+                              display: 'flex', alignItems: 'center', gap: '4px'
+                            }}
+                          >
+                            {fixRunning[bot.id] ? <Loader2 size={10} className="animate-spin" /> : <Wrench size={10} />}
+                            Fix
+                          </button>
+                          <button
+                            onClick={() => handleStreamBot(bot.id)}
+                            disabled={streamingBotId === bot.id || botRunning[bot.id]}
+                            style={{
+                              padding: '4px 10px', fontSize: '11px', cursor: 'pointer',
+                              background: streamingBotId === bot.id ? 'transparent' : 'rgba(255,0,255,0.08)',
+                              border: `1px solid ${streamingBotId === bot.id ? '#333' : 'rgba(255,0,255,0.3)'}`,
+                              borderRadius: '4px', color: streamingBotId === bot.id ? '#666' : '#FF00FF',
+                              display: 'flex', alignItems: 'center', gap: '4px'
+                            }}
+                          >
+                            {streamingBotId === bot.id ? <Loader2 size={10} className="animate-spin" /> : <Activity size={10} />}
+                            Stream
                           </button>
                           <button
                             onClick={() => handleDeleteBot(bot.id)}

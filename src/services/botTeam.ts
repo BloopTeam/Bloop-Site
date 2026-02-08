@@ -523,6 +523,294 @@ class BotTeamService {
     return this.executeBot(id)
   }
 
+  // ─── Advanced: Execute-and-Fix — bot analyzes AND writes fixes ──────
+  async executeFix(id: string): Promise<{ task: BotTask | null; fixedFiles: { path: string; content: string; written: boolean }[] }> {
+    const bot = this.bots.get(id)
+    if (!bot) return { task: null, fixedFiles: [] }
+    if (this.executionLock.has(id)) return { task: null, fixedFiles: [] }
+
+    this.executionLock.add(id)
+    const previousStatus = bot.status
+    bot.status = 'working'
+    this.emit('bot-status-changed', bot)
+
+    const task: BotTask = {
+      id: `task-fix-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      botId: id,
+      description: `${BOT_SPECIALIZATIONS[bot.specialization].name} fix cycle`,
+      status: 'running',
+      startedAt: new Date().toISOString()
+    }
+    bot.taskQueue.push(task)
+    this.emit('task-started', task)
+
+    const startTime = Date.now()
+    let fixedFiles: { path: string; content: string; written: boolean }[] = []
+
+    try {
+      const response = await fetch('/api/v1/openclaw/team/bots/' + id + '/fix', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          specialization: bot.specialization,
+          model: bot.model,
+          skill: BOT_SPECIALIZATIONS[bot.specialization].skill,
+          preferences: bot.preferences,
+          context: {
+            targetPaths: bot.preferences.targetPaths,
+            excludePaths: bot.preferences.excludePaths,
+            customInstructions: bot.preferences.customInstructions,
+          }
+        })
+      })
+
+      const result = await response.json()
+      const duration = Date.now() - startTime
+
+      if (result.error) throw new Error(result.error)
+
+      fixedFiles = result.fixedFiles || []
+
+      task.status = 'completed'
+      task.result = result.response
+      task.completedAt = new Date().toISOString()
+      task.duration = duration
+      task.filesAffected = fixedFiles.filter(f => f.written).map(f => f.path)
+
+      bot.stats.tasksCompleted++
+      bot.stats.totalRuntime += duration
+      bot.stats.cyclesCompleted++
+      bot.stats.lastRunAt = new Date().toISOString()
+      bot.stats.issuesFound += result.issuesFound || 0
+
+      this.addWorkLog(bot, 'fixed',
+        `Applied fixes to ${fixedFiles.filter(f => f.written).length} files`,
+        result.response,
+        fixedFiles.filter(f => f.written).map(f => f.path),
+        result.issuesFound
+      )
+
+      this.emit('task-completed', task)
+      this.emit('files-fixed', { botId: id, fixedFiles })
+
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : 'Fix failed'
+      task.status = 'failed'
+      task.error = errMsg
+      task.completedAt = new Date().toISOString()
+      task.duration = Date.now() - startTime
+      bot.stats.tasksFailed++
+      this.addWorkLog(bot, 'error', `Fix failed: ${errMsg}`)
+      this.emit('task-failed', task)
+    } finally {
+      this.executionLock.delete(id)
+      bot.status = previousStatus === 'working' ? 'active' : previousStatus
+      if (bot.status !== 'paused') bot.status = 'active'
+      bot.updatedAt = new Date().toISOString()
+      this.saveBots()
+      this.emit('bot-status-changed', bot)
+    }
+
+    return { task, fixedFiles }
+  }
+
+  // ─── Advanced: Chain execution — multiple bots collaborate ──────────
+  async executeChain(
+    botIds: string[],
+    onStepComplete?: (step: number, result: any) => void
+  ): Promise<{
+    chain: any[]
+    totalFilesFixed: number
+    completedSteps: number
+  }> {
+    const steps = botIds.map(id => {
+      const bot = this.bots.get(id)
+      if (!bot) return null
+      return {
+        botId: id,
+        skill: BOT_SPECIALIZATIONS[bot.specialization].skill,
+        specialization: bot.specialization,
+        model: bot.model,
+      }
+    }).filter(Boolean)
+
+    if (steps.length === 0) {
+      return { chain: [], totalFilesFixed: 0, completedSteps: 0 }
+    }
+
+    // Mark all chain bots as working
+    botIds.forEach(id => {
+      const bot = this.bots.get(id)
+      if (bot) {
+        bot.status = 'working'
+        this.emit('bot-status-changed', bot)
+      }
+    })
+
+    this.emit('chain-started', { botIds, steps: steps.length })
+
+    try {
+      const firstBot = this.bots.get(botIds[0])
+      const response = await fetch('/api/v1/openclaw/team/chain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          steps,
+          preferences: firstBot?.preferences,
+          context: {
+            targetPaths: firstBot?.preferences.targetPaths || ['src/'],
+            excludePaths: firstBot?.preferences.excludePaths || ['node_modules/', 'dist/'],
+          }
+        })
+      })
+
+      const result = await response.json()
+
+      if (result.error) {
+        const msg: string = result.error
+        throw msg
+      }
+
+      // Update each bot's stats based on chain results
+      (result.chain || []).forEach((stepResult: any, i: number) => {
+        const bot = this.bots.get(botIds[i])
+        if (bot && stepResult.status === 'completed') {
+          bot.stats.tasksCompleted++
+          bot.stats.cyclesCompleted++
+          bot.stats.issuesFound += stepResult.issuesFound || 0
+          bot.stats.lastRunAt = new Date().toISOString()
+          this.addWorkLog(bot, 'chain',
+            stepResult.summary || `Chain step ${i + 1} completed`,
+            undefined,
+            stepResult.fixedFiles,
+            stepResult.issuesFound
+          )
+        }
+        if (onStepComplete) onStepComplete(i, stepResult)
+      })
+
+      this.emit('chain-completed', result)
+      return {
+        chain: result.chain || [],
+        totalFilesFixed: result.totalFilesFixed || 0,
+        completedSteps: result.completedSteps || 0,
+      }
+
+    } catch (error) {
+      this.emit('chain-failed', { error: error instanceof Error ? error.message : 'Chain failed' })
+      return { chain: [], totalFilesFixed: 0, completedSteps: 0 }
+    } finally {
+      botIds.forEach(id => {
+        const bot = this.bots.get(id)
+        if (bot) {
+          bot.status = 'active'
+          bot.updatedAt = new Date().toISOString()
+          this.emit('bot-status-changed', bot)
+        }
+      })
+      this.saveBots()
+    }
+  }
+
+  // ─── Advanced: Streaming execution — real-time bot activity feed ────
+  async executeStream(
+    id: string,
+    callbacks: {
+      onStatus?: (status: string, message: string) => void
+      onMeta?: (provider: string, model: string) => void
+      onContent?: (text: string) => void
+      onDone?: (info: any) => void
+      onError?: (error: string) => void
+    }
+  ): Promise<void> {
+    const bot = this.bots.get(id)
+    if (!bot) {
+      callbacks.onError?.('Bot not found')
+      return
+    }
+    if (this.executionLock.has(id)) {
+      callbacks.onError?.('Bot is already executing')
+      return
+    }
+
+    this.executionLock.add(id)
+    bot.status = 'working'
+    this.emit('bot-status-changed', bot)
+
+    try {
+      const response = await fetch('/api/v1/openclaw/team/bots/' + id + '/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          specialization: bot.specialization,
+          model: bot.model,
+          skill: BOT_SPECIALIZATIONS[bot.specialization].skill,
+          preferences: bot.preferences,
+          context: {
+            targetPaths: bot.preferences.targetPaths,
+            excludePaths: bot.preferences.excludePaths,
+            customInstructions: bot.preferences.customInstructions,
+          }
+        })
+      })
+
+      const reader = response.body?.getReader()
+      if (!reader) throw new Error('No response stream')
+
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          try {
+            const event = JSON.parse(line.slice(6))
+            switch (event.type) {
+              case 'status':
+                callbacks.onStatus?.(event.status, event.message || '')
+                break
+              case 'meta':
+                callbacks.onMeta?.(event.provider, event.model)
+                break
+              case 'content':
+                callbacks.onContent?.(event.text)
+                break
+              case 'done':
+                callbacks.onDone?.(event)
+                break
+              case 'error':
+                callbacks.onError?.(event.error)
+                break
+            }
+          } catch { /* skip malformed events */ }
+        }
+      }
+
+      // Update stats
+      bot.stats.tasksCompleted++
+      bot.stats.cyclesCompleted++
+      bot.stats.lastRunAt = new Date().toISOString()
+      this.addWorkLog(bot, 'streamed', `${BOT_SPECIALIZATIONS[bot.specialization].name} analysis streamed`)
+      this.saveBots()
+
+    } catch (error) {
+      callbacks.onError?.(error instanceof Error ? error.message : 'Stream failed')
+    } finally {
+      this.executionLock.delete(id)
+      bot.status = 'active'
+      bot.updatedAt = new Date().toISOString()
+      this.saveBots()
+      this.emit('bot-status-changed', bot)
+    }
+  }
+
   // ─── Work Log ────────────────────────────────────────────────────────
 
   private addWorkLog(

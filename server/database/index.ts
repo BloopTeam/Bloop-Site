@@ -110,6 +110,24 @@ db.exec(`
     created_at TEXT DEFAULT (datetime('now'))
   );
 
+  -- Persistent agents (survive server restarts)
+  CREATE TABLE IF NOT EXISTS agents (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL,
+    status TEXT DEFAULT 'idle',
+    capabilities TEXT DEFAULT '[]',
+    model TEXT,
+    system_prompt TEXT NOT NULL,
+    memory TEXT DEFAULT '[]',
+    tasks TEXT DEFAULT '[]',
+    metrics TEXT DEFAULT '{}',
+    created_at TEXT DEFAULT (datetime('now')),
+    last_active_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_agents_user ON agents(user_id);
+
   -- Audit log (all sensitive operations)
   CREATE TABLE IF NOT EXISTS audit_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -254,6 +272,20 @@ const stmts = {
     SELECT * FROM bot_executions WHERE bot_id = ? AND user_id = ? ORDER BY created_at DESC LIMIT ?
   `),
 
+  // Agents (persistent)
+  createAgent: db.prepare(`
+    INSERT INTO agents (id, user_id, name, type, capabilities, model, system_prompt, memory, tasks, metrics)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `),
+  getAgentById: db.prepare(`SELECT * FROM agents WHERE id = ?`),
+  getAgentByIdAndUser: db.prepare(`SELECT * FROM agents WHERE id = ? AND user_id = ?`),
+  getUserAgents: db.prepare(`SELECT * FROM agents WHERE user_id = ? ORDER BY last_active_at DESC`),
+  updateAgent: db.prepare(`
+    UPDATE agents SET status = ?, memory = ?, tasks = ?, metrics = ?, last_active_at = datetime('now')
+    WHERE id = ? AND user_id = ?
+  `),
+  deleteAgent: db.prepare(`DELETE FROM agents WHERE id = ? AND user_id = ?`),
+
   // Audit log
   logAudit: db.prepare(`
     INSERT INTO audit_log (user_id, action, resource_type, resource_id, ip_address, details)
@@ -361,6 +393,29 @@ export const database = {
   },
   getBotExecutions(botId: string, userId: string, limit = 20) {
     return stmts.getBotExecutions.all(botId, userId, limit) as any[]
+  },
+
+  // Agents (persistent)
+  createAgent(id: string, userId: string, name: string, type: string, capabilities: string[], model: string | undefined, systemPrompt: string) {
+    stmts.createAgent.run(id, userId, name, type, JSON.stringify(capabilities), model || null, systemPrompt, '[]', '[]', JSON.stringify({
+      tasksCompleted: 0, tasksTotal: 0, avgResponseTime: 0, successRate: 100,
+    }))
+    return stmts.getAgentById.get(id) as any
+  },
+  getAgent(id: string, userId: string) {
+    return stmts.getAgentByIdAndUser.get(id, userId) as any
+  },
+  getAgentById(id: string) {
+    return stmts.getAgentById.get(id) as any
+  },
+  getUserAgents(userId: string) {
+    return stmts.getUserAgents.all(userId) as any[]
+  },
+  updateAgent(id: string, userId: string, status: string, memory: any[], tasks: any[], metrics: any) {
+    stmts.updateAgent.run(status, JSON.stringify(memory), JSON.stringify(tasks), JSON.stringify(metrics), id, userId)
+  },
+  deleteAgent(id: string, userId: string) {
+    return stmts.deleteAgent.run(id, userId)
   },
 
   // Audit

@@ -1,15 +1,17 @@
 /**
  * Agent API route handlers
  * Full agent lifecycle: create, get, list, execute, delete
+ * Agents persist in SQLite — they survive server restarts.
  */
 import { Router } from 'express'
 import { ModelRouter } from '../../services/ai/router.js'
 import { v4 as uuidv4 } from 'uuid'
+import { database } from '../../database/index.js'
 
 export const agentRouter = Router()
 const router = new ModelRouter()
 
-// In-memory agent store (persists for server lifetime)
+// Agent types
 interface Agent {
   id: string
   name: string
@@ -40,7 +42,27 @@ interface AgentTask {
   duration?: number
 }
 
-const agents = new Map<string, Agent>()
+// ─── Helpers: hydrate/dehydrate agent from DB row ────────────────────────────
+function rowToAgent(row: any): Agent {
+  return {
+    id: row.id,
+    name: row.name,
+    type: row.type,
+    status: row.status || 'idle',
+    capabilities: JSON.parse(row.capabilities || '[]'),
+    model: row.model || undefined,
+    systemPrompt: row.system_prompt,
+    memory: JSON.parse(row.memory || '[]'),
+    tasks: JSON.parse(row.tasks || '[]'),
+    metrics: JSON.parse(row.metrics || '{}'),
+    createdAt: row.created_at,
+    lastActiveAt: row.last_active_at,
+  }
+}
+
+function getAgentUserId(req: any): string {
+  return req.user?.id || 'anonymous'
+}
 
 // Default agent types
 const defaultAgentTypes: Record<string, { name: string; systemPrompt: string; capabilities: string[] }> = {
@@ -81,37 +103,25 @@ const defaultAgentTypes: Record<string, { name: string; systemPrompt: string; ca
   },
 }
 
-// Create agent
+// Create agent (persisted to SQLite)
 agentRouter.post('/create', async (req, res) => {
   try {
     const { type, name, model, systemPrompt } = req.body
+    const userId = getAgentUserId(req)
 
     if (!type && !systemPrompt) {
       return res.status(400).json({ error: 'Either "type" (predefined) or "systemPrompt" (custom) is required' })
     }
 
     const agentType = defaultAgentTypes[type]
-    const agent: Agent = {
-      id: uuidv4(),
-      name: name || agentType?.name || 'Custom Agent',
-      type: type || 'custom',
-      status: 'idle',
-      capabilities: agentType?.capabilities || ['general'],
-      model: model || undefined,
-      systemPrompt: systemPrompt || agentType?.systemPrompt || 'You are a helpful AI assistant.',
-      memory: [],
-      tasks: [],
-      metrics: {
-        tasksCompleted: 0,
-        tasksTotal: 0,
-        avgResponseTime: 0,
-        successRate: 100,
-      },
-      createdAt: new Date().toISOString(),
-      lastActiveAt: new Date().toISOString(),
-    }
+    const id = uuidv4()
+    const agentName = name || agentType?.name || 'Custom Agent'
+    const agentTypeStr = type || 'custom'
+    const capabilities = agentType?.capabilities || ['general']
+    const prompt = systemPrompt || agentType?.systemPrompt || 'You are a helpful AI assistant.'
 
-    agents.set(agent.id, agent)
+    const row = database.createAgent(id, userId, agentName, agentTypeStr, capabilities, model, prompt)
+    const agent = rowToAgent(row)
 
     res.status(201).json({ agent })
   } catch (error) {
@@ -120,10 +130,12 @@ agentRouter.post('/create', async (req, res) => {
   }
 })
 
-// List all agents
+// List all agents (from database)
 agentRouter.get('/', async (req, res) => {
   try {
-    const agentList = Array.from(agents.values()).map(a => ({
+    const userId = getAgentUserId(req)
+    const rows = database.getUserAgents(userId)
+    const agentList = rows.map(rowToAgent).map(a => ({
       id: a.id,
       name: a.name,
       type: a.type,
@@ -145,28 +157,31 @@ agentRouter.get('/', async (req, res) => {
   }
 })
 
-// Get agent by ID
+// Get agent by ID (from database)
 agentRouter.get('/:id', async (req, res) => {
   try {
-    const agent = agents.get(req.params.id)
-    if (!agent) {
+    const userId = getAgentUserId(req)
+    const row = database.getAgent(req.params.id, userId)
+    if (!row) {
       return res.status(404).json({ error: 'Agent not found' })
     }
 
-    res.json({ agent })
+    res.json({ agent: rowToAgent(row) })
   } catch (error) {
     console.error('Agent fetch error:', error)
     res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to fetch agent' })
   }
 })
 
-// Execute a task on an agent
+// Execute a task on an agent (persisted to database)
 agentRouter.post('/:id/execute', async (req, res) => {
   try {
-    const agent = agents.get(req.params.id)
-    if (!agent) {
+    const userId = getAgentUserId(req)
+    const row = database.getAgent(req.params.id, userId)
+    if (!row) {
       return res.status(404).json({ error: 'Agent not found' })
     }
+    const agent = rowToAgent(row)
 
     const { task, context } = req.body
     if (!task) {
@@ -193,8 +208,6 @@ agentRouter.post('/:id/execute', async (req, res) => {
       { role: 'user' as const, content: context ? `Context:\n${context}\n\nTask: ${task}` : task },
     ]
 
-    // Determine which provider to use
-    // For perplexity-researcher type, prefer Perplexity
     let modelOverride = agent.model
     if (agent.type === 'perplexity-researcher' && !modelOverride) {
       modelOverride = 'perplexity'
@@ -202,16 +215,9 @@ agentRouter.post('/:id/execute', async (req, res) => {
 
     const startTime = Date.now()
 
-    // Select model and generate
-    const modelInfo = router.selectBestModel({
-      messages,
-      model: modelOverride,
-    })
-
+    const modelInfo = router.selectBestModel({ messages, model: modelOverride })
     const service = router.getService(modelInfo.provider)
-    if (!service) {
-      throw new Error('No AI service available for this agent')
-    }
+    if (!service) throw new Error('No AI service available for this agent')
 
     const response = await service.generate({
       messages,
@@ -222,24 +228,19 @@ agentRouter.post('/:id/execute', async (req, res) => {
 
     const duration = Date.now() - startTime
 
-    // Update task
     agentTask.status = 'completed'
     agentTask.result = response.content
     agentTask.completedAt = new Date().toISOString()
     agentTask.duration = duration
 
-    // Update agent memory
     agent.memory.push(
       { role: 'user', content: task, timestamp: new Date().toISOString() },
       { role: 'assistant', content: response.content, timestamp: new Date().toISOString() }
     )
-
-    // Keep memory bounded (last 20 exchanges)
     if (agent.memory.length > 40) {
       agent.memory = agent.memory.slice(-40)
     }
 
-    // Update metrics
     agent.status = 'idle'
     agent.metrics.tasksCompleted++
     agent.metrics.avgResponseTime = (
@@ -247,6 +248,14 @@ agentRouter.post('/:id/execute', async (req, res) => {
       agent.metrics.tasksCompleted
     )
     agent.metrics.successRate = (agent.metrics.tasksCompleted / agent.metrics.tasksTotal) * 100
+
+    // Trim tasks to last 50
+    if (agent.tasks.length > 50) {
+      agent.tasks = agent.tasks.slice(-50)
+    }
+
+    // Persist to database
+    database.updateAgent(agent.id, userId, agent.status, agent.memory, agent.tasks, agent.metrics)
 
     res.json({
       task: agentTask,
@@ -259,26 +268,32 @@ agentRouter.post('/:id/execute', async (req, res) => {
   } catch (error) {
     console.error('Agent execution error:', error)
 
-    // Mark task as failed
-    const agent = agents.get(req.params.id)
-    if (agent) {
-      agent.status = 'idle'
-      const lastTask = agent.tasks[agent.tasks.length - 1]
-      if (lastTask) {
-        lastTask.status = 'failed'
-        lastTask.completedAt = new Date().toISOString()
+    // Mark agent idle in database
+    const userId = getAgentUserId(req)
+    try {
+      const row = database.getAgent(req.params.id, userId)
+      if (row) {
+        const agent = rowToAgent(row)
+        agent.status = 'idle'
+        const lastTask = agent.tasks[agent.tasks.length - 1]
+        if (lastTask) {
+          lastTask.status = 'failed'
+          lastTask.completedAt = new Date().toISOString()
+        }
+        database.updateAgent(agent.id, userId, agent.status, agent.memory, agent.tasks, agent.metrics)
       }
-    }
+    } catch { /* best-effort cleanup */ }
 
     res.status(500).json({ error: error instanceof Error ? error.message : 'Agent execution failed' })
   }
 })
 
-// Delete agent
+// Delete agent (from database)
 agentRouter.delete('/:id', async (req, res) => {
   try {
-    const existed = agents.delete(req.params.id)
-    if (!existed) {
+    const userId = getAgentUserId(req)
+    const result = database.deleteAgent(req.params.id, userId)
+    if (result.changes === 0) {
       return res.status(404).json({ error: 'Agent not found' })
     }
 
