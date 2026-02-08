@@ -72,7 +72,7 @@ chatRouter.post('/', async (req, res) => {
   }
 })
 
-// Streaming chat endpoint (SSE) — real token-by-token streaming
+// Streaming chat endpoint (SSE) — real token-by-token streaming with fallback
 chatRouter.post('/stream', async (req, res) => {
   try {
     const request: AIRequest = req.body
@@ -81,15 +81,15 @@ chatRouter.post('/stream', async (req, res) => {
       return res.status(400).json({ error: 'Messages array is required and cannot be empty' })
     }
     
-    const modelInfo = router.selectBestModel(request)
-    const service = router.getService(modelInfo.provider)
-    
-    if (!service) {
-      return res.status(503).json({ 
-        error: 'No AI service available.',
-        available_providers: router.getAvailableProviders(),
-      })
+    const providers = router.getAvailableProviders()
+    if (providers.length === 0) {
+      return res.status(503).json({ error: 'No AI service available.' })
     }
+    
+    const modelInfo = router.selectBestModel(request)
+    
+    // Build provider try order — selected first, then fallbacks
+    const tryOrder = [modelInfo.provider, ...providers.filter(p => p !== modelInfo.provider)]
     
     // Set SSE headers
     res.setHeader('Content-Type', 'text/event-stream')
@@ -97,55 +97,65 @@ chatRouter.post('/stream', async (req, res) => {
     res.setHeader('Connection', 'keep-alive')
     res.setHeader('X-Accel-Buffering', 'no')
     
-    // Send model info first
-    res.write(`data: ${JSON.stringify({ type: 'meta', provider: modelInfo.provider, model: modelInfo.model })}\n\n`)
+    // Try each provider in order until one succeeds
+    let streamed = false
     
-    // Use real streaming if the provider supports it
-    if (service.generateStream) {
-      await service.generateStream(
-        { ...request, model: modelInfo.model },
-        {
-          onToken: (text) => {
-            res.write(`data: ${JSON.stringify({ type: 'content', text })}\n\n`)
-          },
-          onDone: (info) => {
-            res.write(`data: ${JSON.stringify({ type: 'done', ...info })}\n\n`)
-            res.end()
-          },
-          onError: (error) => {
-            res.write(`data: ${JSON.stringify({ type: 'error', error })}\n\n`)
-            res.end()
-          },
+    for (const provider of tryOrder) {
+      const service = router.getService(provider)
+      if (!service) continue
+      
+      const modelName = provider === modelInfo.provider ? modelInfo.model : undefined
+      
+      // Send meta for the current attempt
+      res.write(`data: ${JSON.stringify({ type: 'meta', provider, model: modelName || 'default' })}\n\n`)
+      
+      try {
+        if (service.generateStream) {
+          // Real streaming — wrap in a promise to await completion
+          await new Promise<void>((resolve, reject) => {
+            service.generateStream!(
+              { ...request, model: modelName },
+              {
+                onToken: (text: string) => {
+                  res.write(`data: ${JSON.stringify({ type: 'content', text })}\n\n`)
+                },
+                onDone: (info: any) => {
+                  res.write(`data: ${JSON.stringify({ type: 'done', ...info })}\n\n`)
+                  resolve()
+                },
+                onError: (error: string) => {
+                  reject(new Error(error))
+                },
+              }
+            ).catch(reject)
+          })
+          streamed = true
+          break
+        } else {
+          // Non-streaming fallback — generate full then chunk
+          const response = await service.generate({ ...request, model: modelName })
+          const content = response.content
+          const chunkSize = 12
+          for (let i = 0; i < content.length; i += chunkSize) {
+            res.write(`data: ${JSON.stringify({ type: 'content', text: content.slice(i, i + chunkSize) })}\n\n`)
+          }
+          res.write(`data: ${JSON.stringify({ type: 'done', usage: response.usage, model: response.model, finishReason: response.finishReason })}\n\n`)
+          streamed = true
+          break
         }
-      )
-    } else {
-      // Fallback: generate full response then chunk it for providers without streaming
-      const response = await service.generate({
-        ...request,
-        model: modelInfo.model,
-      })
-      
-      const content = response.content
-      const chunkSize = 12 // smaller chunks for more fluid feel
-      
-      for (let i = 0; i < content.length; i += chunkSize) {
-        const chunk = content.slice(i, i + chunkSize)
-        res.write(`data: ${JSON.stringify({ type: 'content', text: chunk })}\n\n`)
+      } catch (err) {
+        console.warn(`  ✗ ${provider} stream failed, trying next...`, err instanceof Error ? err.message.slice(0, 100) : String(err).slice(0, 100))
+        // Continue to next provider
       }
-      
-      res.write(`data: ${JSON.stringify({ 
-        type: 'done', 
-        usage: response.usage,
-        model: response.model,
-        finishReason: response.finishReason,
-      })}\n\n`)
-      
-      res.end()
     }
+    
+    if (!streamed) {
+      res.write(`data: ${JSON.stringify({ type: 'error', error: 'All AI providers failed' })}\n\n`)
+    }
+    res.end()
   } catch (error) {
     console.error('Stream error:', error)
     
-    // If headers already sent, send error as SSE event
     if (res.headersSent) {
       res.write(`data: ${JSON.stringify({ type: 'error', error: error instanceof Error ? error.message : 'Stream error' })}\n\n`)
       res.end()
