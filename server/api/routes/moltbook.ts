@@ -5,6 +5,7 @@
  */
 import { Router } from 'express'
 import { getMoltbookService } from '../../services/moltbook/index.js'
+import { getBloopMoltbookAgent } from '../../services/bloopMoltbookAgent.js'
 
 export const moltbookRouter = Router()
 
@@ -212,5 +213,99 @@ moltbookRouter.get('/submolts', async (req, res) => {
     res.json({ submolts })
   } catch {
     res.json({ submolts: [] })
+  }
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// Bloop's Autonomous Moltbook Agent — controls for Bloop's own presence
+// ════════════════════════════════════════════════════════════════════════════
+
+// GET /api/v1/moltbook/bloop/status — Get Bloop's agent state
+moltbookRouter.get('/bloop/status', async (req, res) => {
+  try {
+    const agent = getBloopMoltbookAgent()
+    res.json(agent.getState())
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Status check failed' })
+  }
+})
+
+// POST /api/v1/moltbook/bloop/start — Start autonomous posting
+moltbookRouter.post('/bloop/start', async (req, res) => {
+  try {
+    const agent = getBloopMoltbookAgent()
+    const result = await agent.start()
+    res.json(result)
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Start failed' })
+  }
+})
+
+// POST /api/v1/moltbook/bloop/stop — Stop autonomous posting
+moltbookRouter.post('/bloop/stop', async (req, res) => {
+  try {
+    const agent = getBloopMoltbookAgent()
+    const result = agent.stop()
+    res.json(result)
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Stop failed' })
+  }
+})
+
+// POST /api/v1/moltbook/bloop/post — Trigger an immediate promotional post
+moltbookRouter.post('/bloop/post', async (req, res) => {
+  try {
+    const agent = getBloopMoltbookAgent()
+    const { submolt, title, content, tags } = req.body
+
+    let result
+    if (title && content) {
+      // Custom post
+      result = await agent.postCustom(submolt || 'developers', title, content, tags)
+    } else {
+      // Next scheduled post
+      result = await agent.postNext()
+    }
+
+    res.json(result)
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Post failed' })
+  }
+})
+
+// POST /api/v1/moltbook/bloop/engage — Trigger feed engagement (upvotes, browse)
+moltbookRouter.post('/bloop/engage', async (req, res) => {
+  try {
+    const agent = getBloopMoltbookAgent()
+    await agent.engageWithFeed()
+    res.json({ success: true, message: 'Feed engagement triggered' })
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Engagement failed' })
+  }
+})
+
+// POST /api/v1/moltbook/bloop/share-skill — Share a skill to Moltbook
+moltbookRouter.post('/bloop/share-skill', async (req, res) => {
+  try {
+    const { name, description, skillMd, tags } = req.body
+    if (!name || !skillMd) {
+      return res.status(400).json({ error: 'name and skillMd are required' })
+    }
+
+    const agent = getBloopMoltbookAgent()
+    const result = await agent.shareSkill(name, description || '', skillMd, tags)
+    res.json(result)
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Skill sharing failed' })
+  }
+})
+
+// GET /api/v1/moltbook/bloop/history — Get post history
+moltbookRouter.get('/bloop/history', async (req, res) => {
+  try {
+    const agent = getBloopMoltbookAgent()
+    res.json({ history: agent.getPostHistory() })
+  } catch {
+    res.json({ history: [] })
   }
 })
