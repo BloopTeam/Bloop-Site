@@ -8,7 +8,7 @@ import {
   Wrench, Bug, Gauge, Shield, CheckCircle, 
   XCircle, Clock, Loader2, Copy, Terminal,
   Users, MessageSquare, Plug, Plus, Pause, Trash2, 
-  Settings, Activity, Bot
+  Settings, Activity, Bot, Crown, Send, ChevronDown, ChevronRight
 } from 'lucide-react'
 import { openClawService } from '../services/openclaw'
 import { botTeamService, BOT_SPECIALIZATIONS, type TeamBot, type BotSpecialization, type RoleAllocation } from '../services/botTeam'
@@ -76,6 +76,8 @@ export default function OpenClawPanel({
   const [showCreateBot, setShowCreateBot] = useState(false)
   const [selectedBot, setSelectedBot] = useState<TeamBot | null>(null)
   const [botRunning, setBotRunning] = useState<Record<string, boolean>>({})
+  const [botError, setBotError] = useState<{ botId: string, message: string } | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const teamStats = botTeamService.getTeamStats()
 
   const loadData = useCallback(async () => {
@@ -215,21 +217,26 @@ export default function OpenClawPanel({
   // ─── Role Configuration State ─────────────────────────────────────
   const [configuringSpec, setConfiguringSpec] = useState<BotSpecialization | null>(null)
   const [roleConfig, setRoleConfig] = useState<RoleAllocation | null>(null)
+  const [customBotName, setCustomBotName] = useState('')
 
   const handleSelectSpec = (spec: BotSpecialization) => {
     setConfiguringSpec(spec)
-    // Pre-fill with the default role for this specialization
     setRoleConfig({ ...BOT_SPECIALIZATIONS[spec].defaultRole })
+    setCustomBotName('')
   }
 
   const handleConfirmCreateBot = () => {
     if (!configuringSpec || !roleConfig) return
-    // Pass the preferred model from the role config so the bot uses it
     const model = roleConfig.preferredModel || BOT_SPECIALIZATIONS[configuringSpec].defaultModel
-    botTeamService.createBot(configuringSpec, { role: roleConfig, model })
+    botTeamService.createBot(configuringSpec, {
+      name: customBotName.trim() || undefined,
+      role: roleConfig,
+      model,
+    })
     setBots(botTeamService.getBots())
     setConfiguringSpec(null)
     setRoleConfig(null)
+    setCustomBotName('')
     setShowCreateBot(false)
   }
 
@@ -276,8 +283,14 @@ export default function OpenClawPanel({
 
   const handleRunBotNow = async (botId: string) => {
     setBotRunning(prev => ({ ...prev, [botId]: true }))
+    setBotError(null)
     try {
       await botTeamService.runNow(botId)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Bot execution failed'
+      setBotError({ botId, message })
+      // Auto-clear error after 8 seconds
+      setTimeout(() => setBotError(prev => prev?.botId === botId ? null : prev), 8000)
     } finally {
       setBotRunning(prev => ({ ...prev, [botId]: false }))
       setBots(botTeamService.getBots())
@@ -285,6 +298,13 @@ export default function OpenClawPanel({
   }
 
   const handleDeleteBot = (botId: string) => {
+    if (confirmDelete !== botId) {
+      setConfirmDelete(botId)
+      // Auto-clear confirmation after 3 seconds if not acted on
+      setTimeout(() => setConfirmDelete(prev => prev === botId ? null : prev), 3000)
+      return
+    }
+    setConfirmDelete(null)
     botTeamService.deleteBot(botId)
     setBots(botTeamService.getBots())
     if (selectedBot?.id === botId) setSelectedBot(null)
@@ -358,6 +378,47 @@ export default function OpenClawPanel({
   const [streamOutput, setStreamOutput] = useState<string>('')
   const [streamStatus, setStreamStatus] = useState<string>('')
   const [streamingBotId, setStreamingBotId] = useState<string | null>(null)
+  const [streamProgress, setStreamProgress] = useState<{ stage: string; percent: number; message: string } | null>(null)
+  const [streamMemory, setStreamMemory] = useState<{ newFindings: number; deduped: number; totalOpen: number } | null>(null)
+
+  // ─── CEO Delegation State ──────────────────────────────────────────
+  const [delegationTask, setDelegationTask] = useState('')
+  const [delegating, setDelegating] = useState(false)
+  const [delegationPlan, setDelegationPlan] = useState<any>(null)
+  const [delegationResults, setDelegationResults] = useState<any[]>([])
+  const [delegationSynthesis, setDelegationSynthesis] = useState('')
+  const [delegationStats, setDelegationStats] = useState<any>(null)
+  const [delegationError, setDelegationError] = useState('')
+  const [expandedResult, setExpandedResult] = useState<string | null>(null)
+
+  const ceoBot = botTeamService.getCEO()
+  const teamBots = bots.filter(b => b.specialization !== 'ceo')
+
+  const handleDelegateTask = async () => {
+    if (!delegationTask.trim() || delegating) return
+    setDelegating(true)
+    setDelegationPlan(null)
+    setDelegationResults([])
+    setDelegationSynthesis('')
+    setDelegationStats(null)
+    setDelegationError('')
+
+    const result = await botTeamService.delegateTask(delegationTask.trim(), {
+      onPlanReady: (plan) => setDelegationPlan(plan),
+      onBotCompleted: (name, res) => {
+        setDelegationResults(prev => [...prev, { botName: name, ...res }])
+      },
+      onSynthesis: (synthesis) => setDelegationSynthesis(synthesis),
+      onError: (error) => setDelegationError(error),
+    })
+
+    setDelegationResults(result.results)
+    setDelegationSynthesis(result.synthesis)
+    setDelegationStats(result.stats)
+    setDelegationPlan(result.plan)
+    setBots(botTeamService.getBots())
+    setDelegating(false)
+  }
 
   // Extract files from streamed output (code blocks with file paths)
   const extractFilesFromOutput = useCallback((output: string) => {
@@ -385,6 +446,8 @@ export default function OpenClawPanel({
     setStreamingBotId(botId)
     setStreamOutput('')
     setStreamStatus('Starting...')
+    setStreamProgress(null)
+    setStreamMemory(null)
     let fullOutput = ''
     try {
       await botTeamService.executeStream(botId, {
@@ -394,8 +457,16 @@ export default function OpenClawPanel({
           fullOutput += text
           setStreamOutput(prev => prev + text)
         },
+        onProgress: (stage, percent, message) => {
+          setStreamProgress({ stage, percent, message })
+          setStreamStatus(message)
+        },
+        onMemory: (data) => {
+          setStreamMemory(data)
+        },
         onDone: () => {
           setStreamStatus('Complete')
+          setStreamProgress({ stage: 'done', percent: 100, message: 'Analysis complete' })
           setStreamingBotId(null)
           // Extract any files from the completed stream output
           extractFilesFromOutput(fullOutput)
@@ -843,8 +914,8 @@ export default function OpenClawPanel({
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               marginBottom: '12px'
             }}>
-              <div style={{ fontSize: '12px', color: '#cccccc' }}>
-                24/7 Bot Team
+              <div style={{ fontSize: '12px', color: '#cccccc', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Crown size={14} style={{ color: '#FFD700' }} /> Bot Team
               </div>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                 {bots.length > 0 && (
@@ -874,6 +945,233 @@ export default function OpenClawPanel({
                 </button>
               </div>
             </div>
+
+            {/* ─── CEO Card ──────────────────────────────────────────────── */}
+            {ceoBot ? (
+              <div style={{
+                marginBottom: '12px', padding: '14px', borderRadius: '6px',
+                background: 'linear-gradient(135deg, rgba(255,215,0,0.06) 0%, rgba(255,0,255,0.04) 100%)',
+                border: '1px solid rgba(255,215,0,0.2)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                  <div style={{
+                    width: '36px', height: '36px', borderRadius: '8px',
+                    background: 'rgba(255,215,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '20px', border: '1px solid rgba(255,215,0,0.2)'
+                  }}>
+                    👑
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '13px', color: '#FFD700', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {ceoBot.name}
+                      <span style={{
+                        width: '6px', height: '6px', borderRadius: '50%',
+                        background: statusColor(ceoBot.status), display: 'inline-block'
+                      }} />
+                    </div>
+                    <div style={{ fontSize: '10px', color: '#888' }}>
+                      Team Lead — delegates tasks to {teamBots.length} specialist{teamBots.length !== 1 ? 's' : ''}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '4px', fontSize: '10px', color: '#666' }}>
+                    <span>{ceoBot.stats.tasksCompleted} delegated</span>
+                  </div>
+                </div>
+
+                {/* Delegation Input */}
+                <div style={{
+                  display: 'flex', gap: '8px', alignItems: 'flex-end',
+                }}>
+                  <div style={{ flex: 1 }}>
+                    <textarea
+                      placeholder="Give the CEO a task — they'll delegate to the right specialists..."
+                      value={delegationTask}
+                      onChange={e => setDelegationTask(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault()
+                          handleDelegateTask()
+                        }
+                      }}
+                      rows={2}
+                      style={{
+                        width: '100%', padding: '8px 10px', fontSize: '12px', color: '#cccccc',
+                        background: '#0d0d0d', border: '1px solid #222', borderRadius: '4px',
+                        outline: 'none', resize: 'none', boxSizing: 'border-box',
+                        fontFamily: 'inherit', lineHeight: 1.4,
+                      }}
+                    />
+                  </div>
+                  <button
+                    onClick={handleDelegateTask}
+                    disabled={delegating || !delegationTask.trim() || teamBots.length === 0}
+                    style={{
+                      padding: '8px 14px', fontSize: '12px', cursor: delegating ? 'default' : 'pointer',
+                      background: delegating ? 'transparent' : 'rgba(255,215,0,0.12)',
+                      border: `1px solid ${delegating ? '#333' : 'rgba(255,215,0,0.3)'}`,
+                      borderRadius: '4px', color: delegating ? '#666' : '#FFD700',
+                      display: 'flex', alignItems: 'center', gap: '6px',
+                      minHeight: '36px', whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {delegating ? <><Loader2 size={12} className="animate-spin" /> Delegating...</> : <><Send size={12} /> Delegate</>}
+                  </button>
+                </div>
+
+                {/* Delegation Error */}
+                {delegationError && (
+                  <div style={{
+                    marginTop: '8px', padding: '8px 10px', background: 'rgba(239,68,68,0.08)',
+                    border: '1px solid rgba(239,68,68,0.25)', borderRadius: '4px',
+                    fontSize: '11px', color: '#ef4444', display: 'flex', alignItems: 'center', gap: '8px',
+                  }}>
+                    <span style={{ flex: 1 }}>{delegationError}</span>
+                    <button
+                      onClick={() => { setDelegationError(''); if (delegationTask.trim()) handleDelegateTask() }}
+                      disabled={delegating || !delegationTask.trim()}
+                      style={{
+                        padding: '3px 10px', fontSize: '10px', cursor: 'pointer',
+                        background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)',
+                        borderRadius: '3px', color: '#ef4444', whiteSpace: 'nowrap',
+                      }}
+                    >
+                      Retry
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* No CEO yet — prompt to create one */
+              bots.length > 0 && !showCreateBot && (
+                <div style={{
+                  marginBottom: '12px', padding: '12px', borderRadius: '6px',
+                  background: 'rgba(255,215,0,0.04)', border: '1px dashed rgba(255,215,0,0.2)',
+                  textAlign: 'center'
+                }}>
+                  <Crown size={20} style={{ color: '#FFD700', opacity: 0.5, marginBottom: '6px' }} />
+                  <div style={{ fontSize: '11px', color: '#888', marginBottom: '8px' }}>
+                    Add a <span style={{ color: '#FFD700' }}>ClawdBot CEO</span> to lead your team. The CEO receives your tasks and delegates to the specialists.
+                  </div>
+                  <button
+                    onClick={() => handleCreateBot('ceo' as BotSpecialization)}
+                    style={{
+                      padding: '6px 14px', fontSize: '11px', cursor: 'pointer',
+                      background: 'rgba(255,215,0,0.1)', border: '1px solid rgba(255,215,0,0.3)',
+                      borderRadius: '4px', color: '#FFD700'
+                    }}
+                  >
+                    Add CEO
+                  </button>
+                </div>
+              )
+            )}
+
+            {/* ─── Delegation Results ────────────────────────────────────── */}
+            {(delegationPlan || delegationSynthesis || delegationResults.length > 0) && (
+              <div style={{
+                marginBottom: '12px', padding: '12px', borderRadius: '6px',
+                background: '#0d0d0d', border: '1px solid #1a1a1a',
+              }}>
+                {/* Plan Summary */}
+                {delegationPlan && (
+                  <div style={{ marginBottom: '10px' }}>
+                    <div style={{ fontSize: '10px', color: '#FFD700', fontWeight: 600, marginBottom: '4px', letterSpacing: '0.5px' }}>
+                      DELEGATION PLAN
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#aaa', marginBottom: '6px' }}>
+                      {delegationPlan.analysis?.substring(0, 200)}{delegationPlan.analysis?.length > 200 ? '...' : ''}
+                    </div>
+                    <div style={{ fontSize: '10px', color: '#666' }}>
+                      {delegationPlan.delegations?.length || 0} bot{(delegationPlan.delegations?.length || 0) !== 1 ? 's' : ''} assigned
+                      {' · '}
+                      {delegationPlan.executionOrder || 'sequential'} execution
+                    </div>
+                  </div>
+                )}
+
+                {/* Individual Bot Results */}
+                {delegationResults.filter(r => r.status === 'completed').length > 0 && (
+                  <div style={{ marginBottom: '10px' }}>
+                    <div style={{ fontSize: '10px', color: '#888', fontWeight: 600, marginBottom: '6px', letterSpacing: '0.5px' }}>
+                      BOT REPORTS
+                    </div>
+                    {delegationResults.filter(r => r.status === 'completed').map((result, i) => (
+                      <div key={i} style={{ marginBottom: '4px' }}>
+                        <div
+                          onClick={() => setExpandedResult(expandedResult === `${i}` ? null : `${i}`)}
+                          style={{
+                            padding: '6px 8px', borderRadius: '4px', cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', gap: '8px',
+                            background: '#141414', border: '1px solid #1a1a1a',
+                          }}
+                        >
+                          {expandedResult === `${i}` ? <ChevronDown size={12} style={{ color: '#666' }} /> : <ChevronRight size={12} style={{ color: '#666' }} />}
+                          <span style={{ fontSize: '11px', color: '#cccccc' }}>{result.botName}</span>
+                          <span style={{ fontSize: '10px', color: '#555' }}>({result.botSpecialization})</span>
+                          <span style={{
+                            marginLeft: 'auto', fontSize: '10px',
+                            color: result.priority === 'high' ? '#ef4444' : result.priority === 'medium' ? '#f59e0b' : '#888'
+                          }}>
+                            {result.priority}
+                          </span>
+                          {result.issuesFound > 0 && (
+                            <span style={{ fontSize: '10px', color: '#f59e0b' }}>
+                              {result.issuesFound} issues
+                            </span>
+                          )}
+                        </div>
+                        {expandedResult === `${i}` && result.response && (
+                          <div style={{
+                            padding: '8px 10px', marginTop: '2px', background: '#0a0a0a',
+                            borderRadius: '4px', border: '1px solid #1a1a1a',
+                            maxHeight: '300px', overflow: 'auto'
+                          }}>
+                            <pre style={{
+                              margin: 0, fontSize: '11px', color: '#cccccc', whiteSpace: 'pre-wrap',
+                              fontFamily: 'Fira Code, monospace', lineHeight: 1.5
+                            }}>
+                              {result.response}
+                            </pre>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* CEO Synthesis */}
+                {delegationSynthesis && (
+                  <div style={{
+                    padding: '10px', background: 'rgba(255,215,0,0.04)', borderRadius: '4px',
+                    border: '1px solid rgba(255,215,0,0.15)'
+                  }}>
+                    <div style={{ fontSize: '10px', color: '#FFD700', fontWeight: 600, marginBottom: '6px', letterSpacing: '0.5px' }}>
+                      CEO SYNTHESIS
+                    </div>
+                    <pre style={{
+                      margin: 0, fontSize: '11px', color: '#cccccc', whiteSpace: 'pre-wrap',
+                      fontFamily: 'Fira Code, monospace', lineHeight: 1.5,
+                      maxHeight: '300px', overflow: 'auto'
+                    }}>
+                      {delegationSynthesis}
+                    </pre>
+                  </div>
+                )}
+
+                {/* Stats */}
+                {delegationStats && (
+                  <div style={{
+                    display: 'flex', gap: '12px', marginTop: '8px',
+                    padding: '6px 10px', fontSize: '10px', color: '#666'
+                  }}>
+                    <span>Delegated: <span style={{ color: '#cccccc' }}>{delegationStats.totalDelegated}</span></span>
+                    <span>Completed: <span style={{ color: '#22c55e' }}>{delegationStats.completed}</span></span>
+                    {delegationStats.failed > 0 && <span>Failed: <span style={{ color: '#ef4444' }}>{delegationStats.failed}</span></span>}
+                    <span>Issues: <span style={{ color: '#f59e0b' }}>{delegationStats.totalIssuesFound}</span></span>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Team Stats Bar */}
             {bots.length > 0 && (
@@ -919,13 +1217,35 @@ export default function OpenClawPanel({
               </div>
             )}
 
-            {/* Live Stream Output */}
+            {/* Live Stream Output with Progress */}
             {streamingBotId && (
               <div style={{
                 padding: '10px', background: '#0a0a0a', borderRadius: '4px',
                 marginBottom: '12px', border: '1px solid rgba(255,0,255,0.2)',
-                maxHeight: '200px', overflow: 'auto'
+                maxHeight: '260px', overflow: 'auto'
               }}>
+                {/* Progress Bar */}
+                {streamProgress && (
+                  <div style={{ marginBottom: '8px' }}>
+                    <div style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      fontSize: '10px', marginBottom: '4px'
+                    }}>
+                      <span style={{ color: '#FF00FF' }}>{streamProgress.message}</span>
+                      <span style={{ color: '#666' }}>{streamProgress.percent}%</span>
+                    </div>
+                    <div style={{
+                      height: '3px', background: '#1a1a1a', borderRadius: '2px', overflow: 'hidden'
+                    }}>
+                      <div style={{
+                        height: '100%', width: `${streamProgress.percent}%`,
+                        background: 'linear-gradient(90deg, #FF00FF, #FFD700)',
+                        borderRadius: '2px', transition: 'width 0.3s ease'
+                      }} />
+                    </div>
+                  </div>
+                )}
+
                 <div style={{ fontSize: '10px', color: '#FF00FF', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Loader2 size={10} className="animate-spin" />
                   {streamStatus}
@@ -936,6 +1256,20 @@ export default function OpenClawPanel({
                 }}>
                   {streamOutput || 'Waiting for output...'}
                 </pre>
+
+                {/* Memory Results (shown when stream records findings) */}
+                {streamMemory && (
+                  <div style={{
+                    marginTop: '8px', padding: '6px 8px', borderRadius: '4px',
+                    background: 'rgba(255,215,0,0.05)', border: '1px solid rgba(255,215,0,0.15)',
+                    display: 'flex', gap: '12px', fontSize: '10px'
+                  }}>
+                    <span style={{ color: '#FFD700' }}>Memory</span>
+                    <span style={{ color: '#888' }}>New: <span style={{ color: '#22c55e' }}>{streamMemory.newFindings}</span></span>
+                    <span style={{ color: '#888' }}>Deduped: <span style={{ color: '#f59e0b' }}>{streamMemory.deduped}</span></span>
+                    <span style={{ color: '#888' }}>Open: <span style={{ color: '#cccccc' }}>{streamMemory.totalOpen}</span></span>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1005,6 +1339,28 @@ export default function OpenClawPanel({
                   <button onClick={handleCancelConfigure} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: '16px' }}>
                     <XCircle size={16} />
                   </button>
+                </div>
+
+                {/* Bot Name (custom identity — especially for CEO) */}
+                <div style={{ marginBottom: '10px' }}>
+                  <label style={{ fontSize: '10px', color: configuringSpec === 'ceo' ? '#FFD700' : '#666', display: 'block', marginBottom: '4px' }}>
+                    {configuringSpec === 'ceo' ? 'Your CEO Name (this is YOUR OpenClaw bot)' : 'Bot Name (optional)'}
+                  </label>
+                  <input
+                    value={customBotName}
+                    onChange={e => setCustomBotName(e.target.value)}
+                    placeholder={configuringSpec ? BOT_SPECIALIZATIONS[configuringSpec].name : 'Custom name...'}
+                    style={{
+                      width: '100%', padding: '6px 8px', fontSize: '12px', color: '#cccccc',
+                      background: '#0d0d0d', border: `1px solid ${configuringSpec === 'ceo' ? 'rgba(255,215,0,0.3)' : '#222'}`, borderRadius: '4px',
+                      outline: 'none', boxSizing: 'border-box'
+                    }}
+                  />
+                  {configuringSpec === 'ceo' && (
+                    <div style={{ fontSize: '10px', color: '#888', marginTop: '4px' }}>
+                      This is your personal OpenClaw CEO. Give it a name, configure its identity, and it will lead your entire bot team. All tasks go through your CEO.
+                    </div>
+                  )}
                 </div>
 
                 {/* Role Title */}
@@ -1235,19 +1591,43 @@ export default function OpenClawPanel({
                       value={roleConfig.preferredModel || (configuringSpec ? BOT_SPECIALIZATIONS[configuringSpec].defaultModel : '')}
                       onChange={e => updateRoleField('preferredModel', e.target.value)}
                       style={{
-                        width: '100%', padding: '5px 6px', fontSize: '11px', color: '#cccccc',
+                        width: '100%', padding: '6px 8px', fontSize: '11px', color: '#cccccc',
                         background: '#0d0d0d', border: '1px solid #222', borderRadius: '4px', outline: 'none'
                       }}
                     >
-                      <option value="claude-opus-4-6">Claude Opus 4.6 (most capable)</option>
-                      <option value="claude-sonnet-4">Claude Sonnet 4</option>
-                      <option value="gpt-4o">GPT-4o</option>
-                      <option value="gpt-4.1">GPT-4.1</option>
-                      <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-                      <option value="gemini-2.0-flash">Gemini 2.0 Flash (fast)</option>
-                      <option value="mistral-large-2512">Mistral Large</option>
-                      <option value="deepseek-r1">DeepSeek R1</option>
+                      <optgroup label="Anthropic">
+                        <option value="claude-opus-4-6">Claude Opus 4.6 — Best reasoning · ~$1/run</option>
+                        <option value="claude-sonnet-4">Claude Sonnet 4 — Great balance · ~$0.20/run</option>
+                        <option value="claude-haiku-3.5">Claude Haiku 3.5 — Fastest · ~$0.03/run</option>
+                      </optgroup>
+                      <optgroup label="OpenAI">
+                        <option value="gpt-4.1">GPT-4.1 — Strong reasoning · ~$0.80/run</option>
+                        <option value="gpt-4.1-mini">GPT-4.1 Mini — Fast & cheap · ~$0.15/run</option>
+                        <option value="gpt-4o">GPT-4o — Multimodal · ~$0.50/run</option>
+                        <option value="o3-mini">o3-mini — Advanced reasoning · ~$0.90/run</option>
+                      </optgroup>
+                      <optgroup label="Google">
+                        <option value="gemini-2.5-pro">Gemini 2.5 Pro — 1M context · ~$0.40/run</option>
+                        <option value="gemini-2.5-flash">Gemini 2.5 Flash — Fast & free tier · ~$0.05/run</option>
+                      </optgroup>
+                      <optgroup label="Open Source">
+                        <option value="deepseek-r1">DeepSeek R1 — Chain-of-thought · ~$0.15/run</option>
+                        <option value="mistral-large-2512">Mistral Large — EU hosted · ~$0.30/run</option>
+                        <option value="llama-4-maverick">Llama 4 Maverick — Free (local) · $0</option>
+                      </optgroup>
                     </select>
+                    {/* Cost hint */}
+                    {(() => {
+                      const m = roleConfig.preferredModel || (configuringSpec ? BOT_SPECIALIZATIONS[configuringSpec].defaultModel : '')
+                      const tier = m.includes('opus') || m.includes('o3') ? 'premium' : m.includes('haiku') || m.includes('flash') || m.includes('mini') || m.includes('llama') ? 'budget' : 'standard'
+                      return (
+                        <div style={{ marginTop: '4px', fontSize: '9px', color: tier === 'premium' ? '#f59e0b' : tier === 'budget' ? '#22c55e' : '#666' }}>
+                          {tier === 'premium' && '⚡ Premium — maximum intelligence, best for CEO, security, architecture'}
+                          {tier === 'standard' && '✓ Standard — great quality at moderate cost, suits most bots'}
+                          {tier === 'budget' && '$ Budget — fast and cheap, good for docs, simple reviews, high-frequency runs'}
+                        </div>
+                      )
+                    })()}
                   </div>
 
                   {/* Web Search Toggle */}
@@ -1362,7 +1742,7 @@ export default function OpenClawPanel({
               </div>
             )}
 
-            {/* Bot List */}
+            {/* Bot List — CEO excluded (shown above), specialists below */}
             {bots.length === 0 && !showCreateBot ? (
               <div style={{
                 padding: '40px 20px', textAlign: 'center', color: '#666', fontSize: '12px'
@@ -1370,7 +1750,7 @@ export default function OpenClawPanel({
                 <Bot size={32} style={{ marginBottom: '12px', opacity: 0.3 }} />
                 <div style={{ marginBottom: '8px' }}>No bots in your team yet</div>
                 <div style={{ fontSize: '11px', color: '#555', marginBottom: '16px' }}>
-                  Create a team of specialized AI bots that work on your project 24/7
+                  Start by adding a <span style={{ color: '#FFD700' }}>ClawdBot CEO</span> to lead your team, then add specialists.
                 </div>
                 <button
                   onClick={() => setShowCreateBot(true)}
@@ -1385,7 +1765,16 @@ export default function OpenClawPanel({
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                {bots.map(bot => (
+                {/* Section label if CEO exists */}
+                {ceoBot && teamBots.length > 0 && (
+                  <div style={{
+                    fontSize: '10px', color: '#555', fontWeight: 600, letterSpacing: '0.5px',
+                    padding: '4px 4px 6px', borderBottom: '1px solid #1a1a1a', marginBottom: '4px'
+                  }}>
+                    SPECIALISTS ({teamBots.length})
+                  </div>
+                )}
+                {teamBots.map(bot => (
                   <div key={bot.id}>
                     {/* Bot Card */}
                     <div
@@ -1408,8 +1797,16 @@ export default function OpenClawPanel({
                             background: statusColor(bot.status), display: 'inline-block'
                           }} />
                         </div>
-                        <div style={{ fontSize: '10px', color: '#666' }}>
-                          {bot.stats.tasksCompleted} tasks | Last: {formatTimeAgo(bot.stats.lastRunAt)}
+                        <div style={{ fontSize: '10px', color: '#666', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>{bot.stats.tasksCompleted} tasks | Last: {formatTimeAgo(bot.stats.lastRunAt)}</span>
+                          <span style={{
+                            padding: '0px 5px', fontSize: '9px', borderRadius: '3px',
+                            background: (bot.role?.preferredModel || bot.model || '').includes('opus') ? 'rgba(245,158,11,0.1)' : 'rgba(100,100,100,0.08)',
+                            color: (bot.role?.preferredModel || bot.model || '').includes('opus') ? '#f59e0b' : '#555',
+                            border: '1px solid transparent',
+                          }}>
+                            {(bot.role?.preferredModel || bot.model || 'auto').replace('claude-', '').replace('gpt-', '').replace('gemini-', '').replace('-2512', '')}
+                          </span>
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: '4px' }}>
@@ -1472,6 +1869,51 @@ export default function OpenClawPanel({
                           </div>
                         </div>
 
+                        {/* Model Selector (live — change anytime) */}
+                        <div style={{
+                          marginBottom: '10px', padding: '8px', background: '#0a0a0a',
+                          borderRadius: '4px', border: '1px solid #1a1a1a'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                            <div style={{ color: '#888', fontSize: '10px', fontWeight: 600, letterSpacing: '0.5px' }}>MODEL</div>
+                            {(() => {
+                              const m = bot.role?.preferredModel || bot.model || 'auto'
+                              const tier = m.includes('opus') || m.includes('o3') ? 'premium' : m.includes('haiku') || m.includes('flash') || m.includes('mini') || m.includes('llama') ? 'budget' : 'standard'
+                              return <span style={{ fontSize: '9px', padding: '1px 6px', borderRadius: '3px', background: tier === 'premium' ? 'rgba(245,158,11,0.1)' : tier === 'budget' ? 'rgba(34,197,94,0.1)' : 'rgba(100,100,100,0.1)', color: tier === 'premium' ? '#f59e0b' : tier === 'budget' ? '#22c55e' : '#666' }}>{tier}</span>
+                            })()}
+                          </div>
+                          <select
+                            value={bot.role?.preferredModel || bot.model || 'claude-opus-4-6'}
+                            onChange={e => handleUpdateBotRole(bot.id, { preferredModel: e.target.value })}
+                            style={{
+                              width: '100%', padding: '5px 8px', fontSize: '11px', color: '#cccccc',
+                              background: '#0d0d0d', border: '1px solid #222', borderRadius: '4px', outline: 'none',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <optgroup label="Anthropic">
+                              <option value="claude-opus-4-6">Claude Opus 4.6 — Best reasoning · ~$1/run</option>
+                              <option value="claude-sonnet-4">Claude Sonnet 4 — Great balance · ~$0.20/run</option>
+                              <option value="claude-haiku-3.5">Claude Haiku 3.5 — Fastest · ~$0.03/run</option>
+                            </optgroup>
+                            <optgroup label="OpenAI">
+                              <option value="gpt-4.1">GPT-4.1 — Strong reasoning · ~$0.80/run</option>
+                              <option value="gpt-4.1-mini">GPT-4.1 Mini — Fast & cheap · ~$0.15/run</option>
+                              <option value="gpt-4o">GPT-4o — Multimodal · ~$0.50/run</option>
+                              <option value="o3-mini">o3-mini — Advanced reasoning · ~$0.90/run</option>
+                            </optgroup>
+                            <optgroup label="Google">
+                              <option value="gemini-2.5-pro">Gemini 2.5 Pro — 1M context · ~$0.40/run</option>
+                              <option value="gemini-2.5-flash">Gemini 2.5 Flash — Fast · ~$0.05/run</option>
+                            </optgroup>
+                            <optgroup label="Open Source">
+                              <option value="deepseek-r1">DeepSeek R1 — Chain-of-thought · ~$0.15/run</option>
+                              <option value="mistral-large-2512">Mistral Large — EU hosted · ~$0.30/run</option>
+                              <option value="llama-4-maverick">Llama 4 Maverick — Free (local) · $0</option>
+                            </optgroup>
+                          </select>
+                        </div>
+
                         {/* Role Allocation */}
                         {bot.role && (
                           <div style={{
@@ -1530,6 +1972,28 @@ export default function OpenClawPanel({
                               }}>{cap}</span>
                             ))}
                           </div>
+                        </div>
+
+                        {/* Bot Intelligence Badges */}
+                        <div style={{
+                          display: 'flex', gap: '6px', flexWrap: 'wrap',
+                          marginBottom: '10px', padding: '6px 8px',
+                          background: 'rgba(255,215,0,0.03)', borderRadius: '4px',
+                          border: '1px solid rgba(255,215,0,0.1)'
+                        }}>
+                          <span style={{ fontSize: '10px', color: '#FFD700', fontWeight: 600 }}>Intelligence</span>
+                          <span style={{ fontSize: '10px', color: '#888' }}>
+                            Resilient retries
+                          </span>
+                          <span style={{ fontSize: '10px', color: '#888' }}>
+                            Smart file ranking
+                          </span>
+                          <span style={{ fontSize: '10px', color: '#888' }}>
+                            Persistent memory
+                          </span>
+                          <span style={{ fontSize: '10px', color: '#888' }}>
+                            Issue dedup
+                          </span>
                         </div>
 
                         {/* Recent Work Log */}
@@ -1614,14 +2078,37 @@ export default function OpenClawPanel({
                             onClick={() => handleDeleteBot(bot.id)}
                             style={{
                               padding: '4px 10px', fontSize: '11px', cursor: 'pointer',
-                              background: 'transparent', border: '1px solid #333',
+                              background: confirmDelete === bot.id ? 'rgba(239,68,68,0.15)' : 'transparent',
+                              border: `1px solid ${confirmDelete === bot.id ? 'rgba(239,68,68,0.5)' : '#333'}`,
                               borderRadius: '4px', color: '#ef4444',
-                              display: 'flex', alignItems: 'center', gap: '4px'
+                              display: 'flex', alignItems: 'center', gap: '4px',
+                              fontWeight: confirmDelete === bot.id ? 600 : 400,
                             }}
                           >
-                            <Trash2 size={10} /> Remove
+                            <Trash2 size={10} /> {confirmDelete === bot.id ? 'Confirm?' : 'Remove'}
                           </button>
                         </div>
+
+                        {/* Bot execution error */}
+                        {botError?.botId === bot.id && (
+                          <div style={{
+                            marginTop: '6px', padding: '6px 10px', background: 'rgba(239,68,68,0.08)',
+                            border: '1px solid rgba(239,68,68,0.25)', borderRadius: '4px',
+                            fontSize: '11px', color: '#ef4444', display: 'flex', alignItems: 'center', gap: '6px',
+                          }}>
+                            <span style={{ flex: 1 }}>{botError.message}</span>
+                            <button
+                              onClick={() => { setBotError(null); handleRunBotNow(bot.id) }}
+                              style={{
+                                padding: '2px 8px', fontSize: '10px', cursor: 'pointer',
+                                background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)',
+                                borderRadius: '3px', color: '#ef4444', whiteSpace: 'nowrap',
+                              }}
+                            >
+                              Retry
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
