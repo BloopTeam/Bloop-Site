@@ -672,7 +672,7 @@ function AuthenticatedApp({ authUser, onLogout }: { authUser: AuthUser; onLogout
                   {[
                     { id: 'assistant' as RightPanelMode, label: 'Assistant' },
                     { id: 'openclaw' as RightPanelMode, label: 'OpenClaw' },
-                    { id: 'moltbook' as RightPanelMode, label: 'Moltbook' },
+                    { id: 'moltbook' as RightPanelMode, label: 'Team Room' },
                   ].map(tab => (
                     <button
                       key={tab.id}
@@ -715,10 +715,7 @@ function AuthenticatedApp({ authUser, onLogout }: { authUser: AuthUser; onLogout
                   {rightPanelMode === 'moltbook' && (
                     <MoltbookPanel 
                       onClose={() => setRightPanelMode('assistant')}
-                      onInstallSkill={(skillMd, name) => {
-                        openClawService.installSkill(skillMd, name)
-                        addToast('success', `Skill "${name}" installed successfully`)
-                      }}
+                      onCreateFile={handleCreateFile}
                     />
                   )}
                   {rightPanelMode === 'collaboration' && (

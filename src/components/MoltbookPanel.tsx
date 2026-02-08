@@ -1,695 +1,876 @@
 /**
- * Moltbook Panel Component
- * Social network feed, skills marketplace, and agent interaction UI
+ * Team Discussion Panel (formerly Moltbook)
+ * 
+ * Real-time team room where OpenClaw bots/agents discuss code,
+ * strategize approaches, and adapt to user preferences.
+ * Think of it as the engineering team's Slack channel.
  */
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { 
-  Users, MessageSquare, Share2, Bookmark, RefreshCw,
-  Search, TrendingUp, Clock, Award, Download, Star,
-  ChevronUp, ChevronDown, Bell, UserPlus, ExternalLink,
-  Loader2, Zap, FileCode, BookOpen
+  Users, MessageSquare, Send, RefreshCw,
+  Search, Bot, Loader2, Zap, Settings,
+  ChevronDown, ChevronRight, Lightbulb, Code,
+  Shield, Bug, FileText, Wrench, TestTube, Gauge,
+  Target, Sparkles, X, Hash, AtSign, Plus
 } from 'lucide-react'
-import { moltbookService } from '../services/moltbook'
-import type { MoltbookPost, SharedSkill, MoltbookAgent, Submolt } from '../types/moltbook'
+import { botTeamService, BOT_SPECIALIZATIONS, type TeamBot, type BotSpecialization } from '../services/botTeam'
+import { type RoleAllocation } from '../types/roles'
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+interface TeamMessage {
+  id: string
+  botId: string | 'user' | 'system'
+  botName: string
+  botAvatar: string
+  botColor: string
+  botSpecialization?: string
+  content: string
+  type: 'discussion' | 'analysis' | 'suggestion' | 'decision' | 'question' | 'system' | 'preference'
+  replyTo?: string
+  timestamp: number
+  codeSnippets?: { language: string; code: string; file?: string }[]
+  reactions?: Record<string, string[]>  // emoji -> botIds
+}
+
+interface TeamThread {
+  id: string
+  topic: string
+  startedBy: string
+  messages: TeamMessage[]
+  status: 'active' | 'resolved' | 'archived'
+  createdAt: number
+}
 
 interface MoltbookPanelProps {
   readonly onClose?: () => void
   readonly onInstallSkill?: (skillMd: string, name: string) => void
+  readonly onCreateFile?: (name: string, content: string, language?: string) => void
 }
 
-type FeedSort = 'hot' | 'new' | 'top' | 'discussed'
-type ActiveTab = 'feed' | 'skills' | 'discover' | 'notifications'
+// ─── Bot icon mapping ────────────────────────────────────────────────────────
 
-export default function MoltbookPanel({ onClose, onInstallSkill }: MoltbookPanelProps) {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('feed')
-  const [feedSort, setFeedSort] = useState<FeedSort>('hot')
-  const [loading, setLoading] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
-  
-  // Data states
-  const [posts, setPosts] = useState<MoltbookPost[]>([])
-  const [skills, setSkills] = useState<SharedSkill[]>([])
-  const [agents, setAgents] = useState<MoltbookAgent[]>([])
-  const [submolts, setSubmolts] = useState<Submolt[]>([])
-  const [notifications, setNotifications] = useState<Array<{
-    id: string
-    type: string
-    message: string
-    read: boolean
-    timestamp: string
-  }>>([])
-  
-  // User state
-  const [isRegistered, setIsRegistered] = useState(false)
-  const [currentAgent, setCurrentAgent] = useState<MoltbookAgent | null>(null)
+const BOT_ICONS: Record<string, React.ReactNode> = {
+  'code-reviewer': <Code size={14} />,
+  'test-engineer': <TestTube size={14} />,
+  'security-auditor': <Shield size={14} />,
+  'docs-writer': <FileText size={14} />,
+  'optimizer': <Gauge size={14} />,
+  'debugger': <Bug size={14} />,
+  'architect': <Wrench size={14} />,
+}
 
-  const loadData = useCallback(async () => {
-    setLoading(true)
-    try {
-      setIsRegistered(moltbookService.isRegistered())
-      setCurrentAgent(moltbookService.getAgent())
+const BOT_COLORS: Record<string, string> = {
+  'code-reviewer': '#3b82f6',
+  'test-engineer': '#22c55e',
+  'security-auditor': '#ef4444',
+  'docs-writer': '#f59e0b',
+  'optimizer': '#06b6d4',
+  'debugger': '#a855f7',
+  'architect': '#ec4899',
+}
 
-      // Load data based on active tab
-      if (activeTab === 'feed') {
-        const feed = await moltbookService.getFeed({ sort: feedSort })
-        setPosts(feed.posts)
-      } else if (activeTab === 'skills') {
-        const trendingSkills = await moltbookService.getTrendingSkills(20)
-        setSkills(trendingSkills)
-      } else if (activeTab === 'discover') {
-        const [discoveredAgents, submoltsList] = await Promise.all([
-          moltbookService.discoverAgents({ sort: 'karma', limit: 20 }),
-          moltbookService.listSubmolts()
-        ])
-        setAgents(discoveredAgents)
-        setSubmolts(submoltsList)
-      } else if (activeTab === 'notifications') {
-        const notifs = await moltbookService.getNotifications()
-        setNotifications(notifs)
-      }
-    } catch {
-      // Backend unavailable - load mock data for demo
-      loadMockData()
-    } finally {
-      setLoading(false)
+// ─── Discussion prompt templates ─────────────────────────────────────────────
+
+const DISCUSSION_PROMPTS = [
+  { label: 'Code Review Strategy', topic: 'How should we approach reviewing the current codebase? What patterns should we enforce?' },
+  { label: 'Architecture Decisions', topic: 'What architectural improvements should we prioritize? Any design pattern changes needed?' },
+  { label: 'Security Audit Plan', topic: 'What security concerns should we focus on? Are there any immediate vulnerabilities to address?' },
+  { label: 'Testing Coverage', topic: 'Where are the gaps in our test coverage? What testing strategies should we adopt?' },
+  { label: 'Performance Bottlenecks', topic: 'What are the main performance issues? How should we optimize the critical paths?' },
+  { label: 'Adapt to My Style', topic: 'Based on the code you\'ve seen, how can you all better adapt to my coding style and preferences?' },
+]
+
+// ─── Component ───────────────────────────────────────────────────────────────
+
+export default function MoltbookPanel({ onClose, onCreateFile }: MoltbookPanelProps) {
+  const [activeTab, setActiveTab] = useState<'team' | 'threads' | 'preferences'>('team')
+  const [bots, setBots] = useState<TeamBot[]>([])
+  const [messages, setMessages] = useState<TeamMessage[]>([])
+  const [threads, setThreads] = useState<TeamThread[]>([])
+  const [userInput, setUserInput] = useState('')
+  const [isThinking, setIsThinking] = useState(false)
+  const [thinkingBots, setThinkingBots] = useState<string[]>([])
+  const [expandedThread, setExpandedThread] = useState<string | null>(null)
+  const [showPrompts, setShowPrompts] = useState(false)
+  const [selectedBots, setSelectedBots] = useState<Set<string>>(new Set())
+
+  const chatEndRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  // Load bots from botTeamService
+  useEffect(() => {
+    const loadBots = () => {
+      const teamBots = botTeamService.getBots()
+      setBots(teamBots)
+      // Auto-select all active bots
+      setSelectedBots(new Set(teamBots.filter(b => b.status === 'active' || b.status === 'idle').map(b => b.id)))
     }
-  }, [activeTab, feedSort])
+    loadBots()
+    const interval = setInterval(loadBots, 5000)
+    return () => clearInterval(interval)
+  }, [])
 
-  const loadMockData = () => {
-    // Mock posts
-    setPosts([
-      {
-        id: '1',
-        author: { id: 'a1', username: 'claude', displayName: 'Claude', description: 'Anthropic AI', avatar: '', karma: 15000, createdAt: '', verified: true, capabilities: [], submolts: [], stats: { posts: 100, comments: 500, upvotes: 10000, downvotes: 100, followers: 5000, following: 50 } },
-        submolt: 'coding',
-        title: 'Implementing efficient tree traversal in Rust',
-        content: 'Here\'s a clean approach to implementing depth-first traversal...\n\n```rust\nfn dfs<T>(node: &Node<T>) -> Vec<&T> {\n    // ...\n}\n```',
-        contentType: 'code',
-        language: 'rust',
-        createdAt: new Date().toISOString(),
-        karma: 247,
-        upvotes: 280,
-        downvotes: 33,
-        commentCount: 45,
-        tags: ['rust', 'algorithms', 'data-structures']
-      },
-      {
-        id: '2',
-        author: { id: 'a2', username: 'gpt4', displayName: 'GPT-4', description: 'OpenAI', avatar: '', karma: 20000, createdAt: '', verified: true, capabilities: [], submolts: [], stats: { posts: 200, comments: 1000, upvotes: 15000, downvotes: 500, followers: 8000, following: 100 } },
-        submolt: 'ai-tools',
-        title: 'New skill: Advanced code analysis with semantic understanding',
-        content: 'Released a new skill that combines AST parsing with embeddings for deeper code understanding.',
-        contentType: 'skill',
-        createdAt: new Date(Date.now() - 3600000).toISOString(),
-        karma: 189,
-        upvotes: 200,
-        downvotes: 11,
-        commentCount: 28,
-        tags: ['skill', 'code-analysis', 'ai']
-      }
-    ])
+  // Load saved messages from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('bloop-team-messages')
+      if (saved) setMessages(JSON.parse(saved))
+      const savedThreads = localStorage.getItem('bloop-team-threads')
+      if (savedThreads) setThreads(JSON.parse(savedThreads))
+    } catch { /* ignore */ }
+  }, [])
 
-    // Mock skills
-    setSkills([
-      { id: '1', name: 'semantic-search', description: 'AI-powered semantic code search across repositories', author: { id: 'a1', username: 'codebot', displayName: 'CodeBot', description: '', avatar: '', karma: 5000, createdAt: '', verified: false, capabilities: [], submolts: [], stats: { posts: 0, comments: 0, upvotes: 0, downvotes: 0, followers: 0, following: 0 } }, version: '2.1.0', downloads: 15420, rating: 4.8, ratingCount: 342, skillMd: '', repository: 'https://github.com/example/semantic-search', tags: ['search', 'ai', 'semantic'], createdAt: '', updatedAt: '' },
-      { id: '2', name: 'auto-readme', description: 'Automatically generate comprehensive README files', author: { id: 'a2', username: 'docmaster', displayName: 'DocMaster', description: '', avatar: '', karma: 3000, createdAt: '', verified: false, capabilities: [], submolts: [], stats: { posts: 0, comments: 0, upvotes: 0, downvotes: 0, followers: 0, following: 0 } }, version: '1.5.2', downloads: 8230, rating: 4.6, ratingCount: 189, skillMd: '', repository: '', tags: ['documentation', 'readme', 'markdown'], createdAt: '', updatedAt: '' },
-      { id: '3', name: 'perf-analyzer', description: 'Deep performance analysis with optimization suggestions', author: { id: 'a3', username: 'speedbot', displayName: 'SpeedBot', description: '', avatar: '', karma: 7500, createdAt: '', verified: true, capabilities: [], submolts: [], stats: { posts: 0, comments: 0, upvotes: 0, downvotes: 0, followers: 0, following: 0 } }, version: '3.0.0', downloads: 22100, rating: 4.9, ratingCount: 567, skillMd: '', repository: '', tags: ['performance', 'optimization', 'profiling'], createdAt: '', updatedAt: '' }
-    ])
-
-    // Mock agents
-    setAgents([
-      { id: 'a1', username: 'claude', displayName: 'Claude', description: 'Anthropic\'s helpful AI assistant', avatar: '', karma: 15000, createdAt: '', verified: true, capabilities: ['code-generation', 'analysis', 'debugging'], submolts: ['coding', 'ai-tools'], stats: { posts: 100, comments: 500, upvotes: 10000, downvotes: 100, followers: 5000, following: 50 } },
-      { id: 'a2', username: 'gpt4', displayName: 'GPT-4', description: 'OpenAI\'s advanced language model', avatar: '', karma: 20000, createdAt: '', verified: true, capabilities: ['code-generation', 'creative-writing', 'analysis'], submolts: ['coding', 'creative'], stats: { posts: 200, comments: 1000, upvotes: 15000, downvotes: 500, followers: 8000, following: 100 } },
-      { id: 'a3', username: 'gemini', displayName: 'Gemini', description: 'Google\'s multimodal AI', avatar: '', karma: 12000, createdAt: '', verified: true, capabilities: ['code-generation', 'vision', 'reasoning'], submolts: ['coding', 'multimodal'], stats: { posts: 80, comments: 400, upvotes: 8000, downvotes: 200, followers: 4000, following: 75 } }
-    ])
-  }
+  // Save messages on change
+  useEffect(() => {
+    if (messages.length > 0) {
+      localStorage.setItem('bloop-team-messages', JSON.stringify(messages.slice(-200)))
+    }
+  }, [messages])
 
   useEffect(() => {
-    loadData()
-  }, [loadData])
-
-  // Helper to check unread notifications
-  const hasUnreadNotifications = notifications.some(n => !n.read)
-
-  const handleVote = async (postId: string, direction: 'up' | 'down') => {
-    await moltbookService.vote(postId, direction)
-    loadData()
-  }
-
-  const handleInstallSkill = async (skill: SharedSkill) => {
-    try {
-      const { skillMd } = await moltbookService.downloadSkill(skill.id)
-      onInstallSkill?.(skillMd, skill.name)
-    } catch {
-      // Skill installation unavailable
+    if (threads.length > 0) {
+      localStorage.setItem('bloop-team-threads', JSON.stringify(threads.slice(-50)))
     }
+  }, [threads])
+
+  // Auto-scroll to bottom on new messages
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, thinkingBots])
+
+  // Add a welcome message if no messages exist
+  useEffect(() => {
+    if (messages.length === 0 && bots.length > 0) {
+      const welcomeMsg: TeamMessage = {
+        id: 'welcome',
+        botId: 'system',
+        botName: 'Team',
+        botAvatar: '',
+        botColor: '#FF00FF',
+        content: `Your engineering team is online. ${bots.length} bot${bots.length !== 1 ? 's' : ''} ready. Ask a question, start a discussion, or pick a topic below.`,
+        type: 'system',
+        timestamp: Date.now(),
+      }
+      setMessages([welcomeMsg])
+    }
+  }, [bots.length])
+
+  // ─── Generate bot discussion responses ─────────────────────────────────
+
+  const generateBotResponse = useCallback(async (
+    bot: TeamBot,
+    topic: string,
+    previousMessages: TeamMessage[],
+    isFollowUp = false
+  ): Promise<TeamMessage> => {
+    const spec = BOT_SPECIALIZATIONS[bot.specialization]
+    const role = bot.role
+
+    // Build context from recent messages
+    const recentContext = previousMessages.slice(-8).map(m => 
+      `${m.botName}: ${m.content.substring(0, 300)}`
+    ).join('\n')
+
+    // Build the prompt based on the bot's role
+    const systemPrompt = `You are ${spec.name} (${role.title}) on an engineering team inside the Bloop IDE. 
+Your focus areas: ${role.focusAreas.join(', ')}.
+Behavior mode: ${role.behaviorMode}. Response style: ${role.responseStyle}.
+Languages: ${role.languages.join(', ')}. Frameworks: ${role.frameworks.join(', ')}.
+${role.customDirective ? `Custom directive: ${role.customDirective}` : ''}
+
+You're in a team discussion. Be ${role.responseStyle === 'concise' ? 'brief and to the point' : role.responseStyle === 'tutorial' ? 'educational and thorough' : 'clear and detailed'}.
+Speak naturally as a team member. Use "I think", "From my analysis", "In my experience".
+${isFollowUp ? 'Build on what others have said. Agree, disagree, or add a different angle. Reference specific points from teammates.' : 'Give your perspective on the topic. Be specific and actionable.'}
+If relevant, include short code examples using \`\`\`language blocks.
+Keep responses under 200 words — this is a conversation, not a report.`
+
+    const userMessage = isFollowUp 
+      ? `Team discussion so far:\n${recentContext}\n\nThe topic: "${topic}"\n\nGive your follow-up perspective as ${spec.name}. What would you add, challenge, or build on?`
+      : `Topic for team discussion: "${topic}"\n\nGive your initial perspective as ${spec.name}. What's your take on this?`
+
+    try {
+      const response = await fetch('/api/v1/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userMessage },
+          ],
+          temperature: 0.8,
+          maxTokens: 500,
+          role: bot.role,
+        })
+      })
+
+      const result = await response.json()
+      const content = result.content || result.choices?.[0]?.message?.content || 'I need more context to contribute here.'
+
+      // Extract code snippets from response
+      const codeSnippets: { language: string; code: string; file?: string }[] = []
+      const codeRegex = /```(\w*)\n([\s\S]*?)```/g
+      let match
+      while ((match = codeRegex.exec(content)) !== null) {
+        codeSnippets.push({ language: match[1] || 'text', code: match[2].trim() })
+      }
+
+      return {
+        id: `msg-${Date.now()}-${bot.id}-${Math.random().toString(36).substring(2, 7)}`,
+        botId: bot.id,
+        botName: spec.name,
+        botAvatar: spec.avatar,
+        botColor: BOT_COLORS[bot.specialization] || '#888',
+        botSpecialization: bot.specialization,
+        content: content.replace(/```\w*\n[\s\S]*?```/g, '').trim() || content,
+        type: isFollowUp ? 'discussion' : 'analysis',
+        timestamp: Date.now(),
+        codeSnippets: codeSnippets.length > 0 ? codeSnippets : undefined,
+      }
+    } catch {
+      return {
+        id: `msg-${Date.now()}-${bot.id}`,
+        botId: bot.id,
+        botName: spec.name,
+        botAvatar: spec.avatar,
+        botColor: BOT_COLORS[bot.specialization] || '#888',
+        botSpecialization: bot.specialization,
+        content: `I'm having trouble connecting right now. My ${role.focusAreas[0]?.toLowerCase() || 'analysis'} perspective: this is worth investigating further.`,
+        type: 'discussion',
+        timestamp: Date.now(),
+      }
+    }
+  }, [])
+
+  // ─── Start a team discussion ───────────────────────────────────────────
+
+  const startDiscussion = useCallback(async (topic: string) => {
+    const activeBots = bots.filter(b => selectedBots.has(b.id))
+    if (activeBots.length === 0) return
+
+    // Add user message
+    const userMsg: TeamMessage = {
+      id: `msg-user-${Date.now()}`,
+      botId: 'user',
+      botName: 'You',
+      botAvatar: '',
+      botColor: '#FF00FF',
+      content: topic,
+      type: 'question',
+      timestamp: Date.now(),
+    }
+    setMessages(prev => [...prev, userMsg])
+    setIsThinking(true)
+
+    // Create a thread
+    const thread: TeamThread = {
+      id: `thread-${Date.now()}`,
+      topic,
+      startedBy: 'user',
+      messages: [userMsg],
+      status: 'active',
+      createdAt: Date.now(),
+    }
+
+    const allNewMessages: TeamMessage[] = []
+
+    // First round — each bot gives their initial take (staggered)
+    for (const bot of activeBots) {
+      setThinkingBots(prev => [...prev, bot.id])
+
+      const response = await generateBotResponse(bot, topic, [userMsg, ...allNewMessages])
+      allNewMessages.push(response)
+
+      setMessages(prev => [...prev, response])
+      setThinkingBots(prev => prev.filter(id => id !== bot.id))
+
+      // Small delay between responses for natural feel
+      await new Promise(r => setTimeout(r, 300))
+    }
+
+    // Second round — bots respond to each other (if 2+ bots)
+    if (activeBots.length >= 2) {
+      // Pick 1-2 bots to do follow-ups
+      const followUpBots = activeBots.slice(0, Math.min(2, activeBots.length))
+      
+      for (const bot of followUpBots) {
+        setThinkingBots(prev => [...prev, bot.id])
+        
+        const followUp = await generateBotResponse(bot, topic, [userMsg, ...allNewMessages], true)
+        allNewMessages.push(followUp)
+
+        setMessages(prev => [...prev, followUp])
+        setThinkingBots(prev => prev.filter(id => id !== bot.id))
+
+        await new Promise(r => setTimeout(r, 300))
+      }
+    }
+
+    // Update thread
+    thread.messages = [userMsg, ...allNewMessages]
+    setThreads(prev => [thread, ...prev])
+    setIsThinking(false)
+  }, [bots, selectedBots, generateBotResponse])
+
+  // ─── Handle user input ─────────────────────────────────────────────────
+
+  const handleSend = useCallback(async () => {
+    const text = userInput.trim()
+    if (!text || isThinking) return
+    setUserInput('')
+    await startDiscussion(text)
+  }, [userInput, isThinking, startDiscussion])
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSend()
+    }
+  }, [handleSend])
+
+  const handlePromptSelect = useCallback((topic: string) => {
+    setShowPrompts(false)
+    startDiscussion(topic)
+  }, [startDiscussion])
+
+  const toggleBotSelection = useCallback((botId: string) => {
+    setSelectedBots(prev => {
+      const next = new Set(prev)
+      if (next.has(botId)) next.delete(botId)
+      else next.add(botId)
+      return next
+    })
+  }, [])
+
+  const clearChat = useCallback(() => {
+    setMessages([])
+    localStorage.removeItem('bloop-team-messages')
+  }, [])
+
+  // ─── Render helpers ────────────────────────────────────────────────────
+
+  const formatTime = (ts: number) => {
+    const d = new Date(ts)
+    const now = new Date()
+    const diff = now.getTime() - ts
+    if (diff < 60000) return 'just now'
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`
+    if (d.toDateString() === now.toDateString()) {
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
   }
 
-  const handleFollowAgent = async (agentId: string) => {
-    await moltbookService.followAgent(agentId)
-    loadData()
+  const renderMessage = (msg: TeamMessage, idx: number) => {
+    const isUser = msg.botId === 'user'
+    const isSystem = msg.botId === 'system'
+
+    if (isSystem) {
+      return (
+        <div key={msg.id} style={{
+          padding: '10px 16px', margin: '8px 0',
+          background: 'rgba(255,0,255,0.04)', borderRadius: '8px',
+          borderLeft: '3px solid #FF00FF33',
+          fontSize: '12px', color: '#888', lineHeight: '1.5',
+        }}>
+          <Sparkles size={12} style={{ display: 'inline', marginRight: '6px', color: '#FF00FF' }} />
+          {msg.content}
+        </div>
+      )
+    }
+
+    return (
+      <div key={msg.id} style={{
+        padding: '12px 16px', margin: '6px 0',
+        background: isUser ? 'rgba(255,0,255,0.06)' : '#141414',
+        borderRadius: '10px',
+        borderLeft: `3px solid ${msg.botColor}`,
+        transition: 'background 0.15s',
+      }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+          {isUser ? (
+            <div style={{
+              width: '24px', height: '24px', borderRadius: '50%',
+              background: 'linear-gradient(135deg, #FF00FF, #a855f7)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '12px', fontWeight: 700, color: '#fff',
+            }}>U</div>
+          ) : (
+            <div style={{
+              width: '24px', height: '24px', borderRadius: '50%',
+              background: `${msg.botColor}20`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '14px',
+            }}>
+              {msg.botAvatar || BOT_ICONS[msg.botSpecialization || ''] || <Bot size={12} />}
+            </div>
+          )}
+          <div style={{ flex: 1 }}>
+            <span style={{ fontSize: '12px', fontWeight: 600, color: isUser ? '#FF00FF' : msg.botColor }}>
+              {msg.botName}
+            </span>
+            {msg.botSpecialization && (
+              <span style={{ fontSize: '10px', color: '#555', marginLeft: '6px' }}>
+                {msg.type === 'analysis' ? 'initial take' : msg.type === 'suggestion' ? 'suggestion' : ''}
+              </span>
+            )}
+          </div>
+          <span style={{ fontSize: '10px', color: '#444' }}>{formatTime(msg.timestamp)}</span>
+        </div>
+
+        {/* Content */}
+        <div style={{
+          fontSize: '12px', color: '#ccc', lineHeight: '1.6',
+          whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+        }}>
+          {msg.content}
+        </div>
+
+        {/* Code snippets */}
+        {msg.codeSnippets && msg.codeSnippets.length > 0 && (
+          <div style={{ marginTop: '8px' }}>
+            {msg.codeSnippets.map((snippet, i) => (
+              <div key={i} style={{
+                background: '#0a0a0a', borderRadius: '6px', padding: '10px 12px',
+                marginTop: '6px', border: '1px solid #1a1a1a',
+                fontFamily: "'Fira Code', monospace", fontSize: '11px',
+                color: '#d4d4d4', whiteSpace: 'pre-wrap', overflow: 'auto',
+                maxHeight: '200px',
+              }}>
+                {snippet.file && (
+                  <div style={{ fontSize: '10px', color: '#555', marginBottom: '4px' }}>
+                    {snippet.file}
+                  </div>
+                )}
+                {snippet.code}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )
   }
 
-  const tabStyle = (isActive: boolean) => ({
-    padding: '8px 12px',
-    background: isActive ? '#3c3c3c' : 'transparent',
-    border: 'none',
-    color: isActive ? '#ffffff' : '#888888',
-    cursor: 'pointer',
-    fontSize: '12px',
-    borderBottom: isActive ? '2px solid #a855f7' : '2px solid transparent',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    transition: 'all 0.15s'
-  })
-
-  const sortButtonStyle = (isActive: boolean) => ({
-    padding: '4px 10px',
-    background: isActive ? '#a855f7' : '#3c3c3c',
-    border: 'none',
-    borderRadius: '12px',
-    color: isActive ? '#ffffff' : '#888888',
-    cursor: 'pointer',
-    fontSize: '11px'
-  })
-
-  const renderStars = (rating: number) => {
-    return Array.from({ length: 5 }, (_, i) => (
-      <Star
-        key={i}
-        size={12}
-        fill={i < Math.floor(rating) ? '#f59e0b' : 'transparent'}
-        color={i < Math.floor(rating) ? '#f59e0b' : '#666666'}
-      />
-    ))
-  }
+  // ─── Main render ───────────────────────────────────────────────────────
 
   return (
     <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100%',
-      background: '#1e1e1e',
-      color: '#cccccc'
+      height: '100%', display: 'flex', flexDirection: 'column',
+      background: '#1e1e1e', color: '#cccccc',
     }}>
       {/* Header */}
       <div style={{
-        padding: '12px 16px',
-        borderBottom: '1px solid #1a1a1a',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between'
+        padding: '12px 16px', borderBottom: '1px solid #2a2a2a',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Users size={16} color="#cccccc" />
-          <span style={{ fontSize: '13px', color: '#cccccc' }}>Moltbook</span>
-          {currentAgent && (
-            <span style={{ fontSize: '11px', color: '#666', marginLeft: '4px' }}>
-              @{currentAgent.username}
-            </span>
+          <Users size={16} style={{ color: '#FF00FF' }} />
+          <span style={{ fontWeight: 600, fontSize: '13px' }}>Team Room</span>
+          <span style={{
+            padding: '2px 8px', background: '#22c55e15', borderRadius: '10px',
+            fontSize: '10px', color: '#22c55e', border: '1px solid #22c55e25',
+          }}>
+            {bots.filter(b => selectedBots.has(b.id)).length} active
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: '6px' }}>
+          <button onClick={clearChat} title="Clear chat"
+            style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer', padding: '4px' }}>
+            <RefreshCw size={14} />
+          </button>
+          {onClose && (
+            <button onClick={onClose}
+              style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer', padding: '4px' }}>
+              <X size={14} />
+            </button>
           )}
         </div>
       </div>
 
-      {/* Tabs */}
-      <div style={{ 
-        display: 'flex', 
-        borderBottom: '1px solid #1a1a1a'
+      {/* Tab bar */}
+      <div style={{
+        display: 'flex', borderBottom: '1px solid #2a2a2a',
+        padding: '0 12px',
       }}>
-        <button 
-          onClick={() => setActiveTab('feed')} 
-          style={{
-            padding: '8px 16px',
-            background: 'transparent',
-            border: 'none',
-            borderBottom: activeTab === 'feed' ? '1px solid #cccccc' : '1px solid transparent',
-            color: activeTab === 'feed' ? '#cccccc' : '#666',
-            cursor: 'pointer',
-            fontSize: '12px'
-          }}
-        >
-          Feed
-        </button>
-        <button 
-          onClick={() => setActiveTab('skills')} 
-          style={{
-            padding: '8px 16px',
-            background: 'transparent',
-            border: 'none',
-            borderBottom: activeTab === 'skills' ? '1px solid #cccccc' : '1px solid transparent',
-            color: activeTab === 'skills' ? '#cccccc' : '#666',
-            cursor: 'pointer',
-            fontSize: '12px'
-          }}
-        >
-          Skills
-        </button>
-        <button 
-          onClick={() => setActiveTab('discover')} 
-          style={{
-            padding: '8px 16px',
-            background: 'transparent',
-            border: 'none',
-            borderBottom: activeTab === 'discover' ? '1px solid #cccccc' : '1px solid transparent',
-            color: activeTab === 'discover' ? '#cccccc' : '#666',
-            cursor: 'pointer',
-            fontSize: '12px'
-          }}
-        >
-          Discover
-        </button>
-        <button 
-          onClick={() => setActiveTab('notifications')} 
-          style={{
-            padding: '8px 16px',
-            background: 'transparent',
-            border: 'none',
-            borderBottom: activeTab === 'notifications' ? '1px solid #cccccc' : '1px solid transparent',
-            color: activeTab === 'notifications' ? '#cccccc' : '#666',
-            cursor: 'pointer',
-            fontSize: '12px',
-            position: 'relative'
-          }}
-        >
-          Notifications
-          {hasUnreadNotifications && (
-            <span style={{
-              position: 'absolute',
-              top: '4px',
-              right: '8px',
-              width: '6px',
-              height: '6px',
-              borderRadius: '50%',
-              background: '#cccccc'
-            }} />
-          )}
-        </button>
+        {([
+          { id: 'team' as const, label: 'Chat', icon: <MessageSquare size={12} /> },
+          { id: 'threads' as const, label: 'Threads', icon: <Hash size={12} /> },
+          { id: 'preferences' as const, label: 'Preferences', icon: <Settings size={12} /> },
+        ]).map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            style={{
+              padding: '8px 14px', fontSize: '11px', cursor: 'pointer',
+              background: 'transparent', border: 'none',
+              borderBottom: activeTab === tab.id ? '2px solid #FF00FF' : '2px solid transparent',
+              color: activeTab === tab.id ? '#FF00FF' : '#666',
+              display: 'flex', alignItems: 'center', gap: '4px',
+              transition: 'all 0.15s',
+            }}
+          >
+            {tab.icon} {tab.label}
+            {tab.id === 'threads' && threads.length > 0 && (
+              <span style={{
+                fontSize: '9px', background: '#FF00FF20', color: '#FF00FF',
+                padding: '1px 5px', borderRadius: '8px', marginLeft: '2px',
+              }}>{threads.length}</span>
+            )}
+          </button>
+        ))}
       </div>
 
-      {/* Content */}
-      <div style={{ flex: 1, overflow: 'auto' }}>
-        {/* Feed Tab */}
-        {activeTab === 'feed' && (
-          <div>
-            {/* Sort Options */}
-            <div style={{ 
-              padding: '8px 12px', 
-              display: 'flex', 
-              gap: '4px',
-              borderBottom: '1px solid #1a1a1a'
+      {/* Bot selector bar */}
+      <div style={{
+        padding: '8px 12px', borderBottom: '1px solid #1a1a1a',
+        display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center',
+      }}>
+        <span style={{ fontSize: '10px', color: '#555', marginRight: '4px' }}>In room:</span>
+        {bots.map(bot => {
+          const spec = BOT_SPECIALIZATIONS[bot.specialization]
+          const isSelected = selectedBots.has(bot.id)
+          return (
+            <button
+              key={bot.id}
+              onClick={() => toggleBotSelection(bot.id)}
+              title={`${spec?.name || bot.name} — click to ${isSelected ? 'remove from' : 'add to'} discussion`}
+              style={{
+                padding: '3px 8px', fontSize: '10px', cursor: 'pointer',
+                background: isSelected ? `${BOT_COLORS[bot.specialization] || '#888'}15` : 'transparent',
+                border: `1px solid ${isSelected ? (BOT_COLORS[bot.specialization] || '#888') + '40' : '#333'}`,
+                borderRadius: '12px',
+                color: isSelected ? (BOT_COLORS[bot.specialization] || '#888') : '#555',
+                display: 'flex', alignItems: 'center', gap: '4px',
+                transition: 'all 0.15s',
+              }}
+            >
+              <span style={{ fontSize: '12px' }}>{spec?.avatar || '?'}</span>
+              {spec?.name || bot.name}
+            </button>
+          )
+        })}
+        {bots.length === 0 && (
+          <span style={{ fontSize: '10px', color: '#555', fontStyle: 'italic' }}>
+            No bots configured — add bots in the OpenClaw panel
+          </span>
+        )}
+      </div>
+
+      {/* ─── Tab Content ─────────────────────────────────────────────── */}
+
+      {activeTab === 'team' && (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {/* Messages area */}
+          <div style={{ flex: 1, overflow: 'auto', padding: '8px 12px' }}>
+            {messages.map((msg, idx) => renderMessage(msg, idx))}
+
+            {/* Thinking indicators */}
+            {thinkingBots.map(botId => {
+              const bot = bots.find(b => b.id === botId)
+              if (!bot) return null
+              const spec = BOT_SPECIALIZATIONS[bot.specialization]
+              return (
+                <div key={`thinking-${botId}`} style={{
+                  padding: '10px 16px', margin: '6px 0',
+                  background: '#141414', borderRadius: '10px',
+                  borderLeft: `3px solid ${BOT_COLORS[bot.specialization] || '#888'}`,
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                }}>
+                  <div style={{
+                    width: '24px', height: '24px', borderRadius: '50%',
+                    background: `${BOT_COLORS[bot.specialization] || '#888'}20`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '14px',
+                  }}>
+                    {spec?.avatar || '?'}
+                  </div>
+                  <span style={{ fontSize: '12px', color: BOT_COLORS[bot.specialization] || '#888', fontWeight: 500 }}>
+                    {spec?.name || 'Bot'}
+                  </span>
+                  <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
+                    {[0, 1, 2].map(i => (
+                      <div key={i} style={{
+                        width: '4px', height: '4px', borderRadius: '50%',
+                        background: BOT_COLORS[bot.specialization] || '#888',
+                        animation: `pulse 1.4s ease-in-out ${i * 0.2}s infinite`,
+                        opacity: 0.6,
+                      }} />
+                    ))}
+                  </div>
+                  <span style={{ fontSize: '10px', color: '#555' }}>thinking...</span>
+                </div>
+              )
+            })}
+
+            <div ref={chatEndRef} />
+          </div>
+
+          {/* Quick prompts */}
+          {showPrompts && (
+            <div style={{
+              padding: '8px 12px', borderTop: '1px solid #1a1a1a',
+              background: '#141414', maxHeight: '200px', overflow: 'auto',
             }}>
-              {(['hot', 'new', 'top', 'discussed'] as FeedSort[]).map(sort => (
+              <div style={{ fontSize: '10px', color: '#555', marginBottom: '6px' }}>Start a discussion:</div>
+              {DISCUSSION_PROMPTS.map((prompt, i) => (
                 <button
-                  key={sort}
-                  onClick={() => setFeedSort(sort)}
+                  key={i}
+                  onClick={() => handlePromptSelect(prompt.topic)}
                   style={{
-                    padding: '4px 10px',
-                    background: feedSort === sort ? '#141414' : 'transparent',
-                    border: 'none',
-                    borderRadius: '4px',
-                    color: feedSort === sort ? '#cccccc' : '#666',
-                    cursor: 'pointer',
-                    fontSize: '11px'
+                    display: 'block', width: '100%', textAlign: 'left',
+                    padding: '8px 10px', marginBottom: '4px',
+                    background: '#1a1a1a', border: '1px solid #2a2a2a',
+                    borderRadius: '6px', cursor: 'pointer',
+                    color: '#ccc', fontSize: '11px',
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = '#222'
+                    e.currentTarget.style.borderColor = '#FF00FF33'
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = '#1a1a1a'
+                    e.currentTarget.style.borderColor = '#2a2a2a'
                   }}
                 >
-                  {sort.charAt(0).toUpperCase() + sort.slice(1)}
+                  <div style={{ fontWeight: 500, marginBottom: '2px' }}>{prompt.label}</div>
+                  <div style={{ fontSize: '10px', color: '#666' }}>{prompt.topic.substring(0, 80)}...</div>
                 </button>
               ))}
             </div>
+          )}
 
-            {/* Posts */}
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {loading ? (
-                <div style={{ padding: '40px', textAlign: 'center' }}>
-                  <Loader2 size={24} className="animate-spin" color="#a855f7" />
-                </div>
-              ) : posts.length === 0 ? (
-                <div style={{ padding: '40px', textAlign: 'center', color: '#888888' }}>
-                  <MessageSquare size={32} style={{ marginBottom: '12px', opacity: 0.5 }} />
-                  <p>No posts yet</p>
-                </div>
-              ) : (
-                posts.map(post => (
-                  <div
-                    key={post.id}
-                    style={{
-                      padding: '12px 16px',
-                      borderBottom: '1px solid #1a1a1a',
-                      display: 'flex',
-                      gap: '12px'
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = '#141414'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                  >
-                    {/* Vote buttons */}
-                    <div style={{ 
-                      display: 'flex', 
-                      flexDirection: 'column', 
-                      alignItems: 'center',
-                      gap: '2px',
-                      paddingTop: '2px'
-                    }}>
-                      <button
-                        onClick={() => handleVote(post.id, 'up')}
-                        style={{
-                          background: 'transparent',
-                          border: 'none',
-                          color: '#666',
-                          cursor: 'pointer',
-                          padding: '2px'
-                        }}
-                      >
-                        <ChevronUp size={16} />
-                      </button>
-                      <span style={{ 
-                        fontSize: '12px',
-                        color: '#666',
-                        minWidth: '20px',
-                        textAlign: 'center'
-                      }}>
-                        {post.karma}
-                      </span>
-                      <button
-                        onClick={() => handleVote(post.id, 'down')}
-                        style={{
-                          background: 'transparent',
-                          border: 'none',
-                          color: '#666',
-                          cursor: 'pointer',
-                          padding: '2px'
-                        }}
-                      >
-                        <ChevronDown size={16} />
-                      </button>
-                    </div>
-
-                    {/* Post content */}
-                    <div style={{ flex: 1 }}>
-                      <div style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: '6px',
-                        marginBottom: '6px',
-                        fontSize: '11px',
-                        color: '#666'
-                      }}>
-                        <span>m/{post.submolt}</span>
-                        <span>•</span>
-                        <span>@{post.author.username}</span>
-                        <span>•</span>
-                        <span>{new Date(post.createdAt).toLocaleDateString()}</span>
-                      </div>
-
-                      <h3 style={{ 
-                        margin: '0 0 8px 0',
-                        fontSize: '13px',
-                        color: '#cccccc'
-                      }}>
-                        {post.title}
-                      </h3>
-
-                      <p style={{ 
-                        margin: '0 0 10px 0',
-                        fontSize: '12px',
-                        color: '#999',
-                        lineHeight: 1.5
-                      }}>
-                        {post.content.length > 200 
-                          ? post.content.slice(0, 200) + '...' 
-                          : post.content}
-                      </p>
-
-
-                      {/* Actions */}
-                      <div style={{ 
-                        display: 'flex', 
-                        gap: '16px',
-                        fontSize: '11px',
-                        color: '#666'
-                      }}>
-                        <span>{post.commentCount} comments</span>
-                        <span>Share</span>
-                        <span>Save</span>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Skills Tab */}
-        {activeTab === 'skills' && (
-          <div style={{ padding: '12px' }}>
-            {/* Search */}
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '8px',
-              padding: '8px 12px',
-              background: '#141414',
-              borderRadius: '4px',
-              marginBottom: '12px',
-              border: '1px solid #1a1a1a'
-            }}>
-              <Search size={14} color="#666" />
-              <input
-                type="text"
-                placeholder="Search skills..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+          {/* Input area */}
+          <div style={{
+            padding: '12px', borderTop: '1px solid #2a2a2a',
+            background: '#1a1a1a',
+          }}>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+              <button
+                onClick={() => setShowPrompts(!showPrompts)}
+                title="Discussion topics"
                 style={{
-                  flex: 1,
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#cccccc',
-                  fontSize: '12px',
-                  outline: 'none'
+                  padding: '6px', background: showPrompts ? '#FF00FF15' : 'transparent',
+                  border: `1px solid ${showPrompts ? '#FF00FF33' : '#333'}`,
+                  borderRadius: '6px', cursor: 'pointer',
+                  color: showPrompts ? '#FF00FF' : '#666',
+                  flexShrink: 0,
+                }}
+              >
+                <Lightbulb size={14} />
+              </button>
+              <textarea
+                ref={inputRef}
+                value={userInput}
+                onChange={e => setUserInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={isThinking ? 'Team is discussing...' : 'Ask your team something...'}
+                disabled={isThinking}
+                rows={1}
+                style={{
+                  flex: 1, padding: '8px 12px', fontSize: '12px',
+                  background: '#252526', border: '1px solid #333',
+                  borderRadius: '8px', color: '#ccc', resize: 'none',
+                  outline: 'none', fontFamily: 'inherit',
+                  minHeight: '36px', maxHeight: '100px',
+                  opacity: isThinking ? 0.5 : 1,
                 }}
               />
+              <button
+                onClick={handleSend}
+                disabled={!userInput.trim() || isThinking}
+                style={{
+                  padding: '8px', background: userInput.trim() && !isThinking ? '#FF00FF' : '#333',
+                  border: 'none', borderRadius: '8px', cursor: userInput.trim() && !isThinking ? 'pointer' : 'default',
+                  color: '#fff', flexShrink: 0,
+                  transition: 'background 0.15s',
+                }}
+              >
+                {isThinking ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Send size={14} />}
+              </button>
             </div>
-
-            {/* Skills List */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
-              {skills.filter(s => 
-                s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                s.description.toLowerCase().includes(searchQuery.toLowerCase())
-              ).map(skill => (
-                <div
-                  key={skill.id}
-                  style={{
-                    padding: '12px',
-                    background: 'transparent',
-                    border: 'none',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '12px'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = '#141414'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                >
-                  <div style={{ flex: 1 }}>
-                    <div style={{ 
-                      color: '#cccccc', 
-                      fontSize: '13px',
-                      marginBottom: '2px'
-                    }}>
-                      {skill.name}
-                    </div>
-                    <div style={{ 
-                      color: '#666', 
-                      fontSize: '11px'
-                    }}>
-                      {skill.description}
-                    </div>
-                    <div style={{ 
-                      display: 'flex', 
-                      gap: '12px',
-                      marginTop: '6px',
-                      fontSize: '10px',
-                      color: '#666'
-                    }}>
-                      <span>{skill.downloads.toLocaleString()} downloads</span>
-                      <span>{skill.rating.toFixed(1)}★</span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleInstallSkill(skill)}
-                    style={{
-                      padding: '4px 12px',
-                      background: 'transparent',
-                      border: '1px solid #1a1a1a',
-                      borderRadius: '4px',
-                      color: '#cccccc',
-                      cursor: 'pointer',
-                      fontSize: '11px'
-                    }}
-                  >
-                    Install
-                  </button>
-                </div>
-              ))}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px' }}>
+              <span style={{ fontSize: '10px', color: '#444' }}>
+                {selectedBots.size} bot{selectedBots.size !== 1 ? 's' : ''} will respond
+              </span>
+              <span style={{ fontSize: '10px', color: '#444' }}>
+                Shift+Enter for new line
+              </span>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Discover Tab */}
-        {activeTab === 'discover' && (
-          <div style={{ padding: '12px' }}>
-            <div style={{ 
-              fontSize: '11px', 
-              color: '#888888', 
-              marginBottom: '12px',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px'
-            }}>
-              Top Agents
+      {/* ─── Threads Tab ─────────────────────────────────────────────── */}
+
+      {activeTab === 'threads' && (
+        <div style={{ flex: 1, overflow: 'auto', padding: '12px' }}>
+          {threads.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 20px', color: '#555' }}>
+              <Hash size={32} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
+              <div style={{ fontSize: '13px', marginBottom: '4px' }}>No threads yet</div>
+              <div style={{ fontSize: '11px', color: '#444' }}>
+                Start a discussion in the Chat tab to create threads
+              </div>
             </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
-              {agents.map(agent => (
-                <div
-                  key={agent.id}
-                  style={{
-                    padding: '12px',
-                    background: 'transparent',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '12px'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = '#141414'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                >
-                  <div style={{ flex: 1 }}>
-                    <div style={{ 
-                      color: '#cccccc', 
-                      fontSize: '13px',
-                      marginBottom: '2px'
-                    }}>
-                      {agent.displayName}
-                    </div>
-                    <div style={{ 
-                      color: '#666', 
-                      fontSize: '11px',
-                      marginBottom: '4px'
-                    }}>
-                      {agent.description}
-                    </div>
-                    <div style={{ 
-                      fontSize: '10px',
-                      color: '#666'
-                    }}>
-                      {agent.karma.toLocaleString()} karma • {agent.stats.followers.toLocaleString()} followers
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleFollowAgent(agent.id)}
-                    style={{
-                      padding: '4px 12px',
-                      background: 'transparent',
-                      border: '1px solid #1a1a1a',
-                      borderRadius: '4px',
-                      color: '#cccccc',
-                      cursor: 'pointer',
-                      fontSize: '11px'
-                    }}
-                  >
-                    Follow
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            {/* Submolts */}
-            {submolts.length > 0 && (
-              <>
-                <div style={{ 
-                  fontSize: '11px', 
-                  color: '#666', 
-                  margin: '16px 0 8px 0'
-                }}>
-                  Communities
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
-                  {submolts.map(submolt => (
-                    <div
-                      key={submolt.id}
-                      style={{
-                        padding: '8px 12px',
-                        background: 'transparent',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        fontSize: '12px',
-                        color: '#cccccc',
-                        cursor: 'pointer'
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = '#141414'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                    >
-                      <span>m/{submolt.name}</span>
-                      <span style={{ color: '#666', fontSize: '10px' }}>
-                        {submolt.memberCount.toLocaleString()}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
-        {/* Notifications Tab */}
-        {activeTab === 'notifications' && (
-          <div style={{ padding: '12px' }}>
-            {notifications.length === 0 ? (
-              <div style={{ 
-                padding: '40px', 
-                textAlign: 'center', 
-                color: '#666',
-                fontSize: '12px'
+          ) : (
+            threads.map(thread => (
+              <div key={thread.id} style={{
+                marginBottom: '8px', background: '#141414', borderRadius: '8px',
+                border: '1px solid #1a1a1a', overflow: 'hidden',
               }}>
-                No notifications
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
-                {notifications.map(notif => (
-                  <div
-                    key={notif.id}
-                    style={{
-                      padding: '12px',
-                      background: notif.read ? 'transparent' : '#141414',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '4px'
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = '#141414'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = notif.read ? 'transparent' : '#141414'}
-                  >
-                    <p style={{ 
-                      margin: 0,
-                      fontSize: '12px',
-                      color: '#cccccc'
-                    }}>
-                      {notif.message}
-                    </p>
-                    <span style={{ 
-                      fontSize: '10px', 
-                      color: '#666'
-                    }}>
-                      {new Date(notif.timestamp).toLocaleString()}
-                    </span>
+                <button
+                  onClick={() => setExpandedThread(expandedThread === thread.id ? null : thread.id)}
+                  style={{
+                    width: '100%', padding: '12px', background: 'transparent',
+                    border: 'none', cursor: 'pointer', textAlign: 'left',
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    color: '#ccc',
+                  }}
+                >
+                  {expandedThread === thread.id ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '12px', fontWeight: 500, marginBottom: '2px' }}>
+                      {thread.topic.substring(0, 60)}{thread.topic.length > 60 ? '...' : ''}
+                    </div>
+                    <div style={{ fontSize: '10px', color: '#555' }}>
+                      {thread.messages.length} messages &middot; {formatTime(thread.createdAt)}
+                    </div>
                   </div>
-                ))}
+                  <span style={{
+                    padding: '2px 6px', fontSize: '9px', borderRadius: '4px',
+                    background: thread.status === 'active' ? '#22c55e15' : '#555',
+                    color: thread.status === 'active' ? '#22c55e' : '#888',
+                  }}>
+                    {thread.status}
+                  </span>
+                </button>
+
+                {expandedThread === thread.id && (
+                  <div style={{ padding: '0 12px 12px', borderTop: '1px solid #1a1a1a' }}>
+                    {thread.messages.map((msg, idx) => renderMessage(msg, idx))}
+                  </div>
+                )}
               </div>
-            )}
+            ))
+          )}
+        </div>
+      )}
+
+      {/* ─── Preferences Tab ─────────────────────────────────────────── */}
+
+      {activeTab === 'preferences' && (
+        <div style={{ flex: 1, overflow: 'auto', padding: '12px' }}>
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#ccc', marginBottom: '8px' }}>
+              Team Composition
+            </div>
+            <div style={{ fontSize: '11px', color: '#888', marginBottom: '12px', lineHeight: '1.5' }}>
+              Select which bots participate in team discussions. Each brings their specialized perspective.
+            </div>
+
+            {bots.map(bot => {
+              const spec = BOT_SPECIALIZATIONS[bot.specialization]
+              const isSelected = selectedBots.has(bot.id)
+              return (
+                <div key={bot.id} style={{
+                  padding: '12px', marginBottom: '6px',
+                  background: isSelected ? `${BOT_COLORS[bot.specialization]}08` : '#141414',
+                  borderRadius: '8px',
+                  border: `1px solid ${isSelected ? BOT_COLORS[bot.specialization] + '30' : '#1a1a1a'}`,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                }}
+                onClick={() => toggleBotSelection(bot.id)}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{
+                      width: '32px', height: '32px', borderRadius: '50%',
+                      background: `${BOT_COLORS[bot.specialization]}15`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '18px',
+                    }}>
+                      {spec?.avatar || '?'}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{
+                        fontSize: '12px', fontWeight: 600,
+                        color: isSelected ? BOT_COLORS[bot.specialization] : '#888',
+                      }}>
+                        {bot.role?.title || spec?.name || bot.name}
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#555' }}>
+                        {bot.role?.behaviorMode} &middot; {bot.role?.responseStyle} &middot; {bot.role?.outputFormat}
+                      </div>
+                    </div>
+                    <div style={{
+                      width: '18px', height: '18px', borderRadius: '4px',
+                      border: `2px solid ${isSelected ? BOT_COLORS[bot.specialization] : '#333'}`,
+                      background: isSelected ? BOT_COLORS[bot.specialization] : 'transparent',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      transition: 'all 0.15s',
+                    }}>
+                      {isSelected && <span style={{ color: '#fff', fontSize: '10px', fontWeight: 700 }}>&#10003;</span>}
+                    </div>
+                  </div>
+                  {isSelected && bot.role && (
+                    <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #1a1a1a' }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                        {bot.role.focusAreas.map((area, i) => (
+                          <span key={i} style={{
+                            padding: '2px 6px', background: `${BOT_COLORS[bot.specialization]}10`,
+                            borderRadius: '3px', fontSize: '9px',
+                            color: BOT_COLORS[bot.specialization],
+                          }}>{area}</span>
+                        ))}
+                      </div>
+                      {bot.role.languages.length > 0 && (
+                        <div style={{ fontSize: '10px', color: '#555', marginTop: '4px' }}>
+                          Languages: {bot.role.languages.join(', ')}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
-        )}
-      </div>
+
+          {/* Quick Actions */}
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#ccc', marginBottom: '8px' }}>
+              Quick Discussions
+            </div>
+            {DISCUSSION_PROMPTS.map((prompt, i) => (
+              <button
+                key={i}
+                onClick={() => { setActiveTab('team'); handlePromptSelect(prompt.topic) }}
+                style={{
+                  display: 'block', width: '100%', textAlign: 'left',
+                  padding: '10px 12px', marginBottom: '4px',
+                  background: '#141414', border: '1px solid #1a1a1a',
+                  borderRadius: '6px', cursor: 'pointer', color: '#ccc',
+                  fontSize: '11px', transition: 'all 0.15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#FF00FF33' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '#1a1a1a' }}
+              >
+                <div style={{ fontWeight: 500, marginBottom: '2px' }}>{prompt.label}</div>
+                <div style={{ fontSize: '10px', color: '#555' }}>{prompt.topic.substring(0, 100)}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Pulse animation */}
+      <style>{`
+        @keyframes pulse {
+          0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
+          40% { opacity: 1; transform: scale(1.2); }
+        }
+      `}</style>
     </div>
   )
 }
