@@ -119,15 +119,15 @@ export type ChannelType =
 export interface OpenClawGatewayStatus {
   connected: boolean
   url: string
-  port: number
-  protocol: number
-  sessions: number
-  uptime: number
-  version: string
-  role: GatewayRole
-  scopes: GatewayScope[]
-  presence: PresenceEntry[]
-  activeChannels: ChannelType[]
+  port?: number
+  protocol?: number
+  sessions?: number
+  uptime?: number
+  version?: string
+  role?: GatewayRole
+  scopes?: GatewayScope[]
+  presence?: PresenceEntry[]
+  activeChannels?: ChannelType[]
 }
 
 // ─── Sessions ───
@@ -368,10 +368,10 @@ export interface OpenClawConfig {
   gatewayUrl: string
   gatewayToken?: string
   autoConnect: boolean
-  protocolVersion: number
+  protocolVersion?: number
   defaultThinkingLevel: ThinkingLevel
   defaultModel?: string
-  defaultAgentId: string
+  defaultAgentId?: string
   skills: {
     enabled: boolean
     workspacePath: string
@@ -384,10 +384,10 @@ export interface OpenClawConfig {
   canvas: {
     enabled: boolean
   }
-  channels: {
+  channels?: {
     idle_minutes: Record<string, number>
   }
-  openResponses: {
+  openResponses?: {
     enabled: boolean
   }
 }

@@ -81,14 +81,26 @@ export default function OpenClawPanel({
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      setConnected(openClawService.isConnected())
-      if (openClawService.isConnected()) {
+      // Check status through backend API (reliable even without direct WS)
+      const status = await openClawService.getStatus()
+      setConnected(status.connected)
+
+      if (status.connected) {
         const [skillsList, sessionsList] = await Promise.all([
           openClawService.listSkills(),
           openClawService.listSessions()
         ])
         setSkills(skillsList)
         setSessions(sessionsList)
+      } else {
+        // Even when gateway is disconnected, load built-in skills from backend
+        try {
+          const res = await fetch('/api/v1/openclaw/skills')
+          if (res.ok) {
+            const data = await res.json()
+            setSkills(data.skills || [])
+          }
+        } catch { /* silent */ }
       }
     } finally {
       setLoading(false)
@@ -116,7 +128,14 @@ export default function OpenClawPanel({
   const handleConnect = async () => {
     setLoading(true)
     try {
-      await openClawService.connect()
+      const result = await openClawService.connect()
+      setConnected(result)
+      if (result) {
+        // Reload skills and sessions after connecting
+        loadData()
+      }
+    } catch {
+      setConnected(false)
     } finally {
       setLoading(false)
     }

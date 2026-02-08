@@ -62,37 +62,69 @@ class OpenClawService {
     }
   }
 
-  // Connection management
+  // ─── Connection management ──────────────────────────────────────
+  // Primary path: HTTP API through backend → backend connects to gateway
+  // Secondary path: direct WebSocket to gateway (optional enhancement)
+  private _connected = false
+
   async connect(): Promise<boolean> {
     if (!this.config.enabled) {
       console.log('[OpenClaw] Service disabled')
       return false
     }
 
+    // Primary: try connecting through backend API
+    try {
+      const res = await fetch('/api/v1/openclaw/connect', { method: 'POST' })
+      const data = await res.json()
+      if (data.connected) {
+        this._connected = true
+        this.emit('connected', { url: this.config.gatewayUrl, via: 'backend' })
+        console.log('[OpenClaw] Connected via backend API')
+        return true
+      }
+    } catch {
+      logOpenClawError('Backend connect failed, trying direct WebSocket', null)
+    }
+
+    // Fallback: try direct WebSocket to gateway
+    return this.connectWebSocket()
+  }
+
+  private connectWebSocket(): Promise<boolean> {
     if (this.ws?.readyState === WebSocket.OPEN) {
-      return true
+      return Promise.resolve(true)
     }
 
     return new Promise((resolve) => {
       try {
         this.ws = new WebSocket(this.config.gatewayUrl)
 
+        const timeout = setTimeout(() => {
+          if (!this._connected) {
+            this.ws?.close()
+            resolve(false)
+          }
+        }, 5000)
+
         this.ws.onopen = () => {
-          console.log('[OpenClaw] Connected to Gateway')
+          console.log('[OpenClaw] Connected via direct WebSocket')
           this.reconnectAttempts = 0
-          this.emit('connected', { url: this.config.gatewayUrl })
+          this._connected = true
+          clearTimeout(timeout)
+          this.emit('connected', { url: this.config.gatewayUrl, via: 'websocket' })
           resolve(true)
         }
 
         this.ws.onclose = () => {
-          console.log('[OpenClaw] Disconnected from Gateway')
+          this._connected = false
           this.emit('disconnected', {})
           this.handleReconnect()
         }
 
-        this.ws.onerror = (error) => {
-          logOpenClawError(' WebSocket error:', error)
-          this.emit('error', { error })
+        this.ws.onerror = () => {
+          clearTimeout(timeout)
+          this._connected = false
           resolve(false)
         }
 
@@ -111,10 +143,11 @@ class OpenClawService {
       this.ws.close()
       this.ws = null
     }
+    this._connected = false
   }
 
   isConnected(): boolean {
-    return this.ws?.readyState === WebSocket.OPEN
+    return this._connected || this.ws?.readyState === WebSocket.OPEN
   }
 
   private handleReconnect(): void {
@@ -234,33 +267,41 @@ class OpenClawService {
     this.eventListeners.get(event)?.forEach(callback => callback(data))
   }
 
-  // Gateway status
+  // Gateway status — tries backend API first, then direct WebSocket
   async getStatus(): Promise<OpenClawGatewayStatus> {
-    if (!this.isConnected()) {
-      return {
-        connected: false,
-        url: this.config.gatewayUrl,
-        port: Number.parseInt(this.config.gatewayUrl.split(':').pop() || '18789'),
-        sessions: 0,
-        uptime: 0
-      }
-    }
-
+    // Try backend API first (always available)
     try {
-      const status = await this.request<OpenClawGatewayStatus>('status')
-      return {
-        ...status,
-        connected: true,
-        url: this.config.gatewayUrl
+      const res = await fetch('/api/v1/openclaw/status')
+      if (res.ok) {
+        const data = await res.json()
+        this._connected = data.connected || false
+        return {
+          connected: data.connected || false,
+          url: data.gatewayUrl || this.config.gatewayUrl,
+          protocol: data.protocolVersion,
+          sessions: data.sessions,
+          uptime: data.uptime,
+          version: data.version,
+        }
       }
     } catch {
-      return {
-        connected: true,
-        url: this.config.gatewayUrl,
-        port: Number.parseInt(this.config.gatewayUrl.split(':').pop() || '18789'),
-        sessions: 0,
-        uptime: 0
-      }
+      logOpenClawError('Backend status check failed', null)
+    }
+
+    // Fallback: direct WebSocket status
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      try {
+        const status = await this.request<OpenClawGatewayStatus>('status')
+        return { ...status, connected: true, url: this.config.gatewayUrl }
+      } catch { /* fall through */ }
+    }
+
+    return {
+      connected: false,
+      url: this.config.gatewayUrl,
+      port: Number.parseInt(this.config.gatewayUrl.split(':').pop() || '18789'),
+      sessions: 0,
+      uptime: 0,
     }
   }
 
