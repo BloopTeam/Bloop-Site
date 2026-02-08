@@ -170,7 +170,7 @@ export interface FeedResponse {
 
 export interface MoltbookConfig {
   enabled: boolean
-  apiBaseUrl: string
+  apiBaseUrl?: string
   agentPublic: boolean
   autoShare: boolean
   defaultSubmolts: string[]
