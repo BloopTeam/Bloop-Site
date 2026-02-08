@@ -137,11 +137,6 @@ function EditorAreaComponent({ onShowToast }: EditorAreaProps, ref: React.Forwar
           // No handle yet, prompt for save location
           const handle = await (globalThis as any).showSaveFilePicker({
             suggestedName: currentTab.name,
-            types: [
-              { description: 'TypeScript', accept: { 'text/typescript': ['.ts', '.tsx'] } },
-              { description: 'JavaScript', accept: { 'text/javascript': ['.js', '.jsx'] } },
-              { description: 'All Files', accept: { '*/*': ['.*'] } },
-            ],
           })
           
           const writable = await handle.createWritable()
@@ -408,10 +403,6 @@ function EditorAreaComponent({ onShowToast }: EditorAreaProps, ref: React.Forwar
         // For new projects, let user choose where to save (creates project root)
         const handle = await (globalThis as any).showSaveFilePicker({
           suggestedName: fileName,
-          // Don't restrict file types - user can save any filename
-          types: [
-            { description: 'All Files', accept: { '*/*': ['.*'] } },
-          ],
         })
         
         const writable = await handle.createWritable()
