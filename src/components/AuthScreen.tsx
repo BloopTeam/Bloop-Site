@@ -212,22 +212,17 @@ export default function AuthScreen({ onAuthenticated }: AuthScreenProps) {
       }}>
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '48px',
-            height: '48px',
-            borderRadius: '8px',
-            background: BG_CARD,
-            border: `1px solid ${BORDER}`,
-            marginBottom: '16px',
-          }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={MAGENTA} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="16 18 22 12 16 6" />
-              <polyline points="8 6 2 12 8 18" />
-            </svg>
-          </div>
+          <img
+            src="/blooplogo.png"
+            alt="Bloop"
+            style={{
+              width: '64px',
+              height: '64px',
+              borderRadius: '12px',
+              marginBottom: '16px',
+              objectFit: 'cover',
+            }}
+          />
           <h1 style={{
             fontSize: '18px',
             fontWeight: 600,
