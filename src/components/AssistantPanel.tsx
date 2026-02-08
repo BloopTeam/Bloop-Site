@@ -12,6 +12,66 @@ import { reasoningEngine } from '../services/reasoning'
 import { orchestrationService } from '../services/orchestration'
 import { aiProviderService, AIModel, ThinkingStep as AIThinkingStep } from '../services/aiProviders'
 
+// ─── Code block parser ─────────────────────────────────────────────────────
+// Extracts named code blocks from AI responses to create files.
+// Supports: ```filename.ext\ncode\n``` and ```language:filename.ext\ncode\n```
+
+interface ParsedFile {
+  name: string
+  content: string
+  language: string
+}
+
+const LANG_EXTENSIONS: Record<string, string> = {
+  typescript: 'ts', javascript: 'js', python: 'py', rust: 'rs',
+  html: 'html', css: 'css', json: 'json', markdown: 'md',
+  tsx: 'tsx', jsx: 'jsx', go: 'go', java: 'java', cpp: 'cpp',
+  c: 'c', ruby: 'rb', php: 'php', swift: 'swift', kotlin: 'kt',
+  sql: 'sql', yaml: 'yaml', yml: 'yml', toml: 'toml', sh: 'sh',
+  bash: 'sh', shell: 'sh', dockerfile: 'Dockerfile',
+}
+
+function parseCodeBlocks(content: string): ParsedFile[] {
+  const files: ParsedFile[] = []
+  // Match ```lang:path or ```path.ext  patterns
+  const codeBlockRegex = /```(\w*?)(?::)?(\S*?\.[\w.]+)?\n([\s\S]*?)```/g
+  let match
+
+  while ((match = codeBlockRegex.exec(content)) !== null) {
+    const langHint = match[1] || ''
+    const explicitPath = match[2] || ''
+    const code = match[3]?.trim()
+
+    if (!code) continue
+
+    let fileName = ''
+    let language = langHint.toLowerCase()
+
+    if (explicitPath) {
+      // Explicit filename given like ```ts:src/utils.ts or ```src/index.ts
+      fileName = explicitPath
+    } else if (langHint && LANG_EXTENSIONS[langHint.toLowerCase()]) {
+      // Only language hint, no filename — skip (it's just a code example)
+      continue
+    } else if (langHint && langHint.includes('.')) {
+      // The "language" position actually has a filename
+      fileName = langHint
+      language = langHint.split('.').pop() || ''
+    } else {
+      continue
+    }
+
+    // Clean the filename
+    fileName = fileName.replace(/^\/+/, '')
+
+    if (fileName && code.length > 0) {
+      files.push({ name: fileName, content: code, language: language || 'plaintext' })
+    }
+  }
+
+  return files
+}
+
 // Interface for custom user-defined models
 interface CustomModel {
   id: string
@@ -1310,29 +1370,111 @@ export default function Component() {
 
       // Try to use backend API if available
       if (backendConnected) {
-        const response = await apiService.sendChatMessage({
-          messages: [
+        const assistantMessageId = (Date.now() + 1).toString()
+        
+        // Add a placeholder message that will be updated with streamed content
+        const assistantMessage: Message = {
+          id: assistantMessageId,
+          role: 'assistant',
+          content: '',
+          timestamp: new Date()
+        }
+        setMessages(prev => [...prev, assistantMessage])
+
+        let fullContent = ''
+        
+        // Build messages — in agent mode add a system prompt for file generation
+        const chatMessages: { role: 'user' | 'assistant' | 'system'; content: string }[] = []
+
+        try {
+          
+          if (agentMode === 'agent') {
+            chatMessages.push({
+              role: 'system',
+              content: `You are Bloop, an expert software engineering AI agent. When the user asks you to build, create, or modify code:
+
+1. **Think step by step** — explain your reasoning, architecture decisions, and what you're building.
+2. **Create files** by using fenced code blocks with the FULL FILE PATH as the language tag. For example:
+
+\`\`\`src/components/Button.tsx
+// file contents here
+\`\`\`
+
+\`\`\`src/utils/helpers.ts
+// file contents here
+\`\`\`
+
+3. Every code block that should become a file MUST have a filename with an extension as the code fence label.
+4. Show your thinking process — what decisions you're making and why.
+5. After creating files, summarize what was built and how the files work together.
+
+IMPORTANT: Use the format \`\`\`path/to/file.ext to create files. This is how the IDE knows to create the file.`
+            })
+          }
+          
+          chatMessages.push(
             ...messages.map(m => ({
               role: m.role as 'user' | 'assistant' | 'system',
               content: m.content
             })),
+            { role: 'user', content: userInput }
+          )
+          
+          // Use streaming for real-time display
+          await apiService.streamChatMessage(
             {
-              role: 'user',
-              content: userInput
+              messages: chatMessages,
+              model: model === 'auto' ? undefined : model,
+              temperature: 0.7,
+              maxTokens: 4000
+            },
+            {
+              onChunk: (text) => {
+                fullContent += text
+                setMessages(prev => prev.map(m =>
+                  m.id === assistantMessageId ? { ...m, content: fullContent } : m
+                ))
+              },
+              onMeta: (_meta) => {
+                // Meta received — content will start streaming next
+              },
+              onDone: () => {
+                // Parse code blocks and create files
+                if (onCreateFile && fullContent) {
+                  const files = parseCodeBlocks(fullContent)
+                  for (const file of files) {
+                    onCreateFile(file.name, file.content, file.language)
+                  }
+                }
+              },
+              onError: (error) => {
+                setMessages(prev => prev.map(m =>
+                  m.id === assistantMessageId ? { ...m, content: `Error: ${error}` } : m
+                ))
+              }
             }
-          ],
-          model: model === 'auto' ? undefined : model,
-          temperature: 0.7,
-          maxTokens: 4000
-        })
+          )
+        } catch {
+          // Fallback to non-streaming if stream fails
+          const response = await apiService.sendChatMessage({
+            messages: chatMessages,
+            model: model === 'auto' ? undefined : model,
+            temperature: 0.7,
+            maxTokens: 4000
+          })
+          fullContent = response.content || 'No response received'
+          setMessages(prev => prev.map(m =>
+            m.id === assistantMessageId ? { ...m, content: fullContent } : m
+          ))
 
-        const assistantMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: response.content || 'No response received',
-          timestamp: new Date()
+          // Parse code blocks from non-streamed response too
+          if (onCreateFile && fullContent) {
+            const files = parseCodeBlocks(fullContent)
+            for (const file of files) {
+              onCreateFile(file.name, file.content, file.language)
+            }
+          }
         }
-        setMessages(prev => [...prev, assistantMessage])
       } else {
         // Check if this is an agent task (file creation request)
         if (agentMode === 'agent' && isAgentTask(userInput) && onCreateFile) {
@@ -1728,42 +1870,84 @@ export default function Component() {
     
     return parts.map((part, idx) => {
       if (part.startsWith('```')) {
-        const match = part.match(/```(\w*)\n?([\s\S]*?)```/)
+        const match = part.match(/```(\S*)\n?([\s\S]*?)```/)
         if (match) {
           const [, lang, code] = match
+          // Detect if the label is a file path (contains . and /)
+          const isFilePath = lang && (lang.includes('/') || (lang.includes('.') && !['json', 'yaml', 'yml', 'toml'].includes(lang)))
+          const displayLabel = isFilePath ? lang : (lang || 'code')
+          const fileExt = lang?.split('.').pop() || lang || ''
+          
           return (
             <div key={idx} style={{
               background: '#0a0a0a',
               borderRadius: '6px',
               margin: '8px 0',
-              overflow: 'hidden'
+              overflow: 'hidden',
+              border: isFilePath ? '1px solid rgba(255,0,255,0.15)' : '1px solid #1a1a1a'
             }}>
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 padding: '6px 12px',
-                background: '#151515',
+                background: isFilePath ? 'rgba(255,0,255,0.05)' : '#151515',
                 borderBottom: '1px solid #1a1a1a'
               }}>
-                <span style={{ fontSize: '11px', color: '#666' }}>{lang || 'code'}</span>
-                <button
-                  onClick={() => copyToClipboard(code.trim(), `code-${idx}`)}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: copiedId === `code-${idx}` ? '#22c55e' : '#666',
-                    cursor: 'pointer',
-                    padding: '2px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    fontSize: '11px'
-                  }}
-                >
-                  {copiedId === `code-${idx}` ? <Check size={12} /> : <Copy size={12} />}
-                  {copiedId === `code-${idx}` ? 'Copied!' : 'Copy'}
-                </button>
+                <span style={{ 
+                  fontSize: '11px', 
+                  color: isFilePath ? '#FF00FF' : '#666',
+                  fontFamily: "'Fira Code', monospace",
+                  fontWeight: isFilePath ? 500 : 400,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}>
+                  {isFilePath && <FileCode size={12} />}
+                  {displayLabel}
+                </span>
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  {isFilePath && onCreateFile && (
+                    <button
+                      onClick={() => onCreateFile(lang, code.trim(), fileExt)}
+                      style={{
+                        background: 'rgba(255,0,255,0.1)',
+                        border: '1px solid rgba(255,0,255,0.3)',
+                        color: '#FF00FF',
+                        cursor: 'pointer',
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        fontSize: '10px',
+                        fontWeight: 500,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px'
+                      }}
+                    >
+                      <Plus size={10} />
+                      Open in Editor
+                    </button>
+                  )}
+                  <button
+                    onClick={() => copyToClipboard(code.trim(), `code-${idx}`)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: copiedId === `code-${idx}` ? '#22c55e' : '#666',
+                      cursor: 'pointer',
+                      padding: '2px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      fontSize: '11px'
+                    }}
+                  >
+                    {copiedId === `code-${idx}` ? <Check size={12} /> : <Copy size={12} />}
+                    {copiedId === `code-${idx}` ? 'Copied!' : 'Copy'}
+                  </button>
+                </div>
               </div>
               <pre style={{
                 margin: 0,
@@ -2888,7 +3072,13 @@ export default function Component() {
             )
           })}
           
-          {isTyping && (
+          {isTyping && (() => {
+            // Don't show typing indicator if the last message is already streaming content
+            const lastMsg = messages[messages.length - 1]
+            const isStreaming = lastMsg?.role === 'assistant' && lastMsg.content && lastMsg.content.length > 0
+            if (isStreaming) return null
+            return true
+          })() && (
             <div style={{
               padding: '12px',
               background: '#141414',

@@ -72,7 +72,7 @@ chatRouter.post('/', async (req, res) => {
   }
 })
 
-// Streaming chat endpoint (SSE)
+// Streaming chat endpoint (SSE) — real token-by-token streaming
 chatRouter.post('/stream', async (req, res) => {
   try {
     const request: AIRequest = req.body
@@ -100,31 +100,48 @@ chatRouter.post('/stream', async (req, res) => {
     // Send model info first
     res.write(`data: ${JSON.stringify({ type: 'meta', provider: modelInfo.provider, model: modelInfo.model })}\n\n`)
     
-    // Generate full response (streaming at the service level would need per-provider implementation)
-    // For now, we chunk the response to simulate streaming for better UX
-    const response = await service.generate({
-      ...request,
-      model: modelInfo.model,
-    })
-    
-    // Stream the response in chunks
-    const content = response.content
-    const chunkSize = 20 // characters per chunk
-    
-    for (let i = 0; i < content.length; i += chunkSize) {
-      const chunk = content.slice(i, i + chunkSize)
-      res.write(`data: ${JSON.stringify({ type: 'content', text: chunk })}\n\n`)
+    // Use real streaming if the provider supports it
+    if (service.generateStream) {
+      await service.generateStream(
+        { ...request, model: modelInfo.model },
+        {
+          onToken: (text) => {
+            res.write(`data: ${JSON.stringify({ type: 'content', text })}\n\n`)
+          },
+          onDone: (info) => {
+            res.write(`data: ${JSON.stringify({ type: 'done', ...info })}\n\n`)
+            res.end()
+          },
+          onError: (error) => {
+            res.write(`data: ${JSON.stringify({ type: 'error', error })}\n\n`)
+            res.end()
+          },
+        }
+      )
+    } else {
+      // Fallback: generate full response then chunk it for providers without streaming
+      const response = await service.generate({
+        ...request,
+        model: modelInfo.model,
+      })
+      
+      const content = response.content
+      const chunkSize = 12 // smaller chunks for more fluid feel
+      
+      for (let i = 0; i < content.length; i += chunkSize) {
+        const chunk = content.slice(i, i + chunkSize)
+        res.write(`data: ${JSON.stringify({ type: 'content', text: chunk })}\n\n`)
+      }
+      
+      res.write(`data: ${JSON.stringify({ 
+        type: 'done', 
+        usage: response.usage,
+        model: response.model,
+        finishReason: response.finishReason,
+      })}\n\n`)
+      
+      res.end()
     }
-    
-    // Send completion event
-    res.write(`data: ${JSON.stringify({ 
-      type: 'done', 
-      usage: response.usage,
-      model: response.model,
-      finishReason: response.finishReason,
-    })}\n\n`)
-    
-    res.end()
   } catch (error) {
     console.error('Stream error:', error)
     

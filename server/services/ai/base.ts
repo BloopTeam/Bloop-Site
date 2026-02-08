@@ -3,11 +3,20 @@
  */
 import type { AIRequest, AIResponse, ModelCapabilities } from '../../types/index.js'
 
+export interface StreamCallbacks {
+  onToken: (text: string) => void
+  onDone: (info: { usage?: AIResponse['usage']; model?: string; finishReason?: string }) => void
+  onError: (error: string) => void
+}
+
 export interface AIService {
   name: string
   capabilities: ModelCapabilities
   
   generate(request: AIRequest): Promise<AIResponse>
+
+  /** Stream tokens one by one. Default implementation falls back to generate(). */
+  generateStream?(request: AIRequest, callbacks: StreamCallbacks): Promise<void>
   
   estimateTokens(text: string): number {
     // Rough estimation: ~4 characters per token

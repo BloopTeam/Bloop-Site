@@ -164,6 +164,66 @@ class ApiService {
     }
   }
 
+  /**
+   * Stream a chat message via SSE.
+   * Calls onChunk for each piece of text, onMeta for provider info, onDone when complete.
+   */
+  async streamChatMessage(
+    request: AIRequest,
+    callbacks: {
+      onChunk: (text: string) => void
+      onMeta?: (meta: { provider: string; model: string }) => void
+      onDone?: (info: { usage?: any; model?: string; finishReason?: string }) => void
+      onError?: (error: string) => void
+    }
+  ): Promise<void> {
+    const token = authService.getAccessToken()
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (token) headers['Authorization'] = `Bearer ${token}`
+
+    const response = await fetch(`${this.baseUrl}/api/v1/chat/stream`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        messages: request.messages,
+        model: request.model,
+        temperature: request.temperature,
+        maxTokens: request.maxTokens || request.max_tokens,
+      }),
+    })
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: response.statusText }))
+      throw new Error(err.error || `HTTP ${response.status}`)
+    }
+
+    const reader = response.body?.getReader()
+    if (!reader) throw new Error('No response body')
+
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue
+        try {
+          const data = JSON.parse(line.slice(6))
+          if (data.type === 'content') callbacks.onChunk(data.text)
+          else if (data.type === 'meta') callbacks.onMeta?.(data)
+          else if (data.type === 'done') callbacks.onDone?.(data)
+          else if (data.type === 'error') callbacks.onError?.(data.error)
+        } catch { /* skip malformed SSE lines */ }
+      }
+    }
+  }
+
   async checkHealth(): Promise<{ status: string }> {
     try {
       const response = await this.authFetch(`${this.baseUrl}/health`)

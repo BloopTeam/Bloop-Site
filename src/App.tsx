@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import MenuBar from './components/MenuBar'
-import LeftSidebar from './components/LeftSidebar'
+import LeftSidebar, { type CreatedFile } from './components/LeftSidebar'
 import EditorArea, { EditorAreaRef } from './components/EditorArea'
 import AssistantPanel from './components/AssistantPanel'
 import StatusBar from './components/StatusBar'
@@ -79,6 +79,7 @@ function AuthenticatedApp({ authUser, onLogout }: { authUser: AuthUser; onLogout
   const [doNotDisturb, setDoNotDisturb] = useState(false)
   const [soundEnabled, setSoundEnabled] = useState(true)
   const [showNotificationHistory, setShowNotificationHistory] = useState(false)
+  const [createdFiles, setCreatedFiles] = useState<CreatedFile[]>([])
 
   // Initialize user session for multi-user support (1000+ concurrent users)
   useEffect(() => {
@@ -532,6 +533,10 @@ function AuthenticatedApp({ authUser, onLogout }: { authUser: AuthUser; onLogout
                 }}
                 onOpenFolder={handleOpenFolder}
                 onSwitchRightPanel={(mode) => setRightPanelMode(mode as RightPanelMode)}
+                createdFiles={createdFiles}
+                onOpenCreatedFile={(file) => {
+                  editorRef.current?.addFileDirect(file.name, file.content, file.language)
+                }}
               />
               <ResizeHandle onResize={handleSidebarResize} direction="horizontal" />
             </>
@@ -608,7 +613,21 @@ function AuthenticatedApp({ authUser, onLogout }: { authUser: AuthUser; onLogout
                       onCollapse={() => setAssistantCollapsed(true)} 
                       width={assistantWidth}
                       onCreateFile={(name, content, language) => {
-                        editorRef.current?.addFile(name, content, language)
+                        // Add to editor tabs
+                        editorRef.current?.addFileDirect(name, content, language)
+                        
+                        // Track in created files for file explorer
+                        setCreatedFiles(prev => {
+                          const existing = prev.findIndex(f => f.name === name)
+                          const entry: CreatedFile = { name, content, language, createdAt: Date.now() }
+                          if (existing >= 0) {
+                            const updated = [...prev]
+                            updated[existing] = entry
+                            return updated
+                          }
+                          return [...prev, entry]
+                        })
+                        
                         // Switch to editor view if on welcome screen
                         if (showWelcome) {
                           setShowWelcome(false)
@@ -626,6 +645,9 @@ function AuthenticatedApp({ authUser, onLogout }: { authUser: AuthUser; onLogout
                             localStorage.setItem('bloop-has-project', 'true')
                           }
                         }
+                        
+                        // Expand sidebar if collapsed
+                        if (sidebarCollapsed) setSidebarCollapsed(false)
                       }}
                     />
                   )}

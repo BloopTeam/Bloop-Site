@@ -3,7 +3,7 @@
  */
 import OpenAI from 'openai'
 import type { AIRequest, AIResponse, ModelCapabilities } from '../../types/index.js'
-import type { AIService } from './base.js'
+import type { AIService, StreamCallbacks } from './base.js'
 import { config } from '../../config/index.js'
 
 export class OpenAIService implements AIService {
@@ -69,6 +69,44 @@ export class OpenAIService implements AIService {
     }
   }
   
+  async generateStream(request: AIRequest, callbacks: StreamCallbacks): Promise<void> {
+    this.validateRequest(request)
+    const model = request.model || 'gpt-4o'
+    const messages = request.messages.map(msg => ({
+      role: msg.role as 'user' | 'assistant' | 'system',
+      content: msg.content,
+    }))
+
+    try {
+      const stream = await this.client.chat.completions.create({
+        model,
+        messages,
+        temperature: request.temperature ?? 0.7,
+        max_tokens: request.maxTokens ?? 4000,
+        stream: true,
+      })
+
+      let finishReason: string | undefined
+      for await (const chunk of stream) {
+        const delta = chunk.choices?.[0]?.delta
+        if (delta?.content) {
+          callbacks.onToken(delta.content)
+        }
+        if (chunk.choices?.[0]?.finish_reason) {
+          finishReason = chunk.choices[0].finish_reason
+        }
+      }
+
+      callbacks.onDone({
+        model,
+        finishReason,
+        usage: undefined, // OpenAI doesn't include usage in stream chunks
+      })
+    } catch (err) {
+      callbacks.onError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
   estimateTokens(text: string): number {
     return Math.ceil(text.length / 4)
   }

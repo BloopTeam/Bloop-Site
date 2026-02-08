@@ -175,11 +175,22 @@ function EditorAreaComponent({ onShowToast }: EditorAreaProps, ref: React.Forwar
     getCurrentFile: () => tabs.find(t => t.id === activeTab),
     addFileDirect: async (name: string, content: string, _language: string) => {
       // Direct file addition without dialog (for programmatic creation)
+      // Check if file already exists — update it instead of duplicating
+      const existingTab = tabs.find(t => t.name === name)
+      if (existingTab) {
+        setTabs(prev => prev.map(t => 
+          t.name === name ? { ...t, content, modified: true } : t
+        ))
+        setActiveTab(existingTab.id)
+        onShowToast?.('info', `Updated ${name}`)
+        return
+      }
+      
       const newId = fileCounter.toString()
       const newTab: Tab = {
         id: newId,
         name: name,
-        path: [],
+        path: name.includes('/') ? name.split('/').slice(0, -1) : [],
         content: content,
         modified: true
       }

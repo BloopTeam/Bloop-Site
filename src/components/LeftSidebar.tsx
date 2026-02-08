@@ -16,6 +16,13 @@ import { extensionsService, type Extension } from '../services/extensions'
 import { userSessionService } from '../services/userSession'
 import * as LucideIcons from 'lucide-react'
 
+export interface CreatedFile {
+  name: string
+  content: string
+  language: string
+  createdAt: number
+}
+
 interface LeftSidebarProps {
   onCollapse: () => void
   width?: number
@@ -24,6 +31,8 @@ interface LeftSidebarProps {
   onCreateNewFolder?: () => void
   onOpenFolder?: () => void
   onSwitchRightPanel?: (mode: string) => void
+  createdFiles?: CreatedFile[]
+  onOpenCreatedFile?: (file: CreatedFile) => void
 }
 
 type SidebarView = 'explorer' | 'search' | 'codeintel' | 'security' | 'git' | 'debug' | 'extensions' | 'platform'
@@ -40,7 +49,7 @@ interface GitChange {
   status: 'modified' | 'added' | 'deleted'
 }
 
-export default function LeftSidebar({ width = 280, onShowToast, onCreateNewFile, onCreateNewFolder, onOpenFolder, onSwitchRightPanel }: LeftSidebarProps) {
+export default function LeftSidebar({ width = 280, onShowToast, onCreateNewFile, onCreateNewFolder, onOpenFolder, onSwitchRightPanel, createdFiles = [], onOpenCreatedFile }: LeftSidebarProps) {
   const [activeView, setActiveView] = useState<SidebarView>('explorer')
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
@@ -181,8 +190,33 @@ export default function LeftSidebar({ width = 280, onShowToast, onCreateNewFile,
     return iconMap[ext || ''] || { icon: '📄', color: '#858585' }
   }
 
-  // Start with empty file tree - populated when user opens a folder
-  const fileTree: { name: string; type: string; children?: any[] }[] = []
+  // Build file tree from AI-created files + any manually opened files
+  const fileTree: { name: string; type: string; path?: string; children?: any[] }[] = (() => {
+    if (createdFiles.length === 0) return []
+    
+    // Group files by directory
+    const dirs: Record<string, { name: string; type: string; path?: string }[]> = { '.': [] }
+    for (const f of createdFiles) {
+      const parts = f.name.split('/')
+      if (parts.length > 1) {
+        const dir = parts.slice(0, -1).join('/')
+        if (!dirs[dir]) dirs[dir] = []
+        dirs[dir].push({ name: parts[parts.length - 1], type: 'file', path: f.name })
+      } else {
+        dirs['.'].push({ name: f.name, type: 'file', path: f.name })
+      }
+    }
+    
+    const tree: { name: string; type: string; path?: string; children?: any[] }[] = []
+    for (const [dir, files] of Object.entries(dirs)) {
+      if (dir === '.') {
+        tree.push(...files)
+      } else {
+        tree.push({ name: dir, type: 'folder', children: files })
+      }
+    }
+    return tree
+  })()
 
   const getFileColor = (name: string) => {
     if (name.endsWith('.tsx') || name.endsWith('.ts')) return '#3178c6'
@@ -289,6 +323,12 @@ export default function LeftSidebar({ width = 280, onShowToast, onCreateNewFile,
                 setBreadcrumbs([...breadcrumbs, item.name])
               } else {
                 setSelectedFile(item.name)
+                // Open AI-created file in editor
+                const filePath = (item as any).path || item.name
+                const created = createdFiles.find(f => f.name === filePath)
+                if (created && onOpenCreatedFile) {
+                  onOpenCreatedFile(created)
+                }
               }
             }}
             onContextMenu={(e) => handleContextMenu(e, item)}

@@ -3,7 +3,7 @@
  */
 import Anthropic from '@anthropic-ai/sdk'
 import type { AIRequest, AIResponse, ModelCapabilities } from '../../types/index.js'
-import type { AIService } from './base.js'
+import type { AIService, StreamCallbacks } from './base.js'
 import { config } from '../../config/index.js'
 
 export class AnthropicService implements AIService {
@@ -74,6 +74,44 @@ export class AnthropicService implements AIService {
     }
   }
   
+  async generateStream(request: AIRequest, callbacks: StreamCallbacks): Promise<void> {
+    this.validateRequest(request)
+    const model = request.model || 'claude-opus-4-6'
+    const systemMessage = request.messages.find(m => m.role === 'system')
+    const conversationMessages = request.messages.filter(m => m.role !== 'system')
+    const messages = conversationMessages.map(msg => ({
+      role: msg.role === 'assistant' ? 'assistant' : 'user',
+      content: msg.content,
+    })) as Anthropic.MessageParam[]
+
+    try {
+      const stream = this.client.messages.stream({
+        model,
+        max_tokens: request.maxTokens ?? 4096,
+        temperature: request.temperature ?? 0.7,
+        system: systemMessage?.content,
+        messages,
+      })
+
+      stream.on('text', (text) => {
+        callbacks.onToken(text)
+      })
+
+      const finalMessage = await stream.finalMessage()
+      callbacks.onDone({
+        model: finalMessage.model,
+        finishReason: finalMessage.stop_reason || undefined,
+        usage: {
+          promptTokens: finalMessage.usage.input_tokens,
+          completionTokens: finalMessage.usage.output_tokens,
+          totalTokens: finalMessage.usage.input_tokens + finalMessage.usage.output_tokens,
+        },
+      })
+    } catch (err) {
+      callbacks.onError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
   estimateTokens(text: string): number {
     return Math.ceil(text.length / 4)
   }
