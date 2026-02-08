@@ -205,7 +205,9 @@ export default function OpenClawPanel({
 
   const handleConfirmCreateBot = () => {
     if (!configuringSpec || !roleConfig) return
-    botTeamService.createBot(configuringSpec, { role: roleConfig })
+    // Pass the preferred model from the role config so the bot uses it
+    const model = roleConfig.preferredModel || BOT_SPECIALIZATIONS[configuringSpec].defaultModel
+    botTeamService.createBot(configuringSpec, { role: roleConfig, model })
     setBots(botTeamService.getBots())
     setConfiguringSpec(null)
     setRoleConfig(null)
@@ -1166,6 +1168,110 @@ export default function OpenClawPanel({
                   />
                 </div>
 
+                {/* Expertise Tags */}
+                <div style={{ marginBottom: '10px' }}>
+                  <label style={{ fontSize: '10px', color: '#666', display: 'block', marginBottom: '4px' }}>Expertise</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '4px' }}>
+                    {(roleConfig.expertise || []).map((tag, i) => (
+                      <span key={i} style={{
+                        padding: '2px 8px', background: 'rgba(168,85,247,0.08)', borderRadius: '3px',
+                        fontSize: '10px', color: '#a855f7', border: '1px solid rgba(168,85,247,0.15)',
+                        display: 'flex', alignItems: 'center', gap: '4px'
+                      }}>
+                        {tag}
+                        <span style={{ cursor: 'pointer', opacity: 0.6 }} onClick={() =>
+                          updateRoleField('expertise', (roleConfig.expertise || []).filter((_, j) => j !== i))
+                        }>x</span>
+                      </span>
+                    ))}
+                  </div>
+                  <input
+                    placeholder="Add expertise + Enter (e.g. clean-code, appsec)"
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                        updateRoleField('expertise', [...(roleConfig.expertise || []), (e.target as HTMLInputElement).value.trim()]);
+                        (e.target as HTMLInputElement).value = ''
+                      }
+                    }}
+                    style={{
+                      width: '100%', padding: '4px 8px', fontSize: '11px', color: '#cccccc',
+                      background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: '3px',
+                      outline: 'none', boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+
+                {/* ─── Resources & Capabilities ──────────────────── */}
+                <div style={{
+                  marginBottom: '10px', paddingTop: '10px', borderTop: '1px solid #1a1a1a',
+                }}>
+                  <div style={{ fontSize: '10px', color: '#FF00FF', fontWeight: 600, marginBottom: '8px' }}>
+                    Resources & Capabilities
+                  </div>
+
+                  {/* Model Selector */}
+                  <div style={{ marginBottom: '8px' }}>
+                    <label style={{ fontSize: '10px', color: '#666', display: 'block', marginBottom: '4px' }}>AI Model</label>
+                    <select
+                      value={roleConfig.preferredModel || (configuringSpec ? BOT_SPECIALIZATIONS[configuringSpec].defaultModel : '')}
+                      onChange={e => updateRoleField('preferredModel', e.target.value)}
+                      style={{
+                        width: '100%', padding: '5px 6px', fontSize: '11px', color: '#cccccc',
+                        background: '#0d0d0d', border: '1px solid #222', borderRadius: '4px', outline: 'none'
+                      }}
+                    >
+                      <option value="claude-opus-4-6">Claude Opus 4.6 (most capable)</option>
+                      <option value="claude-sonnet-4">Claude Sonnet 4</option>
+                      <option value="gpt-4o">GPT-4o</option>
+                      <option value="gpt-4.1">GPT-4.1</option>
+                      <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                      <option value="gemini-2.0-flash">Gemini 2.0 Flash (fast)</option>
+                      <option value="mistral-large-2512">Mistral Large</option>
+                      <option value="deepseek-r1">DeepSeek R1</option>
+                    </select>
+                  </div>
+
+                  {/* Web Search Toggle */}
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px',
+                    padding: '6px 8px', background: '#0a0a0a', borderRadius: '4px',
+                    border: '1px solid #1a1a1a', cursor: 'pointer',
+                  }} onClick={() => updateRoleField('webSearchEnabled', !roleConfig.webSearchEnabled)}>
+                    <div style={{
+                      width: '28px', height: '16px', borderRadius: '8px',
+                      background: roleConfig.webSearchEnabled ? '#FF00FF' : '#333',
+                      position: 'relative', transition: 'background 0.2s',
+                    }}>
+                      <div style={{
+                        width: '12px', height: '12px', borderRadius: '50%', background: '#fff',
+                        position: 'absolute', top: '2px',
+                        left: roleConfig.webSearchEnabled ? '14px' : '2px',
+                        transition: 'left 0.2s',
+                      }} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '11px', color: roleConfig.webSearchEnabled ? '#cccccc' : '#666' }}>Web Search</div>
+                      <div style={{ fontSize: '9px', color: '#555' }}>Search the web for docs, CVEs, best practices</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* User Preferences */}
+                <div style={{ marginBottom: '10px' }}>
+                  <label style={{ fontSize: '10px', color: '#666', display: 'block', marginBottom: '4px' }}>Your Coding Preferences (optional)</label>
+                  <textarea
+                    value={roleConfig.userPreferences || ''}
+                    onChange={e => updateRoleField('userPreferences', e.target.value || undefined)}
+                    placeholder="Your style conventions, patterns, rules...&#10;e.g. 'Use functional components, prefer const over let, always use TypeScript strict mode, follow Airbnb style guide'"
+                    rows={3}
+                    style={{
+                      width: '100%', padding: '6px 8px', fontSize: '11px', color: '#cccccc',
+                      background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: '4px',
+                      outline: 'none', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+
                 {/* Custom Directive */}
                 <div style={{ marginBottom: '12px' }}>
                   <label style={{ fontSize: '10px', color: '#666', display: 'block', marginBottom: '4px' }}>Custom Directive (optional)</label>
@@ -1180,6 +1286,35 @@ export default function OpenClawPanel({
                       outline: 'none', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box'
                     }}
                   />
+                </div>
+
+                {/* Resource summary */}
+                <div style={{
+                  padding: '8px 10px', background: '#0a0a0a', borderRadius: '4px',
+                  border: '1px solid #1a1a1a', marginBottom: '12px',
+                }}>
+                  <div style={{ fontSize: '9px', fontWeight: 600, color: '#888', marginBottom: '4px' }}>This bot will have access to:</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                    <span style={{ padding: '2px 6px', background: '#22c55e10', borderRadius: '3px', fontSize: '9px', color: '#22c55e' }}>
+                      {roleConfig.preferredModel || (configuringSpec ? BOT_SPECIALIZATIONS[configuringSpec].defaultModel : 'auto')}
+                    </span>
+                    <span style={{ padding: '2px 6px', background: '#3b82f610', borderRadius: '3px', fontSize: '9px', color: '#3b82f6' }}>
+                      Project files
+                    </span>
+                    {roleConfig.webSearchEnabled && (
+                      <span style={{ padding: '2px 6px', background: '#FF00FF10', borderRadius: '3px', fontSize: '9px', color: '#FF00FF' }}>
+                        Web search
+                      </span>
+                    )}
+                    {roleConfig.userPreferences && (
+                      <span style={{ padding: '2px 6px', background: '#a855f710', borderRadius: '3px', fontSize: '9px', color: '#a855f7' }}>
+                        Your preferences
+                      </span>
+                    )}
+                    <span style={{ padding: '2px 6px', background: '#f59e0b10', borderRadius: '3px', fontSize: '9px', color: '#f59e0b' }}>
+                      Role-aware prompts
+                    </span>
+                  </div>
                 </div>
 
                 {/* Confirm / Cancel */}

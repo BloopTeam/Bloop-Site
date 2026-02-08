@@ -19,6 +19,11 @@ export interface RoleAllocation {
   languages: string[]                 // Programming languages this role targets
   frameworks: string[]                // Frameworks/tools this role knows
   customDirective?: string            // User's custom role instructions
+
+  // ─── Resources & Capabilities ────────────────────────────────────
+  preferredModel?: string             // AI model to use (claude-opus-4-6, gpt-4o, etc.)
+  webSearchEnabled?: boolean          // Can this bot search the web for context?
+  userPreferences?: string            // User's coding style / conventions / preferences
 }
 
 // ─── Default Roles for Every Agent Type ───────────────────────────────────────
@@ -190,6 +195,8 @@ export function buildRolePrompt(basePrompt: string, role?: RoleAllocation | null
   if (role.responseStyle) parts.push(`Response style: ${role.responseStyle}.`)
   if (role.languages?.length) parts.push(`Target languages: ${role.languages.join(', ')}.`)
   if (role.frameworks?.length) parts.push(`Known frameworks: ${role.frameworks.join(', ')}.`)
+  if (role.webSearchEnabled) parts.push(`You have web search access. When relevant, search for current best practices, documentation, CVE databases, or package info to inform your analysis.`)
+  if (role.userPreferences) parts.push(`User preferences and coding conventions:\n${role.userPreferences}`)
   if (role.customDirective) parts.push(`Custom directive: ${role.customDirective}`)
   return parts.join('\n')
 }

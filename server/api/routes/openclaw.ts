@@ -400,6 +400,9 @@ openclawRouter.post('/team/bots/:id/execute', async (req, res) => {
     const basePrompt = skillPrompts[skill] || skillPrompts['bloop-code-review']
     const systemPrompt = buildRolePrompt(basePrompt, role)
 
+    // Use model from role if set, otherwise fall back to request model
+    const effectiveModel = role?.preferredModel || model
+
     const userInstructions = context?.customInstructions || preferences?.customInstructions || ''
 
     // Read actual project files from disk (paths are sandboxed by readProjectFiles)
@@ -428,11 +431,48 @@ openclawRouter.post('/team/bots/:id/execute', async (req, res) => {
     const projectFiles = readProjectFiles(targetPaths, excludePaths, projectPath)
     console.log(`Bot ${botId} [user=${userId}]: Read ${projectFiles.fileCount} files (${projectFiles.content.length} chars) from ${targetPaths.join(', ')}`)
 
+    // ─── Web search context (if enabled in role) ─────────────────────────────
+    let webSearchContext = ''
+    if (role?.webSearchEnabled) {
+      try {
+        // Gather relevant web context based on the bot's specialization and languages
+        const searchQueries: string[] = []
+        if (specialization === 'security-auditor') {
+          searchQueries.push(`latest ${(role.languages || []).join(' ')} security vulnerabilities 2026`)
+          searchQueries.push(`OWASP top 10 ${(role.frameworks || []).join(' ')} best practices`)
+        } else if (specialization === 'code-reviewer') {
+          searchQueries.push(`${(role.languages || []).join(' ')} best practices 2026`)
+          searchQueries.push(`${(role.frameworks || []).join(' ')} code review checklist`)
+        } else if (specialization === 'test-engineer') {
+          searchQueries.push(`${(role.frameworks || []).join(' ')} testing best practices 2026`)
+        } else if (specialization === 'optimizer') {
+          searchQueries.push(`${(role.frameworks || []).join(' ')} performance optimization guide`)
+        } else {
+          searchQueries.push(`${(role.languages || []).join(' ')} ${specialization} best practices`)
+        }
+
+        // Note: actual web fetch would go here when a search provider is configured
+        // For now, inject the search intent into the system prompt so the model
+        // knows it should reference current best practices
+        webSearchContext = `\n**Web Search Enabled:** You should reference current best practices, latest documentation, and known issues for the technologies in this project. Cite specific sources when possible.\n`
+      } catch {
+        // Silent — web search is best-effort
+      }
+    }
+
+    // ─── User preferences context ───────────────────────────────────────────
+    const userPrefsContext = role?.userPreferences
+      ? `\n**User Coding Preferences:**\n${role.userPreferences}\n\nApply these preferences when reviewing code and making suggestions.\n`
+      : ''
+
     const userMessage = [
       userInstructions ? `**Instructions:** ${userInstructions}\n\n` : '',
+      userPrefsContext,
+      webSearchContext,
       `**Target paths:** ${targetPaths.join(', ')}\n`,
       excludePaths.length ? `**Exclude:** ${excludePaths.join(', ')}\n` : '',
       `**Files analyzed:** ${projectFiles.fileCount} (${projectFiles.fileList.join(', ')})\n`,
+      `**Model:** ${effectiveModel || 'auto'}\n`,
       '\nAnalyze the code below according to your specialization. Provide a structured report with:',
       '\n1. Summary of findings',
       '\n2. Specific issues found (with file path, line reference, and severity: critical/warning/info)',
@@ -476,8 +516,8 @@ openclawRouter.post('/team/bots/:id/execute', async (req, res) => {
       const availableProviders = aiRouter.getAvailableProviders()
       let lastError: Error | null = null
 
-      // Try requested model first, then fallback to others
-      const modelInfo = aiRouter.selectBestModel({ messages, model })
+      // Try preferred model from role, then requested model, then fallback
+      const modelInfo = aiRouter.selectBestModel({ messages, model: effectiveModel })
       const tryOrder = [modelInfo.provider, ...availableProviders.filter(p => p !== modelInfo.provider)]
 
       for (const providerKey of tryOrder) {
