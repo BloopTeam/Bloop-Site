@@ -81,6 +81,7 @@ function AuthenticatedApp({ authUser, onLogout }: { authUser: AuthUser; onLogout
   const [soundEnabled, setSoundEnabled] = useState(true)
   const [showNotificationHistory, setShowNotificationHistory] = useState(false)
   const [createdFiles, setCreatedFiles] = useState<CreatedFile[]>([])
+  const [fileTreeRefresh, setFileTreeRefresh] = useState(0)
 
   // Initialize user session for multi-user support (1000+ concurrent users)
   useEffect(() => {
@@ -441,6 +442,52 @@ function AuthenticatedApp({ authUser, onLogout }: { authUser: AuthUser; onLogout
     },
   }
 
+  // ─── Shared file creation handler (used by AssistantPanel + OpenClawPanel) ──
+  const handleCreateFile = useCallback((name: string, content: string, language?: string) => {
+    const lang = language || name.split('.').pop() || 'text'
+    // Add to editor tabs
+    editorRef.current?.addFileDirect(name, content, lang)
+    
+    // Track in created files for file explorer
+    setCreatedFiles(prev => {
+      const existing = prev.findIndex(f => f.name === name)
+      const entry: CreatedFile = { name, content, language: lang, createdAt: Date.now() }
+      if (existing >= 0) {
+        const updated = [...prev]
+        updated[existing] = entry
+        return updated
+      }
+      return [...prev, entry]
+    })
+    
+    // Persist to backend workspace (fire-and-forget)
+    apiService.writeFile(name, content, true).catch(() => {})
+    
+    // Switch to editor view if on welcome screen
+    if (showWelcome) {
+      setShowWelcome(false)
+      try {
+        const userId = userSessionService?.getCurrentUserId?.()
+        if (userId) {
+          sessionStorage.setItem(`bloop-has-project-${userId}`, 'true')
+          localStorage.setItem('bloop-has-project', 'true')
+          userSessionService?.updateActivity?.()
+          window.dispatchEvent(new CustomEvent('bloop:project-activity'))
+        } else {
+          localStorage.setItem('bloop-has-project', 'true')
+        }
+      } catch {
+        localStorage.setItem('bloop-has-project', 'true')
+      }
+    }
+    
+    // Expand sidebar if collapsed
+    if (sidebarCollapsed) setSidebarCollapsed(false)
+
+    // Trigger file tree refresh
+    setFileTreeRefresh(prev => prev + 1)
+  }, [showWelcome, sidebarCollapsed])
+
   return (
     <div style={{
       width: '100vw',
@@ -552,6 +599,7 @@ function AuthenticatedApp({ authUser, onLogout }: { authUser: AuthUser; onLogout
                 onOpenFolder={handleOpenFolder}
                 onSwitchRightPanel={(mode) => setRightPanelMode(mode as RightPanelMode)}
                 createdFiles={createdFiles}
+                refreshTrigger={fileTreeRefresh}
                 onOpenCreatedFile={async (file) => {
                   if (file.content) {
                     // Content already loaded (AI-created in this session)
@@ -654,52 +702,15 @@ function AuthenticatedApp({ authUser, onLogout }: { authUser: AuthUser; onLogout
                     <AssistantPanel 
                       onCollapse={() => setAssistantCollapsed(true)} 
                       width={assistantWidth}
-                      onCreateFile={(name, content, language) => {
-                        // Add to editor tabs
-                        editorRef.current?.addFileDirect(name, content, language)
-                        
-                        // Track in created files for file explorer
-                        setCreatedFiles(prev => {
-                          const existing = prev.findIndex(f => f.name === name)
-                          const entry: CreatedFile = { name, content, language, createdAt: Date.now() }
-                          if (existing >= 0) {
-                            const updated = [...prev]
-                            updated[existing] = entry
-                            return updated
-                          }
-                          return [...prev, entry]
-                        })
-                        
-                        // Persist to backend workspace (fire-and-forget)
-                        apiService.writeFile(name, content, true).catch(() => {
-                          // Silently fail — file is still in editor tabs
-                        })
-                        
-                        // Switch to editor view if on welcome screen
-                        if (showWelcome) {
-                          setShowWelcome(false)
-                          try {
-                            const userId = userSessionService?.getCurrentUserId?.()
-                            if (userId) {
-                              sessionStorage.setItem(`bloop-has-project-${userId}`, 'true')
-                              localStorage.setItem('bloop-has-project', 'true') // Legacy support
-                              userSessionService?.updateActivity?.()
-                              window.dispatchEvent(new CustomEvent('bloop:project-activity'))
-                            } else {
-                              localStorage.setItem('bloop-has-project', 'true')
-                            }
-                          } catch {
-                            localStorage.setItem('bloop-has-project', 'true')
-                          }
-                        }
-                        
-                        // Expand sidebar if collapsed
-                        if (sidebarCollapsed) setSidebarCollapsed(false)
-                      }}
+                      onCreateFile={handleCreateFile}
                     />
                   )}
                   {rightPanelMode === 'openclaw' && (
-                    <OpenClawPanel onClose={() => setRightPanelMode('assistant')} />
+                    <OpenClawPanel 
+                      onClose={() => setRightPanelMode('assistant')}
+                      onCreateFile={handleCreateFile}
+                      onFilesChanged={() => setFileTreeRefresh(prev => prev + 1)}
+                    />
                   )}
                   {rightPanelMode === 'moltbook' && (
                     <MoltbookPanel 

@@ -19,6 +19,8 @@ interface OpenClawPanelProps {
   readonly currentCode?: string
   readonly currentLanguage?: string
   readonly currentFilePath?: string
+  readonly onCreateFile?: (name: string, content: string, language?: string) => void
+  readonly onFilesChanged?: () => void
 }
 
 // Skill icons mapping
@@ -47,7 +49,9 @@ export default function OpenClawPanel({
   onClose, 
   currentCode, 
   currentLanguage, 
-  currentFilePath 
+  currentFilePath,
+  onCreateFile,
+  onFilesChanged,
 }: OpenClawPanelProps) {
   const [activeTab, setActiveTab] = useState<'skills' | 'sessions' | 'execute' | 'team'>('team')
   const [connected, setConnected] = useState(false)
@@ -265,6 +269,24 @@ export default function OpenClawPanel({
     if (selectedBot?.id === botId) setSelectedBot(null)
   }
 
+  // ─── Helper: register files created by bots into the main file system ──
+  const registerBotFiles = useCallback((files: { path: string; content: string; written: boolean }[]) => {
+    if (!onCreateFile) return
+    const written = files.filter(f => f.written && f.content)
+    for (const file of written) {
+      // Detect language from file extension
+      const ext = file.path.split('.').pop() || ''
+      const langMap: Record<string, string> = {
+        ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript',
+        py: 'python', rs: 'rust', go: 'go', css: 'css', html: 'html',
+        json: 'json', md: 'markdown', sql: 'sql', yaml: 'yaml', yml: 'yaml',
+        sh: 'shell', bash: 'shell', toml: 'toml', xml: 'xml',
+      }
+      onCreateFile(file.path, file.content, langMap[ext] || ext)
+    }
+    if (written.length > 0 && onFilesChanged) onFilesChanged()
+  }, [onCreateFile, onFilesChanged])
+
   // ─── Advanced: Fix Mode — bot analyzes AND writes fixes ─────────────
   const [fixRunning, setFixRunning] = useState<Record<string, boolean>>({})
   const [fixResults, setFixResults] = useState<Record<string, { filesWritten: number; paths: string[] }>>({})
@@ -275,6 +297,8 @@ export default function OpenClawPanel({
       const result = await botTeamService.executeFix(botId)
       const written = result.fixedFiles.filter(f => f.written)
       setFixResults(prev => ({ ...prev, [botId]: { filesWritten: written.length, paths: written.map(f => f.path) } }))
+      // Register the created/fixed files into the main editor + file tree
+      registerBotFiles(result.fixedFiles)
     } finally {
       setFixRunning(prev => ({ ...prev, [botId]: false }))
       setBots(botTeamService.getBots())
@@ -292,8 +316,17 @@ export default function OpenClawPanel({
     setChainRunning(true)
     setChainResult(null)
     try {
-      const result = await botTeamService.executeChain(activeBots.map(b => b.id))
+      const result = await botTeamService.executeChain(activeBots.map(b => b.id), (step, stepResult) => {
+        // Register files from each chain step as they complete
+        if (stepResult?.fixedFiles) {
+          registerBotFiles(stepResult.fixedFiles)
+        }
+      })
       setChainResult({ completedSteps: result.completedSteps, totalFilesFixed: result.totalFilesFixed })
+      // Also register any files from the full chain result
+      for (const stepResult of (result.chain || [])) {
+        if (stepResult?.fixedFiles) registerBotFiles(stepResult.fixedFiles)
+      }
     } finally {
       setChainRunning(false)
       setBots(botTeamService.getBots())
@@ -305,16 +338,47 @@ export default function OpenClawPanel({
   const [streamStatus, setStreamStatus] = useState<string>('')
   const [streamingBotId, setStreamingBotId] = useState<string | null>(null)
 
+  // Extract files from streamed output (code blocks with file paths)
+  const extractFilesFromOutput = useCallback((output: string) => {
+    if (!onCreateFile || !output) return
+    const regex = /```(\S+\.[\w.]+)\n([\s\S]*?)```/g
+    let match
+    let found = false
+    while ((match = regex.exec(output)) !== null) {
+      const filePath = match[1]
+      const content = match[2].trim()
+      if (filePath && content && filePath.includes('.')) {
+        const ext = filePath.split('.').pop() || ''
+        const langMap: Record<string, string> = {
+          ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript',
+          py: 'python', css: 'css', html: 'html', json: 'json', md: 'markdown',
+        }
+        onCreateFile(filePath, content, langMap[ext] || ext)
+        found = true
+      }
+    }
+    if (found && onFilesChanged) onFilesChanged()
+  }, [onCreateFile, onFilesChanged])
+
   const handleStreamBot = async (botId: string) => {
     setStreamingBotId(botId)
     setStreamOutput('')
     setStreamStatus('Starting...')
+    let fullOutput = ''
     try {
       await botTeamService.executeStream(botId, {
         onStatus: (status, message) => setStreamStatus(message || status),
         onMeta: (provider) => setStreamStatus(`Provider: ${provider}`),
-        onContent: (text) => setStreamOutput(prev => prev + text),
-        onDone: () => { setStreamStatus('Complete'); setStreamingBotId(null) },
+        onContent: (text) => {
+          fullOutput += text
+          setStreamOutput(prev => prev + text)
+        },
+        onDone: () => {
+          setStreamStatus('Complete')
+          setStreamingBotId(null)
+          // Extract any files from the completed stream output
+          extractFilesFromOutput(fullOutput)
+        },
         onError: (err) => { setStreamStatus(`Error: ${err}`); setStreamingBotId(null) },
       })
     } catch {

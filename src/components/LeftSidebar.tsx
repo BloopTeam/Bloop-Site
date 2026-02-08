@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { 
   Search, GitBranch, Settings, Box, Bug, Play, Brain, Shield,
   ChevronRight, ChevronDown, FileCode, FileText, Folder,
@@ -14,6 +14,7 @@ import { CodeIntelligencePanel } from './CodeIntelligencePanel'
 import { SecurityDashboard } from './SecurityDashboard'
 import { extensionsService, type Extension } from '../services/extensions'
 import { userSessionService } from '../services/userSession'
+import { apiService } from '../services/api'
 import * as LucideIcons from 'lucide-react'
 
 export interface CreatedFile {
@@ -33,6 +34,7 @@ interface LeftSidebarProps {
   onSwitchRightPanel?: (mode: string) => void
   createdFiles?: CreatedFile[]
   onOpenCreatedFile?: (file: CreatedFile) => void
+  refreshTrigger?: number  // Increment this to force file tree refresh
 }
 
 type SidebarView = 'explorer' | 'search' | 'codeintel' | 'security' | 'git' | 'debug' | 'extensions' | 'platform'
@@ -49,7 +51,7 @@ interface GitChange {
   status: 'modified' | 'added' | 'deleted'
 }
 
-export default function LeftSidebar({ width = 280, onShowToast, onCreateNewFile, onCreateNewFolder, onOpenFolder, onSwitchRightPanel, createdFiles = [], onOpenCreatedFile }: LeftSidebarProps) {
+export default function LeftSidebar({ width = 280, onShowToast, onCreateNewFile, onCreateNewFolder, onOpenFolder, onSwitchRightPanel, createdFiles = [], onOpenCreatedFile, refreshTrigger = 0 }: LeftSidebarProps) {
   const [activeView, setActiveView] = useState<SidebarView>('explorer')
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
@@ -68,6 +70,31 @@ export default function LeftSidebar({ width = 280, onShowToast, onCreateNewFile,
   
   // Start with no git changes - user's actual changes will show here
   const [gitChanges] = useState<GitChange[]>([])
+
+  // ─── Server file sync — fetch files from backend to merge with local ──
+  const [serverFiles, setServerFiles] = useState<{ name: string; path: string }[]>([])
+
+  const fetchServerFiles = useCallback(async () => {
+    try {
+      const result = await apiService.listAllFiles()
+      if (result?.files) {
+        setServerFiles(result.files.map(f => ({ name: f.name, path: f.path })))
+      }
+    } catch {
+      // Server may not have files yet — that's fine
+    }
+  }, [])
+
+  // Fetch on mount and whenever refreshTrigger changes
+  useEffect(() => {
+    fetchServerFiles()
+  }, [fetchServerFiles, refreshTrigger])
+
+  // Also poll every 15s to catch backend-only file changes
+  useEffect(() => {
+    const interval = setInterval(fetchServerFiles, 15000)
+    return () => clearInterval(interval)
+  }, [fetchServerFiles])
 
   // Initialize user session for multi-user support
   useEffect(() => {
@@ -190,20 +217,41 @@ export default function LeftSidebar({ width = 280, onShowToast, onCreateNewFile,
     return iconMap[ext || ''] || { icon: '📄', color: '#858585' }
   }
 
-  // Build file tree from AI-created files + any manually opened files
+  // Build file tree from AI-created files + server files (merged, deduplicated)
   const fileTree: { name: string; type: string; path?: string; children?: any[] }[] = (() => {
-    if (createdFiles.length === 0) return []
+    // Collect all unique file paths — local createdFiles take priority
+    const allPaths = new Set<string>()
+    const fileEntries: { name: string; path: string }[] = []
+
+    // Add createdFiles first (these have content, take priority)
+    for (const f of createdFiles) {
+      if (!allPaths.has(f.name)) {
+        allPaths.add(f.name)
+        fileEntries.push({ name: f.name, path: f.name })
+      }
+    }
+
+    // Add server files that aren't already in createdFiles
+    for (const f of serverFiles) {
+      const filePath = f.path || f.name
+      if (!allPaths.has(filePath)) {
+        allPaths.add(filePath)
+        fileEntries.push({ name: f.name, path: filePath })
+      }
+    }
+
+    if (fileEntries.length === 0) return []
     
     // Group files by directory
     const dirs: Record<string, { name: string; type: string; path?: string }[]> = { '.': [] }
-    for (const f of createdFiles) {
-      const parts = f.name.split('/')
+    for (const f of fileEntries) {
+      const parts = f.path.split('/')
       if (parts.length > 1) {
         const dir = parts.slice(0, -1).join('/')
         if (!dirs[dir]) dirs[dir] = []
-        dirs[dir].push({ name: parts[parts.length - 1], type: 'file', path: f.name })
+        dirs[dir].push({ name: parts[parts.length - 1], type: 'file', path: f.path })
       } else {
-        dirs['.'].push({ name: f.name, type: 'file', path: f.name })
+        dirs['.'].push({ name: f.name, type: 'file', path: f.path })
       }
     }
     
@@ -317,17 +365,38 @@ export default function LeftSidebar({ width = 280, onShowToast, onCreateNewFile,
               }
               setDraggedItem(null)
             }}
-            onClick={() => {
+            onClick={async () => {
               if (isFolder) {
                 toggleFolder(item.name)
                 setBreadcrumbs([...breadcrumbs, item.name])
               } else {
                 setSelectedFile(item.name)
-                // Open AI-created file in editor
                 const filePath = (item as any).path || item.name
+                // Check local createdFiles first
                 const created = createdFiles.find(f => f.name === filePath)
                 if (created && onOpenCreatedFile) {
                   onOpenCreatedFile(created)
+                } else if (onOpenCreatedFile) {
+                  // File is from server — fetch its content and open it
+                  try {
+                    const result = await apiService.readFile(filePath)
+                    if (result?.content !== undefined) {
+                      const ext = filePath.split('.').pop() || ''
+                      const langMap: Record<string, string> = {
+                        ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript',
+                        py: 'python', css: 'css', html: 'html', json: 'json', md: 'markdown',
+                        rs: 'rust', go: 'go', sql: 'sql', yaml: 'yaml', yml: 'yaml',
+                      }
+                      onOpenCreatedFile({
+                        name: filePath,
+                        content: result.content,
+                        language: langMap[ext] || ext,
+                        createdAt: Date.now(),
+                      })
+                    }
+                  } catch {
+                    // File might not be readable — ignore
+                  }
                 }
               }
             }}
