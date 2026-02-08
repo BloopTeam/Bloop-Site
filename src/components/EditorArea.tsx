@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } f
 import { X, ChevronRight, MoreHorizontal, ChevronDown, GitBranch } from 'lucide-react'
 import { ToastMessage } from './Toast'
 import FileSaveDialog from './FileSaveDialog'
+import { apiService } from '../services/api'
 
 interface EditorAreaProps {
   onShowToast?: (type: ToastMessage['type'], message: string) => void
@@ -124,46 +125,41 @@ function EditorAreaComponent({ onShowToast }: EditorAreaProps, ref: React.Forwar
       if (!currentTab) return
       
       try {
-        if (currentTab.fileHandle) {
-          // Save to existing file handle
-          const writable = await currentTab.fileHandle.createWritable()
-          await writable.write(currentTab.content)
-          await writable.close()
-          setTabs(prev => prev.map(t => 
-            t.id === activeTab ? { ...t, modified: false } : t
-          ))
-          onShowToast?.('success', `Saved ${currentTab.name}`)
-        } else if ('showSaveFilePicker' in globalThis) {
-          // No handle yet, prompt for save location
-          const handle = await (globalThis as any).showSaveFilePicker({
-            suggestedName: currentTab.name,
-          })
-          
-          const writable = await handle.createWritable()
-          await writable.write(currentTab.content)
-          await writable.close()
-          
-          setTabs(prev => prev.map(t => 
-            t.id === activeTab ? { ...t, modified: false, fileHandle: handle, name: handle.name } : t
-          ))
-          onShowToast?.('success', `Saved ${handle.name}`)
-        } else {
-          // Fallback: download file
-          const blob = new Blob([currentTab.content], { type: 'text/plain' })
-          const url = URL.createObjectURL(blob)
-          const a = document.createElement('a')
-          a.href = url
-          a.download = currentTab.name
-          a.click()
-          URL.revokeObjectURL(url)
-          setTabs(prev => prev.map(t => 
-            t.id === activeTab ? { ...t, modified: false } : t
-          ))
-          onShowToast?.('success', `Downloaded ${currentTab.name}`)
-        }
-      } catch (err: any) {
-        if (err.name !== 'AbortError') {
-          onShowToast?.('error', 'Failed to save file')
+        // Always save to backend workspace first
+        await apiService.writeFile(currentTab.name, currentTab.content, true)
+        setTabs(prev => prev.map(t => 
+          t.id === activeTab ? { ...t, modified: false } : t
+        ))
+        onShowToast?.('success', `Saved ${currentTab.name}`)
+      } catch {
+        // Backend save failed — try local File System API as fallback
+        try {
+          if (currentTab.fileHandle) {
+            const writable = await currentTab.fileHandle.createWritable()
+            await writable.write(currentTab.content)
+            await writable.close()
+            setTabs(prev => prev.map(t => 
+              t.id === activeTab ? { ...t, modified: false } : t
+            ))
+            onShowToast?.('success', `Saved locally: ${currentTab.name}`)
+          } else {
+            // Fallback: download file
+            const blob = new Blob([currentTab.content], { type: 'text/plain' })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = currentTab.name
+            a.click()
+            URL.revokeObjectURL(url)
+            setTabs(prev => prev.map(t => 
+              t.id === activeTab ? { ...t, modified: false } : t
+            ))
+            onShowToast?.('success', `Downloaded ${currentTab.name}`)
+          }
+        } catch (err: any) {
+          if (err.name !== 'AbortError') {
+            onShowToast?.('error', 'Failed to save file')
+          }
         }
       }
     },

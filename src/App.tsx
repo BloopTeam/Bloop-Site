@@ -25,6 +25,7 @@ import AuthScreen from './components/AuthScreen'
 import { openClawService } from './services/openclaw'
 import { userSessionService } from './services/userSession'
 import { authService, AuthUser } from './services/auth'
+import { apiService } from './services/api'
 
 // Right panel modes
 type RightPanelMode = 'assistant' | 'openclaw' | 'moltbook' | 'collaboration' | 'agents' | 'project' | 'automation' | 'plugins' | 'marketplace' | 'workflows' | 'teams' | 'shared-agents'
@@ -115,6 +116,23 @@ function AuthenticatedApp({ authUser, onLogout }: { authUser: AuthUser; onLogout
     }
   }, [])
   
+  // Load existing project files from backend workspace on mount
+  useEffect(() => {
+    apiService.listAllFiles().then(({ files }) => {
+      if (files.length > 0) {
+        const loaded: CreatedFile[] = files.map(f => ({
+          name: f.path,
+          content: '', // Content loaded on demand when file is opened
+          language: f.name.split('.').pop() || 'plaintext',
+          createdAt: new Date(f.modifiedAt).getTime(),
+        }))
+        setCreatedFiles(loaded)
+      }
+    }).catch(() => {
+      // Backend not available — that's fine, files will be local only
+    })
+  }, [])
+
   // Welcome screen state - show welcome by default, hide when project is opened (user-specific)
   const [showWelcome, setShowWelcome] = useState(() => {
     try {
@@ -534,8 +552,32 @@ function AuthenticatedApp({ authUser, onLogout }: { authUser: AuthUser; onLogout
                 onOpenFolder={handleOpenFolder}
                 onSwitchRightPanel={(mode) => setRightPanelMode(mode as RightPanelMode)}
                 createdFiles={createdFiles}
-                onOpenCreatedFile={(file) => {
-                  editorRef.current?.addFileDirect(file.name, file.content, file.language)
+                onOpenCreatedFile={async (file) => {
+                  if (file.content) {
+                    // Content already loaded (AI-created in this session)
+                    editorRef.current?.addFileDirect(file.name, file.content, file.language)
+                  } else {
+                    // Load content from backend
+                    try {
+                      const result = await apiService.readFile(file.name)
+                      if (result.exists) {
+                        editorRef.current?.addFileDirect(file.name, result.content, file.language)
+                        // Update cached content
+                        setCreatedFiles(prev => prev.map(f =>
+                          f.name === file.name ? { ...f, content: result.content } : f
+                        ))
+                      } else {
+                        addToast('error', `File not found: ${file.name}`)
+                      }
+                    } catch {
+                      addToast('error', `Failed to load ${file.name}`)
+                    }
+                  }
+                  // Switch to editor if on welcome screen
+                  if (showWelcome) {
+                    setShowWelcome(false)
+                    localStorage.setItem('bloop-has-project', 'true')
+                  }
                 }}
               />
               <ResizeHandle onResize={handleSidebarResize} direction="horizontal" />
@@ -626,6 +668,11 @@ function AuthenticatedApp({ authUser, onLogout }: { authUser: AuthUser; onLogout
                             return updated
                           }
                           return [...prev, entry]
+                        })
+                        
+                        // Persist to backend workspace (fire-and-forget)
+                        apiService.writeFile(name, content, true).catch(() => {
+                          // Silently fail — file is still in editor tabs
                         })
                         
                         // Switch to editor view if on welcome screen

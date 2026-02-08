@@ -237,34 +237,49 @@ class ApiService {
     }
   }
 
-  // File operations
+  // File operations — all scoped to the user's active workspace on the server
+
   async readFile(filePath: string): Promise<{ path: string; content: string; exists: boolean; size: number }> {
-    const response = await this.authFetch(`${this.baseUrl}/api/v1/files/read/${encodeURIComponent(filePath)}`)
+    const response = await this.authFetch(`${this.baseUrl}/api/v1/files/read?path=${encodeURIComponent(filePath)}`)
     if (!response.ok) throw new Error(`Failed to read file: ${response.statusText}`)
     return await response.json()
   }
 
-  async writeFile(path: string, content: string, createDirs = false): Promise<{ success: boolean; message: string; path: string }> {
+  async writeFile(filePath: string, content: string, createDirs = true): Promise<{ success: boolean; message: string; path: string }> {
     const response = await this.authFetch(`${this.baseUrl}/api/v1/files/write`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path, content, create_dirs: createDirs }),
+      body: JSON.stringify({ path: filePath, content, create_dirs: createDirs }),
     })
     if (!response.ok) throw new Error(`Failed to write file: ${response.statusText}`)
     return await response.json()
   }
 
+  async writeFiles(files: { path: string; content: string }[]): Promise<{ success: boolean; results: any[]; total: number }> {
+    const response = await this.authFetch(`${this.baseUrl}/api/v1/files/write-batch`, {
+      method: 'POST',
+      body: JSON.stringify({ files }),
+    })
+    if (!response.ok) throw new Error(`Failed to write files: ${response.statusText}`)
+    return await response.json()
+  }
+
   async deleteFile(filePath: string): Promise<{ success: boolean; message: string; path: string }> {
-    const response = await this.authFetch(`${this.baseUrl}/api/v1/files/delete/${encodeURIComponent(filePath)}`, {
+    const response = await this.authFetch(`${this.baseUrl}/api/v1/files/delete?path=${encodeURIComponent(filePath)}`, {
       method: 'DELETE',
     })
     if (!response.ok) throw new Error(`Failed to delete file: ${response.statusText}`)
     return await response.json()
   }
 
-  async listDirectory(dirPath: string): Promise<{ path: string; directories: any[]; files: any[] }> {
-    const response = await this.authFetch(`${this.baseUrl}/api/v1/files/list/${encodeURIComponent(dirPath)}`)
+  async listDirectory(dirPath = '.'): Promise<{ path: string; directories: any[]; files: any[] }> {
+    const response = await this.authFetch(`${this.baseUrl}/api/v1/files/list?path=${encodeURIComponent(dirPath)}`)
     if (!response.ok) throw new Error(`Failed to list directory: ${response.statusText}`)
+    return await response.json()
+  }
+
+  async listAllFiles(): Promise<{ files: { name: string; path: string; size: number; modifiedAt: string }[]; total: number }> {
+    const response = await this.authFetch(`${this.baseUrl}/api/v1/files/tree`)
+    if (!response.ok) throw new Error(`Failed to list files: ${response.statusText}`)
     return await response.json()
   }
 

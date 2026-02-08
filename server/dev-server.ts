@@ -114,19 +114,10 @@ async function createServer() {
     })
   })
 
-  // ─── Protected: File operations ────────────────────────────────────────────
+  // ─── Protected: File operations (workspace-scoped) ─────────────────────────
 
-  app.get('/api/v1/files', requireAuth, (req, res) => {
-    res.json({ files: [], message: 'Virtual filesystem — use workspace' })
-  })
-
-  app.post('/api/v1/files/read', requireAuth, (req, res) => {
-    res.json({ content: '', message: 'Use workspace filesystem' })
-  })
-
-  app.post('/api/v1/files/write', requireAuth, (req, res) => {
-    res.json({ success: true, message: 'Use workspace filesystem' })
-  })
+  const { filesRouter } = await import('./api/routes/files.js')
+  app.use('/api/v1/files', requireAuth, requireWorkspace, filesRouter)
 
   // ─── Protected: Security scan ──────────────────────────────────────────────
 
