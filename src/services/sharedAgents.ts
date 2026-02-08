@@ -87,6 +87,7 @@ export interface AgentDefinition {
   systemPrompt: string
   instructions: string[]
   capabilities: AgentCapability[]
+  role?: import('../types/roles').RoleAllocation  // Specialized role allocation
   constraints?: AgentConstraint[]
   errorHandling?: AgentErrorHandling
   retryPolicy?: AgentRetryPolicy

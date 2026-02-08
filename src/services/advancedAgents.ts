@@ -2,6 +2,9 @@
  * Advanced Agent Service
  * Handles specialized agents, memory, chaining, and performance tracking
  */
+import { type RoleAllocation, DEFAULT_ROLES, getDefaultRole } from '../types/roles'
+
+export type { RoleAllocation } from '../types/roles'
 
 export type AgentType = 
   | 'code-reviewer' 
@@ -27,6 +30,7 @@ export interface AgentConfig {
   description: string
   icon: string
   color: string
+  role: RoleAllocation               // Specialized role allocation
   capabilities: AgentCapability[]
   permissions: {
     canRead: boolean
@@ -103,6 +107,7 @@ const DEFAULT_AGENTS: AgentConfig[] = [
     description: 'Reviews code for quality, best practices, and potential issues',
     icon: '🔍',
     color: '#3b82f6',
+    role: DEFAULT_ROLES['code-reviewer'],
     capabilities: [
       { id: 'syntax-check', name: 'Syntax Analysis', description: 'Check for syntax issues', enabled: true },
       { id: 'style-check', name: 'Style Guide', description: 'Enforce coding style', enabled: true },
@@ -120,6 +125,7 @@ const DEFAULT_AGENTS: AgentConfig[] = [
     description: 'Helps identify and fix bugs in your code',
     icon: '🐛',
     color: '#ef4444',
+    role: DEFAULT_ROLES['debugger'],
     capabilities: [
       { id: 'error-analysis', name: 'Error Analysis', description: 'Analyze error messages', enabled: true },
       { id: 'stack-trace', name: 'Stack Trace Parser', description: 'Parse and explain stack traces', enabled: true },
@@ -137,6 +143,7 @@ const DEFAULT_AGENTS: AgentConfig[] = [
     description: 'Designs system architecture and provides structural guidance',
     icon: '🏗️',
     color: '#8b5cf6',
+    role: DEFAULT_ROLES['architect'],
     capabilities: [
       { id: 'design-patterns', name: 'Design Patterns', description: 'Suggest appropriate patterns', enabled: true },
       { id: 'dependency-analysis', name: 'Dependency Analysis', description: 'Analyze module dependencies', enabled: true },
@@ -154,6 +161,7 @@ const DEFAULT_AGENTS: AgentConfig[] = [
     description: 'Automatically generates comprehensive test suites',
     icon: '🧪',
     color: '#22c55e',
+    role: DEFAULT_ROLES['test-writer'],
     capabilities: [
       { id: 'unit-tests', name: 'Unit Tests', description: 'Generate unit tests', enabled: true },
       { id: 'integration-tests', name: 'Integration Tests', description: 'Generate integration tests', enabled: true },
@@ -171,6 +179,7 @@ const DEFAULT_AGENTS: AgentConfig[] = [
     description: 'Generates and maintains documentation',
     icon: '📝',
     color: '#f59e0b',
+    role: DEFAULT_ROLES['doc-generator'],
     capabilities: [
       { id: 'jsdoc', name: 'JSDoc Comments', description: 'Generate JSDoc comments', enabled: true },
       { id: 'readme', name: 'README Generation', description: 'Create README files', enabled: true },
@@ -188,6 +197,7 @@ const DEFAULT_AGENTS: AgentConfig[] = [
     description: 'Scans for security vulnerabilities and suggests fixes',
     icon: '🔒',
     color: '#dc2626',
+    role: DEFAULT_ROLES['security-auditor'],
     capabilities: [
       { id: 'vuln-scan', name: 'Vulnerability Scan', description: 'Detect known vulnerabilities', enabled: true },
       { id: 'secrets-detection', name: 'Secrets Detection', description: 'Find exposed secrets', enabled: true },
@@ -217,7 +227,13 @@ class AdvancedAgentService {
     const stored = localStorage.getItem('bloop-agents')
     if (stored) {
       const agents: AgentConfig[] = JSON.parse(stored)
-      agents.forEach(a => this.agents.set(a.id, a))
+      agents.forEach(a => {
+        // Backfill role for agents created before role system existed
+        if (!a.role) {
+          a.role = getDefaultRole(a.type)
+        }
+        this.agents.set(a.id, a)
+      })
     } else {
       DEFAULT_AGENTS.forEach(a => this.agents.set(a.id, a))
       this.saveAgents()
@@ -289,6 +305,17 @@ class AdvancedAgentService {
       this.agents.set(id, updated)
       this.saveAgents()
       return updated
+    }
+    return undefined
+  }
+
+  updateAgentRole(id: string, roleUpdates: Partial<RoleAllocation>): AgentConfig | undefined {
+    const agent = this.agents.get(id)
+    if (agent) {
+      agent.role = { ...agent.role, ...roleUpdates }
+      this.agents.set(id, agent)
+      this.saveAgents()
+      return agent
     }
     return undefined
   }

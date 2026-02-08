@@ -11,6 +11,7 @@ import { useLocalStorage } from '../hooks/useLocalStorage'
 import { reasoningEngine } from '../services/reasoning'
 import { orchestrationService } from '../services/orchestration'
 import { aiProviderService, AIModel, ThinkingStep as AIThinkingStep } from '../services/aiProviders'
+import { type RoleAllocation, DEFAULT_ROLES, getDefaultRole } from '../types/roles'
 
 // ─── Code block parser ─────────────────────────────────────────────────────
 // Extracts named code blocks from AI responses to create files.
@@ -194,6 +195,7 @@ export default function AssistantPanel({ width = 480, onCreateFile, onCreateFile
   const [isTyping, setIsTyping] = useState(false)
   const [agentMode, setAgentMode] = useState<AgentMode>('agent')
   const [model, setModel] = useState<ModelType>('auto')
+  const [activeRole, setActiveRole] = useState<RoleAllocation | null>(DEFAULT_ROLES['assistant'])
   const [availableModels, setAvailableModels] = useState<ModelInfo[]>([])
   const [modelsLoading, setModelsLoading] = useState(true)
   const [backendConnected, setBackendConnected] = useState(false)
@@ -1420,13 +1422,14 @@ IMPORTANT: Use the format \`\`\`path/to/file.ext to create files. This is how th
             { role: 'user', content: userInput }
           )
           
-          // Use streaming for real-time display
+          // Use streaming for real-time display (with role allocation)
           await apiService.streamChatMessage(
             {
               messages: chatMessages,
               model: model === 'auto' ? undefined : model,
               temperature: 0.7,
-              maxTokens: 4000
+              maxTokens: 4000,
+              ...(activeRole ? { role: activeRole } : {})
             },
             {
               onChunk: (text) => {

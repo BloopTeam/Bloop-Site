@@ -189,6 +189,7 @@ class ApiService {
         model: request.model,
         temperature: request.temperature,
         maxTokens: request.maxTokens || request.max_tokens,
+        ...((request as any).role ? { role: (request as any).role } : {}),
       }),
     })
 

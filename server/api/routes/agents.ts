@@ -7,6 +7,7 @@ import { Router } from 'express'
 import { ModelRouter } from '../../services/ai/router.js'
 import { v4 as uuidv4 } from 'uuid'
 import { database } from '../../database/index.js'
+import { buildRolePrompt, getDefaultRole, type RoleAllocation } from '../../services/roles.js'
 
 export const agentRouter = Router()
 const router = new ModelRouter()
@@ -19,6 +20,7 @@ interface Agent {
   status: 'idle' | 'running' | 'completed' | 'failed'
   capabilities: string[]
   model?: string
+  role: RoleAllocation
   systemPrompt: string
   memory: Array<{ role: string; content: string; timestamp: string }>
   tasks: AgentTask[]
@@ -44,6 +46,15 @@ interface AgentTask {
 
 // ─── Helpers: hydrate/dehydrate agent from DB row ────────────────────────────
 function rowToAgent(row: any): Agent {
+  // Parse role from stored JSON or fall back to default for this agent type
+  let role: RoleAllocation
+  try {
+    const parsed = JSON.parse(row.role || 'null')
+    role = parsed || getDefaultRole(row.type)
+  } catch {
+    role = getDefaultRole(row.type)
+  }
+
   return {
     id: row.id,
     name: row.name,
@@ -51,6 +62,7 @@ function rowToAgent(row: any): Agent {
     status: row.status || 'idle',
     capabilities: JSON.parse(row.capabilities || '[]'),
     model: row.model || undefined,
+    role,
     systemPrompt: row.system_prompt,
     memory: JSON.parse(row.memory || '[]'),
     tasks: JSON.parse(row.tasks || '[]'),
@@ -103,10 +115,10 @@ const defaultAgentTypes: Record<string, { name: string; systemPrompt: string; ca
   },
 }
 
-// Create agent (persisted to SQLite)
+// Create agent (persisted to SQLite) — accepts optional role allocation
 agentRouter.post('/create', async (req, res) => {
   try {
-    const { type, name, model, systemPrompt } = req.body
+    const { type, name, model, systemPrompt, role: roleOverride } = req.body
     const userId = getAgentUserId(req)
 
     if (!type && !systemPrompt) {
@@ -120,7 +132,11 @@ agentRouter.post('/create', async (req, res) => {
     const capabilities = agentType?.capabilities || ['general']
     const prompt = systemPrompt || agentType?.systemPrompt || 'You are a helpful AI assistant.'
 
-    const row = database.createAgent(id, userId, agentName, agentTypeStr, capabilities, model, prompt)
+    // Merge user-provided role overrides with the default role for this agent type
+    const defaultRole = getDefaultRole(agentTypeStr)
+    const role = roleOverride ? { ...defaultRole, ...roleOverride } : defaultRole
+
+    const row = database.createAgent(id, userId, agentName, agentTypeStr, capabilities, model, prompt, role)
     const agent = rowToAgent(row)
 
     res.status(201).json({ agent })
@@ -141,6 +157,7 @@ agentRouter.get('/', async (req, res) => {
       type: a.type,
       status: a.status,
       capabilities: a.capabilities,
+      role: a.role,
       metrics: a.metrics,
       createdAt: a.createdAt,
       lastActiveAt: a.lastActiveAt,
@@ -201,9 +218,10 @@ agentRouter.post('/:id/execute', async (req, res) => {
     agent.metrics.tasksTotal++
     agent.lastActiveAt = new Date().toISOString()
 
-    // Build messages with agent's system prompt and memory
+    // Build role-aware system prompt, then messages with memory
+    const roleAwarePrompt = buildRolePrompt(agent.systemPrompt, req.body.role || agent.role)
     const messages = [
-      { role: 'system' as const, content: agent.systemPrompt },
+      { role: 'system' as const, content: roleAwarePrompt },
       ...agent.memory.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
       { role: 'user' as const, content: context ? `Context:\n${context}\n\nTask: ${task}` : task },
     ]
@@ -255,7 +273,7 @@ agentRouter.post('/:id/execute', async (req, res) => {
     }
 
     // Persist to database
-    database.updateAgent(agent.id, userId, agent.status, agent.memory, agent.tasks, agent.metrics)
+    database.updateAgent(agent.id, userId, agent.status, agent.memory, agent.tasks, agent.metrics, agent.role)
 
     res.json({
       task: agentTask,
@@ -280,7 +298,7 @@ agentRouter.post('/:id/execute', async (req, res) => {
           lastTask.status = 'failed'
           lastTask.completedAt = new Date().toISOString()
         }
-        database.updateAgent(agent.id, userId, agent.status, agent.memory, agent.tasks, agent.metrics)
+        database.updateAgent(agent.id, userId, agent.status, agent.memory, agent.tasks, agent.metrics, agent.role)
       }
     } catch { /* best-effort cleanup */ }
 
@@ -304,13 +322,14 @@ agentRouter.delete('/:id', async (req, res) => {
   }
 })
 
-// Get available agent types
+// Get available agent types (with default role allocations)
 agentRouter.get('/types/list', async (req, res) => {
   res.json({
     types: Object.entries(defaultAgentTypes).map(([key, value]) => ({
       type: key,
       name: value.name,
       capabilities: value.capabilities,
+      defaultRole: getDefaultRole(key),
     })),
   })
 })

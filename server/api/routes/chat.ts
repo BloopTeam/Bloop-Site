@@ -1,9 +1,11 @@
 /**
  * Chat API route handler
  * Supports both standard and streaming responses
+ * Role allocation is applied when a `role` object is included in the request
  */
 import { Router } from 'express'
 import { ModelRouter } from '../../services/ai/router.js'
+import { buildRolePrompt } from '../../services/roles.js'
 import type { AIRequest } from '../../types/index.js'
 
 export const chatRouter = Router()
@@ -13,10 +15,27 @@ const router = new ModelRouter()
 chatRouter.post('/', async (req, res) => {
   try {
     const request: AIRequest = req.body
+    const { role } = req.body  // Optional role allocation
     
     // Validate request
     if (!request.messages || !Array.isArray(request.messages) || request.messages.length === 0) {
       return res.status(400).json({ error: 'Messages array is required and cannot be empty' })
+    }
+
+    // If a role is provided, inject it into the system message
+    if (role && request.messages.length > 0) {
+      const sysIdx = request.messages.findIndex(m => m.role === 'system')
+      if (sysIdx >= 0) {
+        request.messages[sysIdx] = {
+          ...request.messages[sysIdx],
+          content: buildRolePrompt(request.messages[sysIdx].content, role),
+        }
+      } else {
+        request.messages.unshift({
+          role: 'system',
+          content: buildRolePrompt('You are a helpful AI assistant.', role),
+        })
+      }
     }
     
     const providers = router.getAvailableProviders()
@@ -76,9 +95,26 @@ chatRouter.post('/', async (req, res) => {
 chatRouter.post('/stream', async (req, res) => {
   try {
     const request: AIRequest = req.body
+    const { role } = req.body  // Optional role allocation
     
     if (!request.messages || !Array.isArray(request.messages) || request.messages.length === 0) {
       return res.status(400).json({ error: 'Messages array is required and cannot be empty' })
+    }
+
+    // If a role is provided, inject it into the system message
+    if (role && request.messages.length > 0) {
+      const sysIdx = request.messages.findIndex(m => m.role === 'system')
+      if (sysIdx >= 0) {
+        request.messages[sysIdx] = {
+          ...request.messages[sysIdx],
+          content: buildRolePrompt(request.messages[sysIdx].content, role),
+        }
+      } else {
+        request.messages.unshift({
+          role: 'system',
+          content: buildRolePrompt('You are a helpful AI assistant.', role),
+        })
+      }
     }
     
     const providers = router.getAvailableProviders()

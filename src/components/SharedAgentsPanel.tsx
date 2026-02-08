@@ -472,6 +472,31 @@ export default function SharedAgentsPanel({ onClose }: SharedAgentsPanelProps) {
               </div>
             </div>
 
+            {/* Role Allocation */}
+            {selectedAgent.agent.role && (
+              <div style={{
+                marginBottom: '24px', padding: '16px', background: '#0f0f0f',
+                borderRadius: '8px', border: '1px solid #FF00FF22'
+              }}>
+                <h4 style={{ fontSize: '12px', fontWeight: 600, marginBottom: '8px', color: '#FF00FF' }}>
+                  Role: {selectedAgent.agent.role.title}
+                </h4>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px' }}>
+                  {selectedAgent.agent.role.focusAreas?.map((area: string, i: number) => (
+                    <span key={i} style={{
+                      padding: '3px 8px', background: '#FF00FF10', borderRadius: '4px',
+                      fontSize: '10px', color: '#FF00FF', border: '1px solid #FF00FF25'
+                    }}>{area}</span>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: '12px', fontSize: '10px', color: '#888' }}>
+                  <span>Mode: {selectedAgent.agent.role.behaviorMode}</span>
+                  <span>Output: {selectedAgent.agent.role.outputFormat}</span>
+                  <span>Style: {selectedAgent.agent.role.responseStyle}</span>
+                </div>
+              </div>
+            )}
+
             {/* Capabilities */}
             {selectedAgent.agent.capabilities.length > 0 && (
               <div style={{ marginBottom: '24px' }}>

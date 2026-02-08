@@ -7,6 +7,7 @@ import { Router } from 'express'
 import { getOpenClawService } from '../../services/openclaw/index.js'
 import { ModelRouter } from '../../services/ai/router.js'
 import { anchorExecutionProof, getProofPublicKey, getProofBalance, ExecutionData } from '../../services/solana/proofOfExecution.js'
+import { buildRolePrompt } from '../../services/roles.js'
 import * as fs from 'fs'
 import * as path from 'path'
 
@@ -372,34 +373,6 @@ openclawRouter.post('/exec/approve', async (req, res) => {
 
 // ─── Bot Team Endpoints ──────────────────────────────────────────────────────
 // 24/7 autonomous bot execution via OpenClaw orchestration
-
-// Build a role-aware system prompt from base skill prompt + role allocation
-function buildRolePrompt(basePrompt: string, role?: any): string {
-  if (!role) return basePrompt
-  const parts: string[] = [basePrompt, '']
-  if (role.title) parts.push(`Your assigned role: ${role.title}.`)
-  if (role.focusAreas?.length) parts.push(`Focus areas: ${role.focusAreas.join(', ')}.`)
-  if (role.behaviorMode) {
-    const desc = role.behaviorMode === 'strict' ? 'flag everything, no tolerance for potential issues' : role.behaviorMode === 'lenient' ? 'only flag clear, confirmed issues' : 'use reasonable judgment, flag likely issues'
-    parts.push(`Behavior mode: ${role.behaviorMode} — ${desc}.`)
-  }
-  if (role.outputFormat) {
-    const fmt: Record<string, string> = {
-      'report': 'Provide a structured report with sections and severity ratings.',
-      'inline-comments': 'Format your output as inline code comments at the relevant locations.',
-      'diff-patches': 'Output concrete code diffs/patches that can be applied directly.',
-      'checklist': 'Format findings as a prioritized checklist with checkboxes.',
-    }
-    parts.push(`Output format: ${fmt[role.outputFormat] || role.outputFormat}`)
-  }
-  if (role.severityThreshold && role.severityThreshold !== 'all') parts.push(`Severity filter: only report ${role.severityThreshold === 'critical-only' ? 'critical issues' : 'warnings and above'}.`)
-  if (role.expertise?.length) parts.push(`Your expertise domains: ${role.expertise.join(', ')}.`)
-  if (role.responseStyle) parts.push(`Response style: ${role.responseStyle}.`)
-  if (role.languages?.length) parts.push(`Target languages: ${role.languages.join(', ')}.`)
-  if (role.frameworks?.length) parts.push(`Known frameworks: ${role.frameworks.join(', ')}.`)
-  if (role.customDirective) parts.push(`Custom directive: ${role.customDirective}`)
-  return parts.join('\n')
-}
 
 // Skill-to-prompt mapping for each bot specialization
 const skillPrompts: Record<string, string> = {

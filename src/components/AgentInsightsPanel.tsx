@@ -293,6 +293,47 @@ export default function AgentInsightsPanel({ onClose }: AgentInsightsPanelProps)
                       ))}
                     </div>
 
+                    {/* Role Allocation */}
+                    {selectedAgentData.role && (
+                      <div style={{
+                        marginBottom: '16px', padding: '12px', background: '#0a0a0a',
+                        borderRadius: '8px', border: `1px solid ${agent.color}22`
+                      }}>
+                        <div style={{ fontSize: '11px', color: agent.color, marginBottom: '8px', fontWeight: 600, letterSpacing: '0.5px' }}>
+                          ROLE: {selectedAgentData.role.title}
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px' }}>
+                          {selectedAgentData.role.focusAreas.map((area: string, i: number) => (
+                            <span key={i} style={{
+                              padding: '3px 8px', background: `${agent.color}12`, borderRadius: '4px',
+                              fontSize: '10px', color: agent.color, border: `1px solid ${agent.color}25`
+                            }}>{area}</span>
+                          ))}
+                        </div>
+                        <div style={{ display: 'flex', gap: '12px', fontSize: '10px', color: '#666', marginBottom: '8px' }}>
+                          <span>Mode: <span style={{ color: '#888' }}>{selectedAgentData.role.behaviorMode}</span></span>
+                          <span>Output: <span style={{ color: '#888' }}>{selectedAgentData.role.outputFormat}</span></span>
+                          <span>Style: <span style={{ color: '#888' }}>{selectedAgentData.role.responseStyle}</span></span>
+                        </div>
+                        {(selectedAgentData.role.languages?.length > 0 || selectedAgentData.role.frameworks?.length > 0) && (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                            {selectedAgentData.role.languages?.map((lang: string, i: number) => (
+                              <span key={`l-${i}`} style={{
+                                padding: '2px 6px', background: '#141414', borderRadius: '3px',
+                                fontSize: '9px', color: '#888'
+                              }}>{lang}</span>
+                            ))}
+                            {selectedAgentData.role.frameworks?.map((fw: string, i: number) => (
+                              <span key={`f-${i}`} style={{
+                                padding: '2px 6px', background: '#141414', borderRadius: '3px',
+                                fontSize: '9px', color: '#6a9955'
+                              }}>{fw}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Permissions */}
                     <div style={{ marginBottom: '16px' }}>
                       <div style={{ fontSize: '11px', color: '#888', marginBottom: '8px' }}>

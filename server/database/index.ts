@@ -119,6 +119,7 @@ db.exec(`
     status TEXT DEFAULT 'idle',
     capabilities TEXT DEFAULT '[]',
     model TEXT,
+    role TEXT DEFAULT '{}',
     system_prompt TEXT NOT NULL,
     memory TEXT DEFAULT '[]',
     tasks TEXT DEFAULT '[]',
@@ -157,6 +158,13 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(user_id);
   CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at);
 `)
+
+// ─── Safe migrations (add new columns to existing tables) ────────────────────
+try {
+  db.exec(`ALTER TABLE agents ADD COLUMN role TEXT DEFAULT '{}'`)
+} catch {
+  // Column already exists — ignore
+}
 
 // ─── Encryption helpers for API keys ─────────────────────────────────────────
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex')
@@ -274,14 +282,14 @@ const stmts = {
 
   // Agents (persistent)
   createAgent: db.prepare(`
-    INSERT INTO agents (id, user_id, name, type, capabilities, model, system_prompt, memory, tasks, metrics)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO agents (id, user_id, name, type, capabilities, model, role, system_prompt, memory, tasks, metrics)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `),
   getAgentById: db.prepare(`SELECT * FROM agents WHERE id = ?`),
   getAgentByIdAndUser: db.prepare(`SELECT * FROM agents WHERE id = ? AND user_id = ?`),
   getUserAgents: db.prepare(`SELECT * FROM agents WHERE user_id = ? ORDER BY last_active_at DESC`),
   updateAgent: db.prepare(`
-    UPDATE agents SET status = ?, memory = ?, tasks = ?, metrics = ?, last_active_at = datetime('now')
+    UPDATE agents SET status = ?, memory = ?, tasks = ?, metrics = ?, role = ?, last_active_at = datetime('now')
     WHERE id = ? AND user_id = ?
   `),
   deleteAgent: db.prepare(`DELETE FROM agents WHERE id = ? AND user_id = ?`),
@@ -396,8 +404,8 @@ export const database = {
   },
 
   // Agents (persistent)
-  createAgent(id: string, userId: string, name: string, type: string, capabilities: string[], model: string | undefined, systemPrompt: string) {
-    stmts.createAgent.run(id, userId, name, type, JSON.stringify(capabilities), model || null, systemPrompt, '[]', '[]', JSON.stringify({
+  createAgent(id: string, userId: string, name: string, type: string, capabilities: string[], model: string | undefined, systemPrompt: string, role?: any) {
+    stmts.createAgent.run(id, userId, name, type, JSON.stringify(capabilities), model || null, JSON.stringify(role || {}), systemPrompt, '[]', '[]', JSON.stringify({
       tasksCompleted: 0, tasksTotal: 0, avgResponseTime: 0, successRate: 100,
     }))
     return stmts.getAgentById.get(id) as any
@@ -411,8 +419,8 @@ export const database = {
   getUserAgents(userId: string) {
     return stmts.getUserAgents.all(userId) as any[]
   },
-  updateAgent(id: string, userId: string, status: string, memory: any[], tasks: any[], metrics: any) {
-    stmts.updateAgent.run(status, JSON.stringify(memory), JSON.stringify(tasks), JSON.stringify(metrics), id, userId)
+  updateAgent(id: string, userId: string, status: string, memory: any[], tasks: any[], metrics: any, role?: any) {
+    stmts.updateAgent.run(status, JSON.stringify(memory), JSON.stringify(tasks), JSON.stringify(metrics), JSON.stringify(role || {}), id, userId)
   },
   deleteAgent(id: string, userId: string) {
     return stmts.deleteAgent.run(id, userId)
